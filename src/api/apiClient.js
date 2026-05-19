@@ -1,0 +1,70 @@
+const AUTH_STORAGE_KEY = 'eda_auth'
+
+export class ApiHttpError extends Error {
+  constructor(status, message, payload) {
+    super(message)
+    this.name = 'ApiHttpError'
+    this.status = status
+    this.payload = payload
+  }
+}
+
+export function getStoredToken() {
+  try {
+    const raw = localStorage.getItem(AUTH_STORAGE_KEY)
+    if (!raw) return ''
+    const parsed = JSON.parse(raw)
+    return parsed?.token || ''
+  } catch {
+    return ''
+  }
+}
+
+const API_BASE = import.meta.env.VITE_API_BASE ?? ''
+
+export async function apiRequest(path, options = {}) {
+  const { method = 'GET', body, token, auth = false, headers = {} } = options
+  const finalHeaders = { ...headers }
+  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData
+  if (!isFormData && body !== undefined) {
+    finalHeaders['Content-Type'] = 'application/json'
+  }
+  const bearer = token || (auth ? getStoredToken() : '')
+  if (bearer) {
+    finalHeaders.Authorization = `Bearer ${bearer}`
+  }
+
+  const response = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers: finalHeaders,
+    body:
+      body === undefined
+        ? undefined
+        : isFormData
+          ? body
+          : JSON.stringify(body),
+  })
+
+  const text = await response.text()
+  let data = null
+  if (text) {
+    try {
+      data = JSON.parse(text)
+    } catch {
+      data = { detail: text }
+    }
+  }
+
+  if (!response.ok) {
+    const detail = data?.detail
+    const message =
+      typeof detail === 'string'
+        ? detail
+        : Array.isArray(detail)
+          ? detail.map((e) => e.msg ?? JSON.stringify(e)).join('; ')
+          : `Error del servidor (${response.status})`
+    throw new ApiHttpError(response.status, message, data)
+  }
+
+  return data
+}
