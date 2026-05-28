@@ -20,7 +20,7 @@ export function getStoredToken() {
   }
 }
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? ''
+const API_BASE = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_BASE ?? '')
 
 export async function apiRequest(path, options = {}) {
   const { method = 'GET', body, token, auth = false, headers = {} } = options
