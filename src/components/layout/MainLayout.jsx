@@ -45,6 +45,28 @@ export function MainLayout() {
             </span>
             <span className="sidebar-link-label">Historial</span>
           </NavLink>
+          <NavLink
+            to="/dashboard-conversacional"
+            className={({ isActive }) =>
+              `sidebar-link${isActive ? ' sidebar-link--active' : ''}`
+            }
+          >
+            <span className="sidebar-link-icon">
+              <IconDashboard />
+            </span>
+            <span className="sidebar-link-label">Dashboard conversacional</span>
+          </NavLink>
+          <NavLink
+            to="/metabase"
+            className={({ isActive }) =>
+              `sidebar-link${isActive ? ' sidebar-link--active' : ''}`
+            }
+          >
+            <span className="sidebar-link-icon">
+              <IconDashboard />
+            </span>
+            <span className="sidebar-link-label">Metabase BI</span>
+          </NavLink>
         </nav>
 
         <footer className="sidebar-footer">
