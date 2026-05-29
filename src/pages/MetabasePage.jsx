@@ -141,7 +141,7 @@ export function MetabasePage() {
             </Button>
             {metabaseTarget ? (
               <a className="decision-link" href={metabaseTarget} target="_blank" rel="noreferrer">
-                Abrir Metabase
+                {status?.dashboard_url ? 'Abrir dashboard' : 'Abrir Metabase'}
               </a>
             ) : null}
           </div>
