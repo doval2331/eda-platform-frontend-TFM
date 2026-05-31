@@ -4,6 +4,129 @@
   gap: 20px;
 }
 
+.onboarding-banner {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 24px;
+  border-radius: var(--radius-cards);
+  background: linear-gradient(135deg, #f0edff 0%, #eef4ff 100%);
+  border: 1px solid #dcd6ff;
+  box-shadow: var(--shadow-card);
+}
+
+.onboarding-banner h2 {
+  margin: 0 0 10px;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--color-midnight-navy);
+}
+
+.onboarding-steps {
+  margin: 0 0 10px;
+  padding-left: 1.25rem;
+  color: var(--color-slate-ink);
+  line-height: 1.55;
+}
+
+.onboarding-steps li + li {
+  margin-top: 4px;
+}
+
+.onboarding-banner .note {
+  margin: 0;
+}
+
+.onboarding-dismiss {
+  flex-shrink: 0;
+  min-height: 40px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--color-brand-500);
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.onboarding-dismiss:hover {
+  opacity: 0.92;
+}
+
+.advanced-options {
+  margin-top: 8px;
+}
+
+.advanced-options-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-brand-500);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.advanced-options-toggle:hover {
+  text-decoration: underline;
+}
+
+.advanced-options-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle, #e2e8f0);
+}
+
+.results-intro {
+  margin: -8px 0 0;
+}
+
+.dashboard-kpis-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dashboard-kpis--technical {
+  padding-top: 4px;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.kpi-advanced-toggle {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.kpi-advanced-toggle-btn {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-brand-500);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.kpi-advanced-toggle-btn:hover {
+  text-decoration: underline;
+}
+
+.btn-analyze {
+  margin-top: 8px;
+}
+
 .app-main {
   display: grid;
   grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);

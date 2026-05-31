@@ -39,7 +39,7 @@ export function FloatingChatWidget({ run }) {
   return (
     <div className={`chat-widget${open ? ' chat-widget--open' : ''}`}>
       {open ? (
-        <div className="chat-widget-panel" role="dialog" aria-label="Asistente EDA">
+        <div className="chat-widget-panel" role="dialog" aria-label="Asistente de incidencias">
           <ExplorationChatBot run={run} onClose={() => setOpen(false)} variant="float" />
         </div>
       ) : null}
@@ -49,8 +49,8 @@ export function FloatingChatWidget({ run }) {
         className="chat-widget-fab"
         onClick={toggleOpen}
         aria-expanded={open}
-        aria-label={open ? 'Cerrar asistente' : 'Abrir asistente EDA'}
-        title={open ? 'Cerrar chat' : 'Exploración conversacional'}
+        aria-label={open ? 'Cerrar asistente' : 'Abrir asistente de incidencias'}
+        title={open ? 'Cerrar chat' : 'Preguntar sobre los grupos detectados'}
       >
         {open ? <CloseIcon /> : <ChatIcon />}
         {!open && isReady ? (

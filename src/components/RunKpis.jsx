@@ -1,5 +1,11 @@
+import { useState } from 'react'
 import { StatChip } from '../ui'
 import { countClusters, outliersPercent } from '../utils/runMetrics'
+import {
+  METRIC_HINTS,
+  qualityFromSilhouette,
+  stabilityLabel,
+} from '../utils/businessLabels'
 
 function KpiIcon({ children }) {
   return (
@@ -24,6 +30,16 @@ const KPI_ICONS = {
     <KpiIcon>
       <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="2" />
       <path d="M8 12h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </KpiIcon>
+  ),
+  calinski: (
+    <KpiIcon>
+      <path
+        d="M4 20V10M12 20V4M20 20V14"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
     </KpiIcon>
   ),
   clusters: (
@@ -55,44 +71,154 @@ const KPI_ICONS = {
       <path d="M8 12h8M12 8v8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </KpiIcon>
   ),
+  ari: (
+    <KpiIcon>
+      <path
+        d="M7 7h10v10H7z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <path d="M9 12l2 2 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </KpiIcon>
+  ),
+  stability: (
+    <KpiIcon>
+      <path
+        d="M12 3v18M3 12h18"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2" />
+    </KpiIcon>
+  ),
 }
 
-export function RunKpis({ result, runMeta, className = '' }) {
-  const silhouette = result?.metrics?.silhouette ?? runMeta?.metrics?.silhouette ?? null
-  const daviesBouldin = result?.metrics?.davies_bouldin ?? runMeta?.metrics?.davies_bouldin ?? null
+function metricValue(result, runMeta, key, digits = 2) {
+  const raw = result?.metrics?.[key] ?? runMeta?.metrics?.[key] ?? null
+  if (raw == null) return '—'
+  return Number(raw).toFixed(digits)
+}
+
+function hasTechnicalMetrics(result, runMeta) {
+  const keys = ['davies_bouldin', 'calinski_harabasz', 'ari', 'nmi', 'cluster_stability']
+  return keys.some((key) => {
+    const v = result?.metrics?.[key] ?? runMeta?.metrics?.[key]
+    return v != null
+  })
+}
+
+export function RunKpis({ result, runMeta, className = '', advancedMode = false }) {
+  const [showTechnical, setShowTechnical] = useState(false)
   const outliersCount = result?.outliers_count ?? runMeta?.outliers_count ?? 0
   const nSamples = runMeta?.n_samples ?? result?.cluster_labels?.length ?? null
   const nClusters =
     result?.metrics?.n_clusters ??
     runMeta?.metrics?.n_clusters ??
     countClusters(result?.cluster_labels)
-  const outPct = outliersPercent(outliersCount, nSamples)
+  const noisePct =
+    result?.metrics?.noise_pct ??
+    runMeta?.metrics?.noise_pct ??
+    outliersPercent(outliersCount, nSamples)
+  const silhouetteRaw = result?.metrics?.silhouette ?? runMeta?.metrics?.silhouette ?? null
+  const quality = qualityFromSilhouette(silhouetteRaw)
+  const stabilityRaw = result?.metrics?.cluster_stability ?? runMeta?.metrics?.cluster_stability
+  const hasResults = Boolean(result || runMeta)
+
+  if (!hasResults) return null
+
+  const technicalVisible = advancedMode || showTechnical
 
   return (
-    <div className={`dashboard-kpis ${className}`.trim()}>
-      <StatChip
-        label="Silhouette"
-        value={silhouette != null ? Number(silhouette).toFixed(2) : '—'}
-        icon={KPI_ICONS.silhouette}
-      />
-      <StatChip
-        label="Davies-Bouldin"
-        value={daviesBouldin != null ? Number(daviesBouldin).toFixed(2) : '—'}
-        icon={KPI_ICONS.davies}
-      />
-      <StatChip
-        label="Clusters"
-        value={nClusters != null ? String(nClusters) : '—'}
-        icon={KPI_ICONS.clusters}
-      />
-      <StatChip label="Outliers" value={String(outliersCount)} icon={KPI_ICONS.outliers} />
-      <StatChip
-        label="% outliers"
-        value={outPct != null ? `${outPct.toFixed(1)}%` : '—'}
-        icon={KPI_ICONS.outliers}
-      />
-      {nSamples != null ? (
-        <StatChip label="Puntos" value={String(nSamples)} icon={KPI_ICONS.points} />
+    <div className={`dashboard-kpis-wrap ${className}`.trim()}>
+      <div className="dashboard-kpis">
+        <StatChip
+          label="Grupos encontrados"
+          value={nClusters != null ? String(nClusters) : '—'}
+          icon={KPI_ICONS.clusters}
+          hint="Número de patrones de incidencias detectados automáticamente."
+        />
+        {nSamples != null ? (
+          <StatChip
+            label="Incidencias analizadas"
+            value={String(nSamples)}
+            icon={KPI_ICONS.points}
+            hint="Cantidad de registros incluidos en este análisis."
+          />
+        ) : null}
+        <StatChip
+          label="Casos atípicos"
+          value={String(outliersCount)}
+          icon={KPI_ICONS.outliers}
+          hint="Incidencias que no encajan claramente en ningún grupo."
+        />
+        <StatChip
+          label="Sin patrón claro"
+          value={noisePct != null ? `${Number(noisePct).toFixed(1)}%` : '—'}
+          icon={KPI_ICONS.outliers}
+          hint={METRIC_HINTS.noise_pct}
+        />
+        <StatChip
+          label="Calidad del agrupamiento"
+          value={quality?.label ?? '—'}
+          icon={KPI_ICONS.silhouette}
+          hint={METRIC_HINTS.silhouette}
+        />
+        <StatChip
+          label="¿El patrón se repite?"
+          value={stabilityLabel(stabilityRaw)}
+          icon={KPI_ICONS.stability}
+          hint={METRIC_HINTS.cluster_stability}
+        />
+      </div>
+
+      {!advancedMode && hasTechnicalMetrics(result, runMeta) ? (
+        <div className="kpi-advanced-toggle">
+          <button
+            type="button"
+            className="kpi-advanced-toggle-btn"
+            onClick={() => setShowTechnical((v) => !v)}
+            aria-expanded={technicalVisible}
+          >
+            {technicalVisible ? 'Ocultar métricas técnicas' : 'Ver métricas técnicas'}
+          </button>
+        </div>
+      ) : null}
+
+      {technicalVisible ? (
+        <div className="dashboard-kpis dashboard-kpis--technical">
+          <StatChip
+            label="Silhouette"
+            value={metricValue(result, runMeta, 'silhouette')}
+            icon={KPI_ICONS.silhouette}
+            hint={METRIC_HINTS.silhouette}
+          />
+          <StatChip
+            label="Davies-Bouldin"
+            value={metricValue(result, runMeta, 'davies_bouldin')}
+            icon={KPI_ICONS.davies}
+            hint={METRIC_HINTS.davies_bouldin}
+          />
+          <StatChip
+            label="Calinski-Harabasz"
+            value={metricValue(result, runMeta, 'calinski_harabasz', 0)}
+            icon={KPI_ICONS.calinski}
+            hint={METRIC_HINTS.calinski_harabasz}
+          />
+          <StatChip
+            label="ARI"
+            value={metricValue(result, runMeta, 'ari')}
+            icon={KPI_ICONS.ari}
+            hint={METRIC_HINTS.ari}
+          />
+          <StatChip
+            label="NMI"
+            value={metricValue(result, runMeta, 'nmi')}
+            icon={KPI_ICONS.ari}
+            hint={METRIC_HINTS.nmi}
+          />
+        </div>
       ) : null}
     </div>
   )

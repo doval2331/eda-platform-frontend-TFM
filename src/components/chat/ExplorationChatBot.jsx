@@ -3,10 +3,11 @@ import { askRunQuestion, selectRunInsight } from '../../api/conversation'
 import { ChatBot } from './ChatBot'
 
 const DEFAULT_SUGGESTIONS = [
-  '¿Qué puedo analizar con esta data?',
-  '¿Qué grupos incumplen SLA?',
-  '¿Qué servicios concentran más volumen?',
-  '¿Qué clusters tienen mayor riesgo?',
+  '¿Qué grupos incumplen más el SLA?',
+  '¿Qué servicios concentran más incidencias?',
+  '¿Cuáles son los casos más críticos?',
+  '¿Qué grupos tardan más en resolverse?',
+  '¿Cuántos casos atípicos hay?',
 ]
 
 export function ExplorationChatBot({ run, onClose, variant = 'embedded' }) {
@@ -25,7 +26,7 @@ export function ExplorationChatBot({ run, onClose, variant = 'embedded' }) {
       setMessages([
         {
           role: 'assistant',
-          text: 'Hola, soy tu asistente de exploración. Puedo ayudarte con SLA, servicios, tiempos de resolución, severidad y clusters de esta ejecución.',
+          text: 'Hola. Puedo ayudarte a entender los grupos de incidencias: SLA, tiempos de resolución, servicios afectados y casos atípicos. Pregúntame en lenguaje natural.',
         },
       ])
       setSuggestions(DEFAULT_SUGGESTIONS)
@@ -74,7 +75,7 @@ export function ExplorationChatBot({ run, onClose, variant = 'embedded' }) {
         ...current,
         {
           role: 'assistant',
-          text: `Insight seleccionado: ${insight.title}. Quedó guardado en DuckDB para filtrar o documentar el dashboard.`,
+          text: `Anotado: «${insight.title}». Quedó guardado para tu informe o dashboard.`,
         },
       ])
     } catch (err) {
@@ -84,8 +85,8 @@ export function ExplorationChatBot({ run, onClose, variant = 'embedded' }) {
 
   return (
     <ChatBot
-      title="Asistente EDA"
-      subtitle={run?.id ? `Run ${shortRunId}` : null}
+      title="Asistente de incidencias"
+      subtitle={run?.id ? `Análisis ${shortRunId}` : null}
       active={Boolean(run?.id)}
       headerAction={<ChatBot.DashboardLink />}
       onClose={onClose}
@@ -101,9 +102,9 @@ export function ExplorationChatBot({ run, onClose, variant = 'embedded' }) {
       onSuggestionClick={sendQuestion}
       onInsightSelect={onInsightSelected}
       runId={run?.id}
-      placeholder="Pregunta sobre SLA, severidad, servicios, tiempos o clusters…"
-      emptyTitle="Sin ejecución activa"
-      emptyDescription="Configura y ejecuta el pipeline. Cuando se guarde la corrida, podrás conversar aquí sobre los resultados."
+      placeholder="Ej.: ¿Qué grupo tiene peor SLA?"
+      emptyTitle="Sin análisis activo"
+      emptyDescription="Ejecuta «Analizar incidencias» primero. Cuando termine, podrás hacer preguntas sobre los grupos detectados."
     />
   )
 }

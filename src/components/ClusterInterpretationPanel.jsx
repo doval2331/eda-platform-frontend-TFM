@@ -125,8 +125,8 @@ function buildSummaries(result) {
     summary.recommendation = recommendation(summary)
     summary.explanation =
       clusterLabel === -1
-        ? `Contiene ${items.length} casos atipicos. Son puntos que HDBSCAN no pudo asignar a un grupo estable.`
-        : `Contiene ${items.length} evidencias similares. Predomina ${service || sector || 'un patron comun'} con SLA ${formatPct(avgSla)}, resolucion ${formatHours(avgResolution)} y riesgo ${formatNumber(avgRisk)}.`
+        ? `Contiene ${items.length} casos atípicos: incidencias que no encajan claramente en ningún patrón común.`
+        : `Contiene ${items.length} incidencias similares. Predomina ${service || sector || 'un patrón común'} con SLA ${formatPct(avgSla)}, resolución ${formatHours(avgResolution)} y riesgo ${formatNumber(avgRisk)}.`
     return summary
   })
 }
