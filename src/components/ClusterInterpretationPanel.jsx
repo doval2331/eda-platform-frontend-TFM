@@ -13,6 +13,14 @@ function average(values) {
   return numbers.reduce((acc, value) => acc + value, 0) / numbers.length
 }
 
+function averageByFields(items, fields) {
+  for (const field of fields) {
+    const value = average(items.map((item) => item?.[field]))
+    if (value != null) return value
+  }
+  return null
+}
+
 function formatPct(value) {
   if (value == null) return 'sin dato'
   return `${(value * 100).toFixed(1)}%`
@@ -40,6 +48,14 @@ function topValue(items, field) {
   return [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0]
 }
 
+function topValueByFields(items, fields) {
+  for (const field of fields) {
+    const value = topValue(items, field)
+    if (value) return value
+  }
+  return null
+}
+
 function priorityLabel(score) {
   if (score >= 85) return 'Alta'
   if (score >= 45) return 'Media'
@@ -54,7 +70,7 @@ function priorityClass(score) {
 
 function clusterName(summary) {
   if (summary.clusterLabel === -1) return 'Casos atipicos'
-  const anchor = summary.service || summary.sector || `cluster ${summary.clusterLabel}`
+  const anchor = summary.service || summary.category || `cluster ${summary.clusterLabel}`
   if ((summary.avgSla ?? 0) >= 0.14) return `SLA alto en ${anchor}`
   if ((summary.avgResolution ?? 0) >= 22) return `Resolucion lenta en ${anchor}`
   if ((summary.avgRisk ?? 0) >= 50) return `Riesgo operativo en ${anchor}`
@@ -64,18 +80,18 @@ function clusterName(summary) {
 
 function recommendation(summary) {
   if (summary.clusterLabel === -1) {
-    return 'Revisar individualmente: estos casos no se parecen al comportamiento comun y pueden esconder excepciones o datos de mala calidad.'
+    return 'Accion recomendada: revisar individualmente estas incidencias porque no siguen el patron comun.'
   }
   if ((summary.avgSla ?? 0) >= 0.14) {
-    return 'Priorizar revision de SLA, capacidad del equipo y reglas de escalamiento.'
+    return 'Accion recomendada: revisar acuerdos de SLA, capacidad del equipo y reglas de escalamiento.'
   }
   if ((summary.avgResolution ?? 0) >= 22) {
-    return 'Revisar cuellos de botella, automatizacion y transferencia entre equipos.'
+    return 'Accion recomendada: buscar cuellos de botella, automatizacion posible y transferencias entre equipos.'
   }
   if ((summary.avgRisk ?? 0) >= 50) {
-    return 'Analizar riesgo operativo y dependencias criticas antes de planificar cambios.'
+    return 'Accion recomendada: analizar dependencias criticas antes de planificar cambios.'
   }
-  return 'Mantener seguimiento como grupo de referencia y comparar contra clusters mas criticos.'
+  return 'Accion recomendada: usarlo como grupo de referencia y compararlo contra clusters mas criticos.'
 }
 
 function buildSummaries(result) {
@@ -91,14 +107,23 @@ function buildSummaries(result) {
   }, new Map())
 
   return [...grouped.entries()].map(([clusterLabel, items]) => {
-    const avgSla = average(items.map((item) => item.sla_breach_rate))
-    const avgResolution = average(items.map((item) => item.avg_resolution_hours))
-    const avgRisk = average(items.map((item) => item.operational_risk_score))
+    const avgSla = averageByFields(items, ['sla_breach_rate', 'sla_incumplido', 'sla_breached'])
+    const avgResolution = averageByFields(items, [
+      'tiempo_resolucion_horas',
+      'avg_resolution_hours',
+    ])
+    const avgRisk = averageByFields(items, ['operational_risk_score', 'business_impact_score'])
     const avgTickets = average(items.map((item) => item.monthly_tickets))
     const criticalIncidents = average(items.map((item) => item.critical_incidents))
-    const service = topValue(items, 'affected_service') || topValue(items, 'service_line')
-    const sector = topValue(items, 'sector') || topValue(items, 'category')
-    const severity = topValue(items, 'severity')
+    const service = topValueByFields(items, [
+      'servicio_afectado',
+      'affected_service',
+      'service_line',
+    ])
+    const category = topValueByFields(items, ['categoria', 'category', 'sector'])
+    const priority = topValueByFields(items, ['prioridad', 'severity'])
+    const rootCause = topValueByFields(items, ['causa_raiz_simulada', 'root_cause'])
+    const channel = topValueByFields(items, ['canal_entrada', 'support_channel'])
     const score =
       (avgSla ?? 0) * 120 +
       (avgResolution ?? 0) * 1.8 +
@@ -115,8 +140,10 @@ function buildSummaries(result) {
       avgTickets,
       criticalIncidents,
       service,
-      sector,
-      severity,
+      category,
+      priority,
+      rootCause,
+      channel,
       score,
     }
 
@@ -125,8 +152,8 @@ function buildSummaries(result) {
     summary.recommendation = recommendation(summary)
     summary.explanation =
       clusterLabel === -1
-        ? `Contiene ${items.length} casos atipicos. Son puntos que HDBSCAN no pudo asignar a un grupo estable.`
-        : `Contiene ${items.length} evidencias similares. Predomina ${service || sector || 'un patron comun'} con SLA ${formatPct(avgSla)}, resolucion ${formatHours(avgResolution)} y riesgo ${formatNumber(avgRisk)}.`
+        ? `Este grupo contiene ${items.length} incidencias atipicas. No se parecen lo suficiente al patron principal y conviene revisarlas como excepciones.`
+        : `Este cluster agrupa ${items.length} incidencias similares. El patron dominante es ${service || category || 'un comportamiento comun'}${priority ? ` con prioridad ${priority}` : ''}${rootCause ? ` y causa raiz ${rootCause}` : ''}. Por que importa: combina SLA ${formatPct(avgSla)}, resolucion ${formatHours(avgResolution)} y riesgo ${formatNumber(avgRisk)}.`
     return summary
   })
 }
@@ -136,7 +163,7 @@ function insightFromSummary(runId, summary) {
     id: `cluster-${runId}-${summary.clusterLabel}`,
     title: summary.name,
     description: `${summary.explanation} Recomendacion: ${summary.recommendation}`,
-    metric_label: 'cluster_priority_score',
+    metric_label: 'cluster_critical_score',
     metric_value: Number(summary.score.toFixed(2)),
     dimension: 'cluster_label',
     filter_kind: 'cluster_label',
@@ -183,7 +210,7 @@ export function ClusterInterpretationPanel({ result, run }) {
     return (
       <section className="cluster-insights cluster-insights--empty">
         <h3>Lectura guiada de clusters</h3>
-        <p>Ejecuta el pipeline para ver una interpretacion automatica de los grupos.</p>
+        <p>Ejecuta el pipeline para ver una interpretacion automatica de las incidencias agrupadas.</p>
       </section>
     )
   }
@@ -194,8 +221,8 @@ export function ClusterInterpretationPanel({ result, run }) {
         <div>
           <h3>Lectura guiada de clusters</h3>
           <p>
-            Cada punto es una evidencia. Los puntos cercanos se parecen entre si. Los
-            colores son grupos detectados automaticamente y los grises son casos atipicos.
+            Cada punto es una incidencia. Los puntos cercanos se parecen entre si. Los
+            colores muestran grupos de incidencias similares y los grises son casos atipicos.
           </p>
         </div>
         {top ? (
@@ -262,7 +289,7 @@ export function ClusterInterpretationPanel({ result, run }) {
 
                   <div className="cluster-metrics-grid">
                     <div>
-                      <span>Evidencias</span>
+                      <span>Incidencias</span>
                       <strong>{summary.count}</strong>
                     </div>
                     <div>

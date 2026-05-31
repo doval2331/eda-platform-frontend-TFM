@@ -1,6 +1,6 @@
 # Plataforma EDA - Frontend React
 
-Interfaz React + Vite para el prototipo TFM. Incluye login, ejecucion del pipeline, proyeccion 2D, interpretacion de clusters, exploracion conversacional de evidencias IT, dashboard conversacional de insights seleccionados e integracion con Metabase BI.
+Interfaz React + Vite para el prototipo TFM. Incluye login, ejecucion del pipeline, proyeccion 2D, interpretacion de clusters, exploracion conversacional de incidencias IT, dashboard conversacional de insights seleccionados e integracion con Metabase BI.
 
 ## Requisitos
 
@@ -69,7 +69,7 @@ Credenciales demo:
 6. Ejecutar pipeline.
 7. Revisar `Proyeccion 2D y clusters`.
 8. Usar la pestana `Interpretacion` para entender clusters.
-9. Usar la exploracion conversacional para preguntar por SLA, severidad, tiempos, servicios o riesgos.
+9. Usar la exploracion conversacional para preguntar por SLA, prioridad, tiempos, servicios, causas raiz, anomalias o clusters criticos.
 10. Seleccionar insights.
 11. Entrar a `Dashboard conversacional` para ver la visualizacion interactiva de los insights guardados.
 12. Entrar a `Metabase BI` para publicar tablas `bi_*`, crear el dashboard base y abrir Metabase.
@@ -85,6 +85,15 @@ Credenciales demo:
 - `src/Scatter2D.jsx`: visualizacion Plotly de clusters.
 - `src/api/conversation.js`: llamadas al chat, seleccion de insights y dashboard.
 - `src/api/metabase.js`: estado y publicacion de tablas BI.
+
+## Agente conversacional
+
+El frontend usa el mismo endpoint `/api/runs/{run_id}/chat`. La diferencia esta en el backend:
+
+- Si `LLM_ENABLED=false`, responde con reglas locales.
+- Si `LLM_ENABLED=true`, el backend ejecuta herramientas analiticas internas y usa un LLM para explicar resumenes agregados y ordenar alternativas de decision.
+
+El LLM no recibe el dataset completo, no calcula clusters y no toma decisiones automaticas; solo mejora la explicacion para usuarios no expertos y ayuda a presentar opciones de priorizacion.
 
 ## Metabase BI
 

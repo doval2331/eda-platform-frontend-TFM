@@ -4,18 +4,33 @@ import { askRunQuestion, selectRunInsight } from '../api/conversation'
 import { Button, Feedback } from '../ui'
 
 const DEFAULT_SUGGESTIONS = [
-  'Que puedo analizar con esta data?',
-  'Que grupos incumplen SLA?',
-  'Que servicios concentran mas volumen?',
-  'Que clusters tienen mayor riesgo?',
+  'Que puedo analizar con estas incidencias?',
+  'Que servicios incumplen mas SLA?',
+  'Que prioridades tienen mas demoras?',
+  'Que causas raiz se repiten?',
+  'Que clusters son mas criticos?',
+  'Que incidencias parecen anomalas?',
+  'Que alternativas de decision conviene priorizar?',
+  'Que acciones recomendadas puedo evaluar?',
 ]
 
 function AssistantMessage({ message, runId, onInsightSelected }) {
   const insights = message.insights ?? []
+  const showMode = Boolean(message.llmMode || message.llmDetail)
+  const modeLabel = message.llmUsed ? 'Agente LLM activo' : 'Reglas locales'
 
   return (
     <div className="chat-message chat-message--assistant">
       <p>{message.text}</p>
+      {showMode ? (
+        <span
+          className={message.llmUsed ? 'chat-mode chat-mode--llm' : 'chat-mode chat-mode--rules'}
+          title={message.llmDetail || modeLabel}
+        >
+          {modeLabel}
+          {message.llmDetail ? ` - ${message.llmDetail}` : ''}
+        </span>
+      ) : null}
       {insights.length ? (
         <div className="insight-list">
           {insights.map((insight) => (
@@ -56,7 +71,7 @@ export function ConversationPanel({ run }) {
       setMessages([
         {
           role: 'assistant',
-          text: 'Ya puedo conversar sobre esta ejecucion. Proba con SLA, servicios, tiempos de resolucion, severidad o clusters.',
+          text: 'Ya puedo conversar sobre esta ejecucion. Proba con SLA, servicios afectados, prioridades, causas raiz, anomalias, clusters criticos o alternativas de decision.',
         },
       ])
       setSuggestions(DEFAULT_SUGGESTIONS)
@@ -84,6 +99,9 @@ export function ConversationPanel({ run }) {
           role: 'assistant',
           text: response.answer,
           insights: response.insights ?? [],
+          llmUsed: response.llm_used,
+          llmMode: response.llm_mode,
+          llmDetail: response.llm_detail,
         },
       ])
       if (response.suggested_questions?.length) {
@@ -125,7 +143,7 @@ export function ConversationPanel({ run }) {
           <h2>3. Exploracion conversacional</h2>
           <p className="note">
             {run?.id
-              ? `Consultando evidencias materializadas en DuckDB. Run ${shortRunId}.`
+              ? `Consultando incidencias materializadas en DuckDB. Run ${shortRunId}.`
               : 'Ejecuta el pipeline para habilitar preguntas sobre la corrida.'}
           </p>
         </div>
@@ -177,7 +195,7 @@ export function ConversationPanel({ run }) {
         <textarea
           value={question}
           onChange={(event) => setQuestion(event.target.value)}
-          placeholder="Pregunta sobre SLA, severidad, servicios, tiempos o clusters"
+          placeholder="Pregunta sobre SLA, prioridad, servicios, causas raiz, anomalias, clusters o alternativas de decision"
           rows={3}
           disabled={!run?.id || loading}
         />

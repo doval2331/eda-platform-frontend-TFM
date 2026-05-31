@@ -93,7 +93,7 @@ export function DashboardPage() {
   }, [datasetProfile])
 
   const canExecute =
-    apiOnline === true &&
+    apiOnline !== false &&
     !ejecutando &&
     (modalidad !== 'tabular' || datasetProfile?.dataset_id)
 
@@ -265,6 +265,18 @@ export function DashboardPage() {
             {ejecutando ? 'Ejecutando pipeline…' : 'Ejecutar pipeline'}
           </Button>
 
+          {ejecutando ? (
+            <Feedback
+              variant="info"
+              message="Ejecutando reduccion dimensional y clustering. Con UMAP/HDBSCAN puede tardar cerca de un minuto para 2000 incidencias."
+            />
+          ) : null}
+          {apiOnline === false ? (
+            <Feedback
+              variant="warning"
+              message="No pude confirmar el health check del backend. Si el CSV subio bien, podes reintentar; si falla, revisa que FastAPI este en 127.0.0.1:8000."
+            />
+          ) : null}
           {error ? <Feedback variant="danger" message={error} /> : null}
 
           {lastRun?.id ? (
@@ -306,6 +318,13 @@ export function DashboardPage() {
 
           <div hidden={resultView !== 'visualization'} className="results-tab-panel">
             <RunKpis result={resultado} runMeta={lastRun} />
+
+          {ejecutando ? (
+            <Feedback
+              variant="info"
+              message="Pipeline en curso. La visualizacion aparecera cuando termine la proyeccion 2D y el clustering."
+            />
+          ) : null}
 
           <Scatter2D
             X_2d={resultado?.X_2d}

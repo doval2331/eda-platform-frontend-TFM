@@ -516,6 +516,32 @@
   background: #ffffff;
 }
 
+.chat-mode {
+  align-self: flex-start;
+  display: inline-flex;
+  max-width: 100%;
+  width: fit-content;
+  padding: 4px 8px;
+  border: 1px solid #d6e3f0;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.78rem;
+  line-height: 1.25;
+}
+
+.chat-mode--llm {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.chat-mode--rules {
+  border-color: #fed7aa;
+  background: #fff7ed;
+  color: #9a3412;
+}
+
 .chat-message--user {
   align-self: flex-end;
 }
@@ -1088,6 +1114,23 @@
   width: auto;
 }
 
+.metabase-actions .metabase-dashboard-button {
+  background: #ffffff;
+  color: #0b57ff;
+  border-color: #b8d2ff;
+}
+
+.metabase-actions .metabase-dashboard-button:hover:enabled {
+  background: #eff6ff;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.16);
+}
+
+.metabase-actions .metabase-dashboard-button:disabled {
+  background: #f8fafc;
+  color: #94a3b8;
+  border-color: #dbe7f5;
+}
+
 .metabase-panel--guide {
   background: #fbfdff;
 }
@@ -1173,6 +1216,91 @@
 .metabase-card-list strong {
   color: #1557e8;
   font-size: 13px;
+}
+
+.metabase-bi-guide {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.metabase-bi-guide h2,
+.metabase-bi-guide p {
+  margin: 0;
+}
+
+.metabase-guide-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.metabase-guide-suggestions button {
+  min-height: 36px;
+  border: 1px solid #b8d4ff;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #1557e8;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 10px;
+}
+
+.metabase-guide-suggestions button:hover {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.metabase-guide-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 12px;
+  border: 1px solid #d6e3f0;
+  border-radius: 6px;
+  background: #fbfdff;
+}
+
+.metabase-guide-message {
+  max-width: 92%;
+}
+
+.metabase-guide-message p {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.metabase-guide-message--assistant {
+  align-self: flex-start;
+}
+
+.metabase-guide-message--assistant p {
+  border: 1px solid #d8e6f5;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #10243e;
+  padding: 10px 12px;
+}
+
+.metabase-guide-message--user {
+  align-self: flex-end;
+}
+
+.metabase-guide-message--user p {
+  border-radius: 6px;
+  background: #1557e8;
+  color: #ffffff;
+  padding: 10px 12px;
+}
+
+.metabase-guide-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 @media (max-width: 1280px) {
