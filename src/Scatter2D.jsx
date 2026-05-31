@@ -75,11 +75,51 @@ const HOVER_LEGACY =
   '%{customdata.detail}<br>' +
   'Cluster: %{customdata.cluster}<extra></extra>'
 
-export function Scatter2D({ X_2d, clusterLabels, metadata }) {
+export function Scatter2D({ X_2d, clusterLabels, metadata, loading = false }) {
+  if (loading) {
+    return (
+      <div
+        className="empty-state empty-state--loading"
+        aria-live="polite"
+        aria-busy="true"
+      >
+        <div className="plot-loader" aria-hidden>
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+            <circle
+              cx="24"
+              cy="24"
+              r="20"
+              stroke="currentColor"
+              strokeWidth="3"
+              opacity="0.2"
+            />
+            <path
+              d="M24 4a20 20 0 0120 20"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+            />
+          </svg>
+        </div>
+        <h3>Ejecutando pipeline&hellip;</h3>
+        <p>Reducci&oacute;n dimensional y clustering HDBSCAN en curso. Esto puede tardar unos segundos.</p>
+      </div>
+    )
+  }
+
   if (!X_2d || !clusterLabels || X_2d.length === 0) {
     return (
       <div className="empty-state">
-       
+        <div className="empty-state-icon" aria-hidden>
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none">
+            <circle cx="6" cy="14" r="2.5" fill="currentColor" opacity="0.7" />
+            <circle cx="12" cy="8" r="2.5" fill="currentColor" />
+            <circle cx="18" cy="15" r="2.5" fill="currentColor" opacity="0.85" />
+            <circle cx="15" cy="18" r="2" fill="currentColor" opacity="0.5" />
+          </svg>
+        </div>
+        <h3>Sin proyecci&oacute;n 2D</h3>
+        <p>Configura el experimento y pulsa &laquo;Ejecutar pipeline&raquo; para generar el scatter de clusters.</p>
       </div>
     )
   }

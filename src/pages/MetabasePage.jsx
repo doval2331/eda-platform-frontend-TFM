@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createMetabaseDashboard, fetchMetabaseStatus, syncBiTables } from '../api/metabase'
-import { Button, Card, Feedback, SectionHeader } from '../ui'
+import { Button, Card, Feedback, PageNavbar } from '../ui'
 
 function StatusBadge({ value }) {
   const normalized = value || 'unknown'
@@ -79,19 +79,17 @@ export function MetabasePage() {
 
   return (
     <div className="metabase-page">
-      <Card as="header" className="shell-header">
-        <SectionHeader
-          titleAs="h1"
-          eyebrow="Metabase BI"
-          title="Dashboards sobre PostgreSQL BI"
-          description="DuckDB sigue siendo la base principal; PostgreSQL publica tablas curadas para Metabase."
-          rightSlot={
-            <Button type="button" variant="secondary" onClick={loadStatus}>
-              Actualizar
-            </Button>
-          }
-        />
-      </Card>
+      <PageNavbar
+        breadcrumbParent="Plataforma"
+        breadcrumbCurrent="Metabase BI"
+        title="Dashboards sobre PostgreSQL BI"
+        description="DuckDB sigue siendo la base principal; PostgreSQL publica tablas curadas para Metabase."
+        rightSlot={
+          <Button type="button" variant="secondary" onClick={loadStatus}>
+            Actualizar
+          </Button>
+        }
+      />
 
       {error ? <Feedback variant="danger" message={error} /> : null}
 

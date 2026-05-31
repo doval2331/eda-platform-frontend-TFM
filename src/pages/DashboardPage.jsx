@@ -5,9 +5,9 @@ import { Scatter2D } from '../Scatter2D'
 import { uploadDataset } from '../api/datasets'
 import { executePipeline, checkApiHealth } from '../api/pipeline'
 import { ClusterInterpretationPanel } from '../components/ClusterInterpretationPanel'
-import { ConversationPanel } from '../components/ConversationPanel'
+import { FloatingChatWidget } from '../components/chat'
 import { RunKpis } from '../components/RunKpis'
-import { Button, Card, Feedback, SectionHeader, Select } from '../ui'
+import { PageNavbar, Button, Card, Feedback, Select } from '../ui'
 import Input from '../ui/Input'
 
 const MODALIDADES = [
@@ -155,14 +155,14 @@ export function DashboardPage() {
 
   return (
     <div className="dashboard-page">
-      <Card as="header" className="shell-header">
-        <SectionHeader
-          titleAs="h1"
-          eyebrow="Análisis exploratorio"
-          title="Reducción de dimensionalidad y clustering"
-        
-        />
-      </Card>
+      <PageNavbar
+        breadcrumbParent="Plataforma"
+        breadcrumbCurrent="Análisis exploratorio"
+        title="Reducción de dimensionalidad y clustering"
+      
+      />
+
+      <RunKpis result={resultado} runMeta={lastRun} />
 
       <div className="app-main">
         <Card className="panel-config">
@@ -305,12 +305,11 @@ export function DashboardPage() {
           </div>
 
           <div hidden={resultView !== 'visualization'} className="results-tab-panel">
-            <RunKpis result={resultado} runMeta={lastRun} />
-
           <Scatter2D
             X_2d={resultado?.X_2d}
             clusterLabels={resultado?.cluster_labels}
             metadata={resultado?.metadata}
+            loading={ejecutando}
           />
 
           <p className="legend-note note">
@@ -324,9 +323,9 @@ export function DashboardPage() {
             <ClusterInterpretationPanel result={resultado} run={lastRun} />
           </div>
         </Card>
-
-        <ConversationPanel run={lastRun} />
       </div>
+
+      <FloatingChatWidget run={lastRun} />
     </div>
   )
 }
