@@ -4,6 +4,8 @@ import '../styles/app.css'
 import { Scatter2D } from '../Scatter2D'
 import { uploadDataset } from '../api/datasets'
 import { executePipeline, checkApiHealth } from '../api/pipeline'
+import { ClusterInterpretationPanel } from '../components/ClusterInterpretationPanel'
+import { ConversationPanel } from '../components/ConversationPanel'
 import { RunKpis } from '../components/RunKpis'
 import { Button, Card, Feedback, SectionHeader, Select } from '../ui'
 import Input from '../ui/Input'
@@ -36,6 +38,7 @@ export function DashboardPage() {
   const [lastRun, setLastRun] = useState(null)
   const [error, setError] = useState(null)
   const [apiOnline, setApiOnline] = useState(null)
+  const [resultView, setResultView] = useState('visualization')
 
   useEffect(() => {
     checkApiHealth()
@@ -90,7 +93,7 @@ export function DashboardPage() {
   }, [datasetProfile])
 
   const canExecute =
-    apiOnline === true &&
+    apiOnline !== false &&
     !ejecutando &&
     (modalidad !== 'tabular' || datasetProfile?.dataset_id)
 
@@ -140,6 +143,7 @@ export function DashboardPage() {
       })
       setResultado(result)
       setLastRun(run)
+      setResultView('visualization')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al ejecutar el pipeline')
       setResultado(null)
@@ -261,6 +265,18 @@ export function DashboardPage() {
             {ejecutando ? 'Ejecutando pipeline…' : 'Ejecutar pipeline'}
           </Button>
 
+          {ejecutando ? (
+            <Feedback
+              variant="info"
+              message="Ejecutando reduccion dimensional y clustering. Con UMAP/HDBSCAN puede tardar cerca de un minuto para 2000 incidencias."
+            />
+          ) : null}
+          {apiOnline === false ? (
+            <Feedback
+              variant="warning"
+              message="No pude confirmar el health check del backend. Si el CSV subio bien, podes reintentar; si falla, revisa que FastAPI este en 127.0.0.1:8000."
+            />
+          ) : null}
           {error ? <Feedback variant="danger" message={error} /> : null}
 
           {lastRun?.id ? (
@@ -275,7 +291,40 @@ export function DashboardPage() {
 
         <Card className="panel-results">
           <h2>2. Proyección 2D y clusters</h2>
-          <RunKpis result={resultado} runMeta={lastRun} />
+          <div className="results-tabs" role="tablist" aria-label="Vista de resultados">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={resultView === 'visualization'}
+              className={`result-tab ${
+                resultView === 'visualization' ? 'result-tab--active' : ''
+              }`}
+              onClick={() => setResultView('visualization')}
+            >
+              Visualizaci&oacute;n
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={resultView === 'interpretation'}
+              className={`result-tab ${
+                resultView === 'interpretation' ? 'result-tab--active' : ''
+              }`}
+              onClick={() => setResultView('interpretation')}
+            >
+              Interpretaci&oacute;n
+            </button>
+          </div>
+
+          <div hidden={resultView !== 'visualization'} className="results-tab-panel">
+            <RunKpis result={resultado} runMeta={lastRun} />
+
+          {ejecutando ? (
+            <Feedback
+              variant="info"
+              message="Pipeline en curso. La visualizacion aparecera cuando termine la proyeccion 2D y el clustering."
+            />
+          ) : null}
 
           <Scatter2D
             X_2d={resultado?.X_2d}
@@ -287,7 +336,15 @@ export function DashboardPage() {
             Color = cluster HDBSCAN; gris = outlier (-1). Pasa el cursor sobre un punto para ver
             detalle de la observación.
           </p>
+
+          </div>
+
+          <div hidden={resultView !== 'interpretation'} className="results-tab-panel">
+            <ClusterInterpretationPanel result={resultado} run={lastRun} />
+          </div>
         </Card>
+
+        <ConversationPanel run={lastRun} />
       </div>
     </div>
   )

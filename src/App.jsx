@@ -2,7 +2,9 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { MainLayout } from './components/layout/MainLayout'
 import { LoginPage } from './pages/LoginPage'
 import { DashboardPage } from './pages/DashboardPage'
+import { ConversationDashboardPage } from './pages/ConversationDashboardPage'
 import { HistoryPage } from './pages/HistoryPage'
+import { MetabasePage } from './pages/MetabasePage'
 import { ProtectedRoute } from './routes/ProtectedRoute'
 import { useAuth } from './hooks/useAuth'
 
@@ -18,6 +20,8 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<MainLayout />}>
           <Route index element={<DashboardPage />} />
+          <Route path="dashboard-conversacional" element={<ConversationDashboardPage />} />
+          <Route path="metabase" element={<MetabasePage />} />
           <Route path="historial" element={<HistoryPage />} />
         </Route>
       </Route>
