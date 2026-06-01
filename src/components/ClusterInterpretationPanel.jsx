@@ -154,6 +154,8 @@ function buildSummaries(result) {
       clusterLabel === -1
         ? `Este grupo contiene ${items.length} incidencias atipicas. No se parecen lo suficiente al patron principal y conviene revisarlas como excepciones.`
         : `Este cluster agrupa ${items.length} incidencias similares. El patron dominante es ${service || category || 'un comportamiento comun'}${priority ? ` con prioridad ${priority}` : ''}${rootCause ? ` y causa raiz ${rootCause}` : ''}. Por que importa: combina SLA ${formatPct(avgSla)}, resolucion ${formatHours(avgResolution)} y riesgo ${formatNumber(avgRisk)}.`
+        ? `Contiene ${items.length} casos atípicos: incidencias que no encajan claramente en ningún patrón común.`
+        : `Contiene ${items.length} incidencias similares. Predomina ${service || sector || 'un patrón común'} con SLA ${formatPct(avgSla)}, resolución ${formatHours(avgResolution)} y riesgo ${formatNumber(avgRisk)}.`
     return summary
   })
 }

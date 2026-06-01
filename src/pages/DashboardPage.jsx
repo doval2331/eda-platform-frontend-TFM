@@ -5,27 +5,16 @@ import { Scatter2D } from '../Scatter2D'
 import { uploadDataset } from '../api/datasets'
 import { executePipeline, checkApiHealth } from '../api/pipeline'
 import { ClusterInterpretationPanel } from '../components/ClusterInterpretationPanel'
-import { ConversationPanel } from '../components/ConversationPanel'
+import { FloatingChatWidget } from '../components/chat'
 import { RunKpis } from '../components/RunKpis'
-import { Button, Card, Feedback, SectionHeader, Select } from '../ui'
+import { PageNavbar, Button, Card, Feedback, Select } from '../ui'
 import Input from '../ui/Input'
+import { MODALITY_OPTIONS, REDUCTION_OPTIONS } from '../utils/businessLabels'
 
-const MODALIDADES = [
-  { value: 'tabular', label: 'CSV tabular (subir archivo)' },
-  { value: 'it_ops', label: 'Operaciones IT (referencia — 10k clientes)' },
-  { value: 'texto', label: 'Texto (demo sintético)' },
-  { value: 'imagen', label: 'Imagen (demo sintético)' },
-  { value: 'multimodal', label: 'Multimodal (demo sintético)' },
-]
-
-const REDUCCION = [
-  { value: 'PCA', label: 'PCA' },
-  { value: 't-SNE', label: 't-SNE' },
-  { value: 'UMAP', label: 'UMAP' },
-]
+const ONBOARDING_KEY = 'eda-dashboard-onboarding-dismissed'
 
 export function DashboardPage() {
-  const [modalidad, setModalidad] = useState('tabular')
+  const [modalidad, setModalidad] = useState('it_ops')
   const [metodoReduccion, setMetodoReduccion] = useState('UMAP')
   const [seed, setSeed] = useState('42')
   const [nSamples, setNSamples] = useState('2000')
@@ -38,7 +27,11 @@ export function DashboardPage() {
   const [lastRun, setLastRun] = useState(null)
   const [error, setError] = useState(null)
   const [apiOnline, setApiOnline] = useState(null)
-  const [resultView, setResultView] = useState('visualization')
+  const [resultView, setResultView] = useState('interpretation')
+  const [advancedMode, setAdvancedMode] = useState(false)
+  const [showOnboarding, setShowOnboarding] = useState(
+    () => localStorage.getItem(ONBOARDING_KEY) !== '1',
+  )
 
   useEffect(() => {
     checkApiHealth()
@@ -64,30 +57,34 @@ export function DashboardPage() {
     }
   }, [datasetProfile])
 
+  const reduccionOptions = useMemo(
+    () =>
+      REDUCTION_OPTIONS.map(({ value, label }) => ({
+        value,
+        label: advancedMode ? `${label} (${value})` : label,
+      })),
+    [advancedMode],
+  )
+
   const descripcionMetodo = useMemo(() => {
-    if (metodoReduccion === 'PCA') {
-      return 'Proyección lineal sobre las direcciones de máxima varianza.'
-    }
-    if (metodoReduccion === 't-SNE') {
-      return 'Proyección no lineal optimizada para preservar estructuras locales.'
-    }
-    return 'Proyección no lineal (UMAP) que preserva estructura local y global.'
+    const found = REDUCTION_OPTIONS.find((o) => o.value === metodoReduccion)
+    return found?.helper ?? ''
   }, [metodoReduccion])
 
   const helperModalidad = useMemo(() => {
     if (modalidad === 'tabular') {
-      return 'Sube un CSV con filas = observaciones y columnas numéricas/categóricas. El sistema infiere tipos automáticamente.'
+      return 'Sube un CSV donde cada fila sea una incidencia. El sistema detecta columnas numéricas y categóricas automáticamente.'
     }
     if (modalidad === 'it_ops') {
-      return 'Dataset de referencia IT Ops en el servidor.'
+      return 'Dataset de ejemplo con incidencias IT para probar la herramienta sin subir archivos.'
     }
-    return 'Demos sintéticas del backend para texto, imagen o multimodal.'
+    return 'Demos sintéticas para pruebas internas.'
   }, [modalidad])
 
   const idColumnOptions = useMemo(() => {
     if (!datasetProfile?.all_columns?.length) return []
     return [
-      { value: '', label: '(sin columna ID)' },
+      { value: '', label: '(sin identificador)' },
       ...datasetProfile.all_columns.map((c) => ({ value: c, label: c })),
     ]
   }, [datasetProfile])
@@ -96,6 +93,11 @@ export function DashboardPage() {
     apiOnline !== false &&
     !ejecutando &&
     (modalidad !== 'tabular' || datasetProfile?.dataset_id)
+
+  function dismissOnboarding() {
+    localStorage.setItem(ONBOARDING_KEY, '1')
+    setShowOnboarding(false)
+  }
 
   async function onFileChange(e) {
     const file = e.target.files?.[0]
@@ -143,9 +145,9 @@ export function DashboardPage() {
       })
       setResultado(result)
       setLastRun(run)
-      setResultView('visualization')
+      setResultView('interpretation')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al ejecutar el pipeline')
+      setError(err instanceof Error ? err.message : 'Error al analizar las incidencias')
       setResultado(null)
       setLastRun(null)
     } finally {
@@ -155,32 +157,51 @@ export function DashboardPage() {
 
   return (
     <div className="dashboard-page">
-      <Card as="header" className="shell-header">
-        <SectionHeader
-          titleAs="h1"
-          eyebrow="Análisis exploratorio"
-          title="Reducción de dimensionalidad y clustering"
-        
-        />
-      </Card>
+      <PageNavbar
+        breadcrumbParent="Plataforma"
+        breadcrumbCurrent="Incidencias IT"
+        title="Análisis de incidencias IT"
+      />
+
+      {showOnboarding ? (
+        <div className="onboarding-banner" role="region" aria-label="Guía rápida">
+          <div className="onboarding-banner-body">
+            <h2>¿Qué hace esta herramienta?</h2>
+            <ol className="onboarding-steps">
+              <li>Lee tus incidencias (tiempo de resolución, SLA, categoría, etc.).</li>
+              <li>Agrupa automáticamente las que se comportan de forma similar.</li>
+              <li>Te indica qué grupos son más críticos y qué conviene revisar.</li>
+            </ol>
+            <p className="note">
+              No necesitas conocer términos como UMAP o clustering: el resumen por grupos y el
+              chat te orientan en lenguaje de negocio.
+            </p>
+          </div>
+          <button type="button" className="onboarding-dismiss" onClick={dismissOnboarding}>
+            Entendido
+          </button>
+        </div>
+      ) : null}
+
+      <RunKpis result={resultado} runMeta={lastRun} advancedMode={advancedMode} />
 
       <div className="app-main">
         <Card className="panel-config">
-          <h2>1. Configuración del experimento</h2>
+          <h2>1. Preparar datos</h2>
 
           <Select
-            label="Modalidad de los datos"
+            label="Origen de los datos"
             id="modalidad"
             value={modalidad}
             onChange={(e) => setModalidad(e.target.value)}
-            options={MODALIDADES}
+            options={MODALITY_OPTIONS}
             helperText={helperModalidad}
           />
 
           {modalidad === 'tabular' ? (
             <div className="dataset-upload-block">
               <label className="field field--full">
-                <span className="field-label">Archivo CSV</span>
+                <span className="field-label">Archivo CSV de incidencias</span>
                 <input
                   type="file"
                   accept=".csv,text/csv"
@@ -189,19 +210,19 @@ export function DashboardPage() {
                   className="file-input"
                 />
               </label>
-              {uploading ? <p className="note">Analizando columnas…</p> : null}
+              {uploading ? <p className="note">Analizando columnas del archivo…</p> : null}
               {uploadError ? <Feedback variant="danger" message={uploadError} /> : null}
               {datasetProfile ? (
                 <div className="dataset-profile note">
                   <strong>{datasetProfile.filename}</strong>
                   <span>
                     {' '}
-                    — {datasetProfile.n_rows} filas · {datasetProfile.numeric_columns.length}{' '}
-                    numéricas · {datasetProfile.categorical_columns.length} categóricas
+                    — {datasetProfile.n_rows} incidencias · {datasetProfile.numeric_columns.length}{' '}
+                    columnas numéricas · {datasetProfile.categorical_columns.length} categóricas
                   </span>
                   {datasetProfile.excluded_columns?.length ? (
                     <p className="dataset-profile-excluded">
-                      Excluidas automáticamente:{' '}
+                      No se usan para agrupar (texto, IDs o evaluación):{' '}
                       {datasetProfile.excluded_columns.slice(0, 6).join(', ')}
                       {datasetProfile.excluded_columns.length > 6 ? '…' : ''}
                     </p>
@@ -210,59 +231,86 @@ export function DashboardPage() {
               ) : null}
               {datasetProfile ? (
                 <Select
-                  label="Columna identificador (opcional)"
+                  label="Identificador de incidencia (opcional)"
                   id="id-column"
                   value={idColumn}
                   onChange={(e) => setIdColumn(e.target.value)}
                   options={idColumnOptions}
-                  helperText="Se usa en tooltips y etiquetas de puntos."
+                  helperText="Aparece al pasar el cursor sobre cada punto del mapa."
                 />
               ) : null}
             </div>
           ) : null}
 
-          <Select
-            label="Método de reducción"
-            id="reduccion"
-            value={metodoReduccion}
-            onChange={(e) => setMetodoReduccion(e.target.value)}
-            options={REDUCCION}
-            helperText={descripcionMetodo}
-          />
-
-          {modalidad !== 'texto' &&
-          modalidad !== 'imagen' &&
-          modalidad !== 'multimodal' ? (
-            <>
-              <Input
-                label="Semilla (reproducibilidad)"
-                id="seed"
-                type="number"
-                min={0}
-                value={seed}
-                onChange={(e) => setSeed(e.target.value)}
-                helperText="Misma semilla → misma submuestra y resultados comparables."
-              />
-              <Input
-                label="Tamaño de muestra (filas)"
-                id="n-samples"
-                type="number"
-                min={30}
-                max={10000}
-                value={nSamples}
-                onChange={(e) => setNSamples(e.target.value)}
-                helperText="Máximo 10 000. Se submuestrea aleatoriamente si el CSV es mayor."
-              />
-            </>
+          {!advancedMode ? (
+            <Select
+              label="Tipo de vista del mapa"
+              id="reduccion"
+              value={metodoReduccion}
+              onChange={(e) => setMetodoReduccion(e.target.value)}
+              options={reduccionOptions}
+              helperText={descripcionMetodo}
+            />
           ) : null}
+
+          <div className="advanced-options">
+            <button
+              type="button"
+              className="advanced-options-toggle"
+              onClick={() => setAdvancedMode((v) => !v)}
+              aria-expanded={advancedMode}
+            >
+              {advancedMode ? '▾ Ocultar opciones avanzadas' : '▸ Opciones avanzadas (analistas)'}
+            </button>
+
+            {advancedMode ? (
+              <div className="advanced-options-panel">
+                <Select
+                  label="Algoritmo de proyección"
+                  id="reduccion-advanced"
+                  value={metodoReduccion}
+                  onChange={(e) => setMetodoReduccion(e.target.value)}
+                  options={reduccionOptions}
+                  helperText={descripcionMetodo}
+                />
+
+                {modalidad !== 'texto' &&
+                modalidad !== 'imagen' &&
+                modalidad !== 'multimodal' ? (
+                  <>
+                    <Input
+                      label="Semilla (reproducibilidad)"
+                      id="seed"
+                      type="number"
+                      min={0}
+                      value={seed}
+                      onChange={(e) => setSeed(e.target.value)}
+                      helperText="Misma semilla → mismos resultados al repetir el análisis."
+                    />
+                    <Input
+                      label="Número de incidencias a analizar"
+                      id="n-samples"
+                      type="number"
+                      min={30}
+                      max={10000}
+                      value={nSamples}
+                      onChange={(e) => setNSamples(e.target.value)}
+                      helperText="Máximo 10 000. Si el CSV es mayor, se toma una muestra aleatoria."
+                    />
+                  </>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
 
           <Button
             type="button"
             variant="primary"
             onClick={ejecutarPipeline}
             disabled={!canExecute}
+            className="btn-analyze"
           >
-            {ejecutando ? 'Ejecutando pipeline…' : 'Ejecutar pipeline'}
+            {ejecutando ? 'Analizando incidencias…' : 'Analizar incidencias'}
           </Button>
 
           {ejecutando ? (
@@ -281,28 +329,19 @@ export function DashboardPage() {
 
           {lastRun?.id ? (
             <p className="note run-saved-note">
-              Guardado en historial ·{' '}
-              <Link to="/historial">Ver todas las ejecuciones</Link>
+              Análisis guardado ·{' '}
+              <Link to="/historial">Ver historial</Link>
             </p>
           ) : null}
-
-          <p className="note">Pipeline en FastAPI: PCA / t-SNE / UMAP + HDBSCAN.</p>
         </Card>
 
         <Card className="panel-results">
-          <h2>2. Proyección 2D y clusters</h2>
+          <h2>2. Resultados</h2>
+          <p className="results-intro note">
+            Revisa primero el resumen por grupos; el mapa visual muestra cómo se distribuyen las
+            incidencias similares.
+          </p>
           <div className="results-tabs" role="tablist" aria-label="Vista de resultados">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={resultView === 'visualization'}
-              className={`result-tab ${
-                resultView === 'visualization' ? 'result-tab--active' : ''
-              }`}
-              onClick={() => setResultView('visualization')}
-            >
-              Visualizaci&oacute;n
-            </button>
             <button
               type="button"
               role="tab"
@@ -312,7 +351,18 @@ export function DashboardPage() {
               }`}
               onClick={() => setResultView('interpretation')}
             >
-              Interpretaci&oacute;n
+              Resumen por grupos
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={resultView === 'visualization'}
+              className={`result-tab ${
+                resultView === 'visualization' ? 'result-tab--active' : ''
+              }`}
+              onClick={() => setResultView('visualization')}
+            >
+              Mapa visual
             </button>
           </div>
 
@@ -342,10 +392,24 @@ export function DashboardPage() {
           <div hidden={resultView !== 'interpretation'} className="results-tab-panel">
             <ClusterInterpretationPanel result={resultado} run={lastRun} />
           </div>
-        </Card>
 
-        <ConversationPanel run={lastRun} />
+          <div hidden={resultView !== 'visualization'} className="results-tab-panel">
+            <Scatter2D
+              X_2d={resultado?.X_2d}
+              clusterLabels={resultado?.cluster_labels}
+              metadata={resultado?.metadata}
+              loading={ejecutando}
+            />
+
+            <p className="legend-note note">
+              Cada color representa un grupo de incidencias parecidas. Los marcados en gris son
+              casos atípicos. Pasa el cursor sobre un punto para ver el detalle.
+            </p>
+          </div>
+        </Card>
       </div>
+
+      <FloatingChatWidget run={lastRun} />
     </div>
   )
 }

@@ -17,20 +17,9 @@ body,
 
 body {
   font-family: var(--font-theme-sans);
-  letter-spacing: -0.015em;
+  letter-spacing: -0.5px;
   color: var(--dark);
-  background:
-    radial-gradient(
-      circle at 12% 0%,
-      color-mix(in srgb, var(--color-blue-glow-radial) 24%, transparent),
-      transparent 38%
-    ),
-    radial-gradient(
-      circle at 90% 0%,
-      color-mix(in srgb, var(--color-hero-gradient) 20%, transparent),
-      transparent 30%
-    ),
-    var(--background);
+  background: var(--background);
 }
 
 #root {

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { createMetabaseDashboard, fetchMetabaseStatus, syncBiTables } from '../api/metabase'
-import { Button, Card, Feedback, SectionHeader } from '../ui'
+import { Button, Card, Feedback, PageNavbar } from '../ui'
 
 const BI_GUIDE_QUESTIONS = [
   'Ya publique las tablas, que reviso primero?',
@@ -168,19 +168,17 @@ export function MetabasePage() {
 
   return (
     <div className="metabase-page">
-      <Card as="header" className="shell-header">
-        <SectionHeader
-          titleAs="h1"
-          eyebrow="Metabase BI"
-          title="Dashboards sobre PostgreSQL BI"
-          description="DuckDB sigue siendo la base principal; PostgreSQL publica tablas curadas para Metabase."
-          rightSlot={
-            <Button type="button" variant="secondary" onClick={loadStatus}>
-              Actualizar
-            </Button>
-          }
-        />
-      </Card>
+      <PageNavbar
+        breadcrumbParent="Plataforma"
+        breadcrumbCurrent="Metabase BI"
+        title="Dashboards sobre PostgreSQL BI"
+        description="DuckDB sigue siendo la base principal; PostgreSQL publica tablas curadas para Metabase."
+        rightSlot={
+          <Button type="button" variant="secondary" onClick={loadStatus}>
+            Actualizar
+          </Button>
+        }
+      />
 
       {error ? <Feedback variant="danger" message={error} /> : null}
 
@@ -236,7 +234,7 @@ export function MetabasePage() {
             </Button>
             {metabaseTarget ? (
               <a className="decision-link" href={metabaseTarget} target="_blank" rel="noreferrer">
-                Abrir Metabase
+                {status?.dashboard_url ? 'Abrir dashboard' : 'Abrir Metabase'}
               </a>
             ) : null}
           </div>
