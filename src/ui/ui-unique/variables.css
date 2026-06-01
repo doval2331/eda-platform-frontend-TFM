@@ -1,27 +1,43 @@
 :root {
-  /* Colors */
-  --color-midnight-navy: #1b2540;
-  --color-deep-cosmos: #001033;
-  --color-accent-pulse: #5fbdf7;
-  /* Alias histórico: mismo valor azul (antes chartreuse) */
+  /* Horizon-inspired brand (violet) */
+  --color-brand-100: #e9e3ff;
+  --color-brand-400: #7551ff;
+  --color-brand-500: #422afb;
+  --color-brand-600: #3311db;
+  --color-brand-light: #f2efff;
+
+  /* Legacy aliases → brand */
+  --color-midnight-navy: #1b2559;
+  --color-deep-cosmos: #1b2559;
+  --color-accent-pulse: #7551ff;
   --color-chartreuse-pulse: var(--color-accent-pulse);
-  --color-ice-veil: #e0f6ff;
-  --color-ghost-canvas: #e8f1fb;
+  --color-ice-veil: #e9e3ff;
+  --color-ghost-canvas: #f4f7fe;
   --color-pure-surface: #ffffff;
-  --color-slate-ink: #6b7184;
-  --color-ash-medium: #7c8293;
-  --color-storm-gray: #596075;
-  --color-fog-border: #b1b5c0;
-  --color-hero-gradient: #0050f8;
-  --gradient-hero-gradient: linear-gradient(180deg, #001033 0%, #0050f8 55%, #5fbdf7 100%);
-  --color-blue-glow-radial: #0080f8;
-  --gradient-blue-glow-radial: radial-gradient(50% 50%, rgba(0, 128, 248, 0.32) 0%, rgba(95, 189, 247, 0.32) 20%, rgba(211, 239, 252, 0.32) 60%, rgba(248, 249, 252, 0) 100%);
+  --color-slate-ink: #707eae;
+  --color-ash-medium: #a3aed0;
+  --color-storm-gray: #707eae;
+  --color-fog-border: #e0e5f2;
+  --color-hero-gradient: var(--color-brand-500);
+  --gradient-hero-gradient: linear-gradient(135deg, #868cff 0%, #4318ff 100%);
+  --color-blue-glow-radial: #7551ff;
+  --gradient-blue-glow-radial: radial-gradient(
+    50% 50%,
+    rgba(117, 81, 255, 0.2) 0%,
+    rgba(233, 227, 255, 0.4) 60%,
+    transparent 100%
+  );
 
-  /* Typography — Font Families */
-  --font-abcdfont: 'abcdFont', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-ivartextfont: 'ivarTextFont', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  /* Semantic */
+  --color-success: #01b574;
+  --color-warning: #ffb547;
+  --color-danger: #ee5d50;
 
-  /* Typography — Scale */
+  /* Typography */
+  --font-abcdfont: 'DM Sans', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    'Segoe UI', Roboto, sans-serif;
+  --font-ivartextfont: var(--font-abcdfont);
+
   --text-caption: 13px;
   --leading-caption: 1;
   --tracking-caption: -0.21px;
@@ -37,14 +53,13 @@
   --text-heading: 28px;
   --leading-heading: 1.17;
   --tracking-heading: -0.14px;
-  --text-heading-lg: 40px;
+  --text-heading-lg: 34px;
   --leading-heading-lg: 1.05;
   --tracking-heading-lg: -0.4px;
   --text-display: 48px;
   --leading-display: 1.04;
   --tracking-display: -0.48px;
 
-  /* Typography — Weights */
   --font-weight-regular: 400;
   --font-weight-w450: 450;
   --font-weight-w480: 480;
@@ -67,57 +82,53 @@
   --spacing-232: 232px;
 
   /* Layout */
-  --page-max-width: 1200px;
-  --section-gap: 80px;
+  --page-max-width: none;
+  --section-gap: 20px;
   --card-padding: 20px;
   --element-gap: 8px;
+  --sidebar-width: 300px;
 
   /* Border Radius */
   --radius-sm: 2px;
-  --radius-md: 6px;
+  --radius-md: 8px;
   --radius-2xl: 16px;
   --radius-2xl-2: 20px;
   --radius-3xl: 28px;
   --radius-full: 60px;
-  --radius-full-2: 720px;
 
-  /* Named Radii */
   --radius-cards: 20px;
   --radius-badges: 16px;
-  --radius-inputs: 0px;
-  --radius-buttons: 9999px;
+  --radius-inputs: 16px;
+  --radius-buttons: 16px;
   --radius-pilllarge: 60px;
-  --radius-cardssmall: 6px;
+  --radius-cardssmall: 8px;
   --radius-cardsmedium: 16px;
 
-  /* Shadows */
+  /* Shadows (Horizon) */
+  --shadow-card: 14px 17px 40px 4px rgba(112, 144, 176, 0.08);
   --shadow-md: rgba(0, 39, 80, 0.08) 0px 6px 16px -3px, rgba(0, 39, 80, 0.04) 0px 0px 0px 1px;
-  --shadow-md-2: rgba(255, 255, 255, 0.08) 0px 0px 16px 8px inset, rgba(255, 255, 255, 0.08) 0px 0px 8px 4px inset, rgba(255, 255, 255, 0.08) 0px 0px 4px 2px inset, rgba(255, 255, 255, 0.12) 0px 0px 2px 1px inset;
-  --shadow-subtle: rgba(255, 255, 255, 0.72) 0px 1px 1px 0px inset, rgba(4, 33, 80, 0.02) 0px 8px 16px 0px, rgba(4, 33, 80, 0.03) 0px 4px 12px 0px, rgba(4, 33, 80, 0.06) 0px 1px 2px 0px, rgba(4, 33, 80, 0.04) 0px 0px 0px 1px;
-  --shadow-subtle-2: color(srgb 0.878431 0.964706 1 / 0.24) 0px 0.5px 0.5px 0px inset, color(srgb 0.878431 0.964706 1 / 0.24) 0px -0.5px 0.5px 0px inset;
-  --shadow-xl: rgba(0, 39, 80, 0.03) 0px 56px 72px -16px, rgba(0, 39, 80, 0.03) 0px 32px 32px -16px, rgba(0, 39, 80, 0.04) 0px 6px 12px -3px, rgba(0, 39, 80, 0.04) 0px 0px 0px 1px;
-  --shadow-subtle-3: rgba(24, 37, 66, 0.32) 0px 1px 3px 0px, rgba(24, 37, 66, 0.12) 0px 0.5px 0.5px 0px, rgba(24, 37, 66, 0.44) 0px 12px 24px -12px, rgba(219, 247, 255, 0.06) 0px 8px 16px 0px inset, rgba(219, 247, 255, 0.48) 0px 0.5px 0.5px 0px inset, rgba(219, 247, 255, 0.04) 0px -4px 8px 0px inset, rgba(219, 247, 255, 0.24) 0px -0.5px 0.5px 0px inset;
-  --shadow-subtle-4: rgba(255, 255, 255, 0.88) 0px 1px 1px 0px inset, rgba(0, 39, 80, 0.04) 0px 48px 72px -12px, rgba(0, 39, 80, 0.03) 0px 28px 40px 0px, rgba(0, 39, 80, 0.02) 0px 4px 12px 0px, rgba(0, 39, 80, 0.04) 0px 0px 0px 1px;
+  --shadow-sm: rgba(23, 23, 23, 0.06) 0px 3px 6px 0px;
+  --shadow-xl: var(--shadow-card);
+  --shadow-subtle: var(--shadow-card);
 
   /* Surfaces */
-  --surface-hero-dark-canvas: #001033;
-  --surface-ghost-canvas: #e8f1fb;
+  --surface-hero-dark-canvas: #0b1437;
+  --surface-ghost-canvas: #f4f7fe;
   --surface-pure-surface: #ffffff;
-  --surface-data-chip-surface: #0c264d05;
+  --surface-data-chip-surface: rgba(66, 42, 251, 0.04);
 
-  /* Semántica (gestion-archivo theme-tokens) */
-  --token-primary: var(--color-deep-cosmos);
-  --token-secondary: var(--color-hero-gradient);
+  --token-primary: var(--color-midnight-navy);
+  --token-secondary: var(--color-brand-500);
   --token-surface: var(--surface-pure-surface);
   --token-background: var(--surface-ghost-canvas);
   --token-muted: var(--color-slate-ink);
-  --primary: var(--color-deep-cosmos);
-  --secondary: var(--color-hero-gradient);
+  --primary: var(--color-midnight-navy);
+  --secondary: var(--color-brand-500);
   --surface: var(--surface-pure-surface);
   --background: var(--surface-ghost-canvas);
   --neutral: var(--color-slate-ink);
   --dark: var(--color-midnight-navy);
-  --control-height: 46px;
-  --font-theme-sans: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-    sans-serif;
+  --control-height: 44px;
+  --font-theme-sans: 'DM Sans', Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    Roboto, sans-serif;
 }

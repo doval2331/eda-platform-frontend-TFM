@@ -4,7 +4,7 @@ import createPlotlyComponent from 'react-plotly.js/factory'
 import Plotly from 'plotly.js-dist-min'
 import { fetchConversationDashboard } from '../api/conversation'
 import { listRuns } from '../api/pipeline'
-import { Button, Card, Feedback, SectionHeader } from '../ui'
+import { Button, Card, Feedback, PageNavbar } from '../ui'
 
 const plotlyFactory =
   typeof createPlotlyComponent === 'function'
@@ -522,24 +522,17 @@ export function ConversationDashboardPage() {
 
   return (
     <div className="conversation-dashboard-page">
-      <Card as="header" className="shell-header">
-        <SectionHeader
-          titleAs="h1"
-          eyebrow="Dashboard conversacional"
-          title={<>M&eacute;tricas seleccionadas por el usuario</>}
-          description={
-            <>
-              Vista interactiva de los hallazgos guardados desde la exploraci&oacute;n
-              conversacional.
-            </>
-          }
-          rightSlot={
-            <Button type="button" variant="secondary" onClick={() => loadDashboard(selectedRunId)}>
-              Actualizar
-            </Button>
-          }
-        />
-      </Card>
+      <PageNavbar
+        breadcrumbParent="Plataforma"
+        breadcrumbCurrent="Dashboard conversacional"
+        title="Métricas seleccionadas por el usuario"
+        description="Vista interactiva de los hallazgos guardados desde la exploración conversacional."
+        rightSlot={
+          <Button type="button" variant="secondary" onClick={() => loadDashboard(selectedRunId)}>
+            Actualizar
+          </Button>
+        }
+      />
 
       {error ? <Feedback variant="danger" message={error} /> : null}
 

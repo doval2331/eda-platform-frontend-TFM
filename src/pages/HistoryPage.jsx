@@ -9,7 +9,7 @@ import {
   Button,
   Card,
   Feedback,
-  SectionHeader,
+  PageNavbar,
   DataTableEmpty,
   DataTableRoot,
   DataTableScroll,
@@ -68,19 +68,17 @@ export function HistoryPage() {
 
   return (
     <div className="history-page">
-      <Card as="header" className="shell-header">
-        <SectionHeader
-          titleAs="h1"
-          eyebrow="Persistencia"
-          title="Historial de ejecuciones"
-          description="Consultas guardadas en PostgreSQL. Abre una fila para ver el gráfico sin volver a ejecutar el pipeline."
-          rightSlot={
-            <Button type="button" variant="secondary" onClick={loadList} disabled={loading}>
-              Actualizar
-            </Button>
-          }
-        />
-      </Card>
+      <PageNavbar
+        breadcrumbParent="Plataforma"
+        breadcrumbCurrent="Historial"
+        title="Historial de ejecuciones"
+        description="Consultas guardadas en PostgreSQL. Abre una fila para ver el gráfico sin volver a ejecutar el pipeline."
+        rightSlot={
+          <Button type="button" variant="secondary" onClick={loadList} disabled={loading}>
+            Actualizar
+          </Button>
+        }
+      />
 
       {error ? <Feedback variant="danger" message={error} /> : null}
 
