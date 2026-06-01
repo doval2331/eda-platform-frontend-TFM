@@ -1,6 +1,69 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { createMetabaseDashboard, fetchMetabaseStatus, syncBiTables } from '../api/metabase'
 import { Button, Card, Feedback, PageNavbar } from '../ui'
+
+const BI_GUIDE_QUESTIONS = [
+  'Ya publique las tablas, que reviso primero?',
+  'Que preguntas conviene crear en Metabase?',
+  'Como valido que la publicacion sirvio?',
+  'Que hago con los insights seleccionados?',
+  'Que tablero conviene usar para explicar resultados?',
+]
+
+function tableCount(tableCounts, tableName) {
+  const found = tableCounts.find(([name]) => name === tableName)
+  return found ? Number(found[1]) : 0
+}
+
+function buildBiGuideAnswer(question, { status, syncResult, dashboardResult, tableCounts }) {
+  const normalized = question.toLowerCase()
+  const published = syncResult?.status === 'ok'
+  const metabaseReady = status?.postgres_status === 'ok'
+  const selectedInsights = tableCount(tableCounts, 'bi_selected_insights')
+  const evidences = tableCount(tableCounts, 'bi_evidences')
+  const clusters = tableCount(tableCounts, 'bi_cluster_summary')
+  const dashboardUrl = dashboardResult?.dashboard_url || status?.dashboard_url
+
+  if (!metabaseReady) {
+    return 'Primero hay que dejar disponible PostgreSQL BI. Cuando el estado aparezca OK, publica las tablas y despues crea o abre el dashboard de Metabase.'
+  }
+
+  if (!published && normalized.includes('publique')) {
+    return 'Todavia no veo una publicacion reciente en esta pantalla. Presiona Publicar tablas BI y luego revisa los conteos generados para confirmar que Metabase tenga datos disponibles.'
+  }
+
+  if (normalized.includes('preguntas') || normalized.includes('crear')) {
+    return 'En Metabase conviene crear preguntas simples y filtrables: SLA por servicio, volumen por prioridad, clusters con mayor incumplimiento, servicios con mayor riesgo, causas raiz frecuentes e insights seleccionados por run_id. Usa filtros por run_id, cluster_label, affected_service y severity.'
+  }
+
+  if (normalized.includes('valido') || normalized.includes('sirvio')) {
+    if (!published) {
+      return 'Para validar la publicacion, primero ejecuta Publicar tablas BI. Despues confirma que bi_evidences, bi_cluster_summary y bi_selected_insights tengan registros.'
+    }
+    return `Validacion rapida: hay ${evidences} registros publicados en bi_evidences, ${clusters} resumenes de cluster y ${selectedInsights} insights seleccionados. Si bi_selected_insights esta bajo, vuelve al chat, selecciona hallazgos y publica nuevamente.`
+  }
+
+  if (normalized.includes('insights')) {
+    if (!selectedInsights) {
+      return 'Todavia no hay insights seleccionados publicados. Vuelve a la exploracion conversacional, pregunta por SLA, clusters o alternativas de decision, selecciona hallazgos y vuelve a publicar las tablas BI.'
+    }
+    return `Hay ${selectedInsights} insights seleccionados. Usalos como hilo conductor: primero explica que pregunto el usuario, luego que hallazgos eligio y finalmente que tablero de Metabase permite profundizar cada metrica.`
+  }
+
+  if (normalized.includes('tablero') || normalized.includes('explicar') || normalized.includes('dashboard')) {
+    if (dashboardUrl) {
+      return 'Para explicar resultados, usa dos vistas: el Dashboard conversacional para mostrar la seleccion del usuario y Metabase para profundizar con filtros BI. En la defensa, esa combinacion muestra exploracion guiada y visualizacion curada.'
+    }
+    return 'Todavia falta crear el dashboard de Metabase. Presiona Crear dashboard en Metabase y despues usa esa vista junto con el Dashboard conversacional para explicar los hallazgos seleccionados.'
+  }
+
+  if (!published) {
+    return 'Siguiente paso recomendado: publica las tablas BI. Despues revisa conteos, crea el dashboard en Metabase y valida que los filtros por run_id, servicio, prioridad y cluster funcionen.'
+  }
+
+  return `Revisaria primero tres cosas: 1) si bi_selected_insights tiene hallazgos para contar la historia del usuario; 2) si bi_cluster_summary permite explicar clusters criticos; 3) si bi_sla_by_category y bi_service_risk muestran donde priorizar acciones. Hoy la publicacion tiene ${evidences} evidencias y ${selectedInsights} insights seleccionados.`
+}
 
 function StatusBadge({ value }) {
   const normalized = value || 'unknown'
@@ -19,6 +82,12 @@ export function MetabasePage() {
   const [syncing, setSyncing] = useState(false)
   const [creatingDashboard, setCreatingDashboard] = useState(false)
   const [error, setError] = useState(null)
+  const [guideMessages, setGuideMessages] = useState([
+    {
+      role: 'assistant',
+      text: 'Puedo ayudarte a decidir que hacer despues de publicar las tablas BI: validar datos, crear preguntas en Metabase, explicar los insights seleccionados o preparar la defensa.',
+    },
+  ])
 
   async function loadStatus() {
     setLoading(true)
@@ -73,9 +142,29 @@ export function MetabasePage() {
   }, [])
 
   const metabaseTarget = status?.dashboard_url || status?.metabase_url
+  const biReady = status?.enabled && status?.postgres_status === 'ok'
+  const dashboardUrl = dashboardResult?.dashboard_url || status?.dashboard_url
+  const canCreateDashboard = biReady && !syncing && !creatingDashboard
+  const dashboardButtonLabel = dashboardUrl
+    ? 'Actualizar dashboard en Metabase'
+    : 'Crear dashboard en Metabase'
   const tableCounts = syncResult?.tables
     ? Object.entries(syncResult.tables).filter(([, count]) => count != null)
     : []
+
+  function askBiGuide(question) {
+    const answer = buildBiGuideAnswer(question, {
+      status,
+      syncResult,
+      dashboardResult,
+      tableCounts,
+    })
+    setGuideMessages((current) => [
+      ...current,
+      { role: 'user', text: question },
+      { role: 'assistant', text: answer },
+    ])
+  }
 
   return (
     <div className="metabase-page">
@@ -132,10 +221,16 @@ export function MetabasePage() {
             <Button
               type="button"
               variant="secondary"
+              className="metabase-dashboard-button"
               onClick={createDashboard}
-              disabled={creatingDashboard || syncing || !status?.enabled}
+              disabled={!canCreateDashboard}
+              title={
+                biReady
+                  ? dashboardButtonLabel
+                  : 'Primero publica las tablas BI y confirma que PostgreSQL aparezca en OK.'
+              }
             >
-              {creatingDashboard ? 'Creando dashboard...' : 'Crear dashboard en Metabase'}
+              {creatingDashboard ? 'Creando dashboard...' : dashboardButtonLabel}
             </Button>
             {metabaseTarget ? (
               <a className="decision-link" href={metabaseTarget} target="_blank" rel="noreferrer">
@@ -163,6 +258,57 @@ export function MetabasePage() {
           </ul>
         </Card>
       </div>
+
+      <Card className="metabase-bi-guide">
+        <div className="metabase-panel-head">
+          <div>
+            <h2>Exploraci&oacute;n guiada de BI</h2>
+            <p>
+              Usa esta gu&iacute;a para transformar la publicaci&oacute;n t&eacute;cnica en pasos
+              concretos: qu&eacute; validar, qu&eacute; preguntar en Metabase y c&oacute;mo explicar los
+              resultados.
+            </p>
+          </div>
+          <StatusBadge value={status?.postgres_status === 'ok' ? 'ok' : 'unknown'} />
+        </div>
+
+        <div className="metabase-guide-suggestions" aria-label="Preguntas guiadas sobre BI">
+          {BI_GUIDE_QUESTIONS.map((question) => (
+            <button type="button" key={question} onClick={() => askBiGuide(question)}>
+              {question}
+            </button>
+          ))}
+        </div>
+
+        <div className="metabase-guide-thread" aria-live="polite">
+          {guideMessages.map((message, index) => (
+            <div
+              className={
+                message.role === 'assistant'
+                  ? 'metabase-guide-message metabase-guide-message--assistant'
+                  : 'metabase-guide-message metabase-guide-message--user'
+              }
+              key={`${message.role}-${index}`}
+            >
+              <p>{message.text}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="metabase-guide-actions">
+          <Link to="/" className="decision-link">
+            Volver a explorar
+          </Link>
+          <Link to="/dashboard-conversacional" className="decision-link">
+            Ver dashboard conversacional
+          </Link>
+          {metabaseTarget ? (
+            <a className="decision-link" href={metabaseTarget} target="_blank" rel="noreferrer">
+              Abrir Metabase
+            </a>
+          ) : null}
+        </div>
+      </Card>
 
       {syncResult ? (
         <Card className="metabase-sync-result">

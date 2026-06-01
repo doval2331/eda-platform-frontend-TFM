@@ -19,6 +19,11 @@ const KIND_COLORS = {
   SLA: '#0f766e',
   Volumen: '#2563eb',
   Tiempo: '#7c3aed',
+  Prioridad: '#b45309',
+  'Causa raiz': '#0e7490',
+  Anomalia: '#be123c',
+  Cluster: '#4338ca',
+  Decision: '#16a34a',
   Metrica: '#ca8a04',
 }
 
@@ -27,6 +32,11 @@ const KIND_LABELS = {
   SLA: 'SLA',
   Volumen: 'Volumen',
   Tiempo: 'Tiempo',
+  Prioridad: 'Prioridad',
+  'Causa raiz': 'Causa raiz',
+  Anomalia: 'Anomalia',
+  Cluster: 'Cluster',
+  Decision: 'Decision',
   Metrica: 'M\u00e9trica',
 }
 
@@ -65,6 +75,24 @@ function formatMetric(label, value) {
 
 function metricKind(label = '') {
   const clean = label.toLowerCase()
+  if (clean.includes('decision') || clean.includes('alternative') || clean.includes('alternativa')) {
+    return 'Decision'
+  }
+  if (clean.includes('cluster')) return 'Cluster'
+  if (clean.includes('anomaly') || clean.includes('anomalia') || clean.includes('outlier')) {
+    return 'Anomalia'
+  }
+  if (clean.includes('root') || clean.includes('cause') || clean.includes('causa')) {
+    return 'Causa raiz'
+  }
+  if (
+    clean.includes('priority') ||
+    clean.includes('prioridad') ||
+    clean.includes('severity') ||
+    clean.includes('severidad')
+  ) {
+    return 'Prioridad'
+  }
   if (clean.includes('sla')) return 'SLA'
   if (clean.includes('resolution') || clean.includes('hours')) return 'Tiempo'
   if (clean.includes('count')) return 'Volumen'
@@ -88,7 +116,7 @@ function truncate(text = '', maxLength = 34) {
 function insightRisk(item) {
   const kind = metricKind(item.metric_label)
   const metric = numericValue(item.metric_value)
-  if (kind === 'Riesgo' && metric != null) return metric
+  if (['Riesgo', 'Cluster', 'Anomalia', 'Decision'].includes(kind) && metric != null) return metric
   return numericValue(item.avg_risk) ?? 0
 }
 
@@ -119,8 +147,12 @@ function insightScore(item, maxByKind) {
   if (label.includes('hours')) {
     return Math.min(100, value * 3)
   }
-  if (kind === 'Riesgo') {
+  if (['Riesgo', 'Cluster', 'Anomalia', 'Decision'].includes(kind)) {
     return Math.min(100, value)
+  }
+  if (['Prioridad', 'Causa raiz'].includes(kind)) {
+    const max = maxByKind[kind] || value || 1
+    return Math.min(100, (value / max) * 100)
   }
   const max = maxByKind[kind] || value || 1
   return Math.min(100, (value / max) * 100)
@@ -215,7 +247,7 @@ function DecisionScatter({ insights, activeKey, onSelect }) {
         <div>
           <h2>Mapa de decisi&oacute;n</h2>
           <p>
-            Arriba hay mayor incumplimiento de SLA; a la derecha hay mayor riesgo o impacto.
+            Arriba hay mayor incumplimiento de SLA; a la derecha hay mayor impacto o criticidad.
           </p>
         </div>
       </div>
@@ -382,7 +414,7 @@ function MetricMixChart({ insights }) {
       <div className="decision-card-title">
         <div>
           <h2>Agrupaci&oacute;n de intereses</h2>
-          <p>Resume qu&eacute; tipo de preguntas hizo o guard&oacute; el usuario.</p>
+          <p>Resume qu&eacute; tipo de hallazgos guard&oacute; el usuario.</p>
         </div>
       </div>
       <Plot
@@ -413,6 +445,7 @@ function MetricMixChart({ insights }) {
 
 function DecisionReading({ reading }) {
   if (!reading?.focused) return null
+  const focusedKind = metricKind(reading.focused.metric_label)
   return (
     <Card className="decision-reading-card">
       <span className="decision-reading-eyebrow">Lectura guiada</span>
@@ -441,9 +474,9 @@ function DecisionReading({ reading }) {
         </li>
       </ul>
       <p className="decision-reading-action">
-        Recomendaci&oacute;n: usar este tablero para elegir qu&eacute; dimensi&oacute;n investigar primero y
-        luego volver a la exploraci&oacute;n para pedir causas, servicios afectados o clusters
-        relacionados.
+        {focusedKind === 'Decision'
+          ? 'Recomendacion: tratar esta alternativa como hipotesis de priorizacion y validarla con el equipo operativo antes de tomar una accion.'
+          : 'Recomendacion: usar este tablero para elegir que dimension investigar primero y luego volver a la exploracion para pedir causas, servicios afectados o clusters relacionados.'}
       </p>
     </Card>
   )
@@ -533,6 +566,24 @@ export function ConversationDashboardPage() {
           </Button>
         }
       />
+      <Card as="header" className="shell-header">
+        <SectionHeader
+          titleAs="h1"
+          eyebrow="Dashboard conversacional"
+          title={<>Dashboard de decisi&oacute;n de incidencias</>}
+          description={
+            <>
+              Vista interactiva de los hallazgos guardados desde la exploraci&oacute;n
+              conversacional de incidencias IT.
+            </>
+          }
+          rightSlot={
+            <Button type="button" variant="secondary" onClick={() => loadDashboard(selectedRunId)}>
+              Actualizar
+            </Button>
+          }
+        />
+      </Card>
 
       {error ? <Feedback variant="danger" message={error} /> : null}
 
@@ -557,7 +608,7 @@ export function ConversationDashboardPage() {
       </div>
 
       {insights.length > 0 ? (
-        <div className="decision-kind-filters" aria-label="Filtrar por tipo de metrica">
+        <div className="decision-kind-filters" aria-label="Filtrar por tipo de hallazgo">
           <button
             type="button"
             className={metricFilter === 'all' ? 'decision-chip decision-chip--active' : 'decision-chip'}
@@ -590,7 +641,7 @@ export function ConversationDashboardPage() {
           <strong>{summary.runCount}</strong>
         </Card>
         <Card className="decision-kpi">
-          <span>Tipos de m&eacute;trica</span>
+          <span>Tipos de hallazgo</span>
           <strong>{summary.kindCount}</strong>
         </Card>
         <Card className="decision-kpi">
@@ -604,7 +655,7 @@ export function ConversationDashboardPage() {
       </div>
 
       {loading ? (
-        <Card className="decision-empty">Cargando m&eacute;tricas seleccionadas...</Card>
+        <Card className="decision-empty">Cargando hallazgos seleccionados...</Card>
       ) : insights.length === 0 ? (
         <Card className="decision-empty">
           Todav&iacute;a no hay insights seleccionados. Ejecuta el pipeline, pregunta en el chat y
@@ -645,7 +696,7 @@ export function ConversationDashboardPage() {
                       {items[0]?.reduction_method}
                     </p>
                   </div>
-                  <span>{items.length} m&eacute;tricas</span>
+                  <span>{items.length} hallazgos</span>
                 </div>
 
                 <div className="decision-grid">
