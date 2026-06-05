@@ -366,34 +366,18 @@ export function DashboardPage() {
             </button>
           </div>
 
-          <div hidden={resultView !== 'visualization'} className="results-tab-panel">
-            <RunKpis result={resultado} runMeta={lastRun} />
-
-          {ejecutando ? (
-            <Feedback
-              variant="info"
-              message="Pipeline en curso. La visualizacion aparecera cuando termine la proyeccion 2D y el clustering."
-            />
-          ) : null}
-
-          <Scatter2D
-            X_2d={resultado?.X_2d}
-            clusterLabels={resultado?.cluster_labels}
-            metadata={resultado?.metadata}
-          />
-
-          <p className="legend-note note">
-            Color = cluster HDBSCAN; gris = outlier (-1). Pasa el cursor sobre un punto para ver
-            detalle de la observación.
-          </p>
-
-          </div>
-
           <div hidden={resultView !== 'interpretation'} className="results-tab-panel">
             <ClusterInterpretationPanel result={resultado} run={lastRun} />
           </div>
 
           <div hidden={resultView !== 'visualization'} className="results-tab-panel">
+            {ejecutando ? (
+              <Feedback
+                variant="info"
+                message="Pipeline en curso. La visualización aparecerá cuando termine la proyección 2D y el clustering."
+              />
+            ) : null}
+
             <Scatter2D
               X_2d={resultado?.X_2d}
               clusterLabels={resultado?.cluster_labels}
