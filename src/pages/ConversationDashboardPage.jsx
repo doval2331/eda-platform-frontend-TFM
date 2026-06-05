@@ -566,24 +566,6 @@ export function ConversationDashboardPage() {
           </Button>
         }
       />
-      <Card as="header" className="shell-header">
-        <SectionHeader
-          titleAs="h1"
-          eyebrow="Dashboard conversacional"
-          title={<>Dashboard de decisi&oacute;n de incidencias</>}
-          description={
-            <>
-              Vista interactiva de los hallazgos guardados desde la exploraci&oacute;n
-              conversacional de incidencias IT.
-            </>
-          }
-          rightSlot={
-            <Button type="button" variant="secondary" onClick={() => loadDashboard(selectedRunId)}>
-              Actualizar
-            </Button>
-          }
-        />
-      </Card>
 
       {error ? <Feedback variant="danger" message={error} /> : null}
 
