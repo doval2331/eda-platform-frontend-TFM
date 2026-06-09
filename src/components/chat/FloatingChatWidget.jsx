@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ExplorationChatBot } from './ExplorationChatBot'
+import { SparkleIcon } from '../LlmVisual'
 import '../../styles/chatbot.css'
+import '../../styles/llm-visual.css'
 
 function ChatIcon() {
   return (
@@ -28,31 +30,66 @@ function CloseIcon() {
   )
 }
 
-export function FloatingChatWidget({ run }) {
+export function FloatingChatWidget({
+  run,
+  llmReady = true,
+  forceOpen = false,
+  externalPrompt = null,
+  onExternalPromptConsumed,
+}) {
   const [open, setOpen] = useState(false)
+  const [expanded, setExpanded] = useState(false)
   const isReady = Boolean(run?.id)
 
+  useEffect(() => {
+    if (forceOpen) setOpen(true)
+  }, [forceOpen])
+
   function toggleOpen() {
-    setOpen((current) => !current)
+    setOpen((current) => {
+      if (current) setExpanded(false)
+      return !current
+    })
   }
 
   return (
-    <div className={`chat-widget${open ? ' chat-widget--open' : ''}`}>
+    <div
+      className={`chat-widget${open ? ' chat-widget--open' : ''}${
+        expanded ? ' chat-widget--expanded' : ''
+      }`}
+    >
       {open ? (
         <div className="chat-widget-panel" role="dialog" aria-label="Asistente de incidencias">
-          <ExplorationChatBot run={run} onClose={() => setOpen(false)} variant="float" />
+          <ExplorationChatBot
+            run={run}
+            onClose={() => {
+              setExpanded(false)
+              setOpen(false)
+            }}
+            variant="float"
+            llmReady={llmReady}
+            expanded={expanded}
+            onToggleExpand={() => setExpanded((current) => !current)}
+            externalPrompt={externalPrompt}
+            onExternalPromptConsumed={onExternalPromptConsumed}
+          />
         </div>
       ) : null}
 
       <button
         type="button"
-        className="chat-widget-fab"
+        className={`chat-widget-fab${isReady && llmReady ? ' chat-widget-fab--llm-ready' : ''}`}
         onClick={toggleOpen}
         aria-expanded={open}
         aria-label={open ? 'Cerrar asistente' : 'Abrir asistente de incidencias'}
-        title={open ? 'Cerrar chat' : 'Preguntar sobre los grupos detectados'}
+        title={open ? 'Cerrar chat' : 'Preguntar con Azure AI sobre los grupos detectados'}
       >
         {open ? <CloseIcon /> : <ChatIcon />}
+        {!open && isReady && llmReady ? (
+          <span className="chat-widget-fab__llm-tag">
+            <SparkleIcon size={8} /> AI
+          </span>
+        ) : null}
         {!open && isReady ? (
           <span className="chat-widget-badge" aria-label="Ejecución lista para consultar" />
         ) : null}

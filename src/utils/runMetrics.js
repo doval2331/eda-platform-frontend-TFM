@@ -16,6 +16,7 @@ export function formatModality(modality) {
   const map = {
     tabular: 'CSV tabular',
     it_ops: 'IT Ops',
+    project: 'Proyecto multifuente',
     texto: 'Texto',
     imagen: 'Imagen',
     multimodal: 'Multimodal',

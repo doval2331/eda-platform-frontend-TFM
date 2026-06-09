@@ -1,7 +1,9 @@
 import { useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
+import { LlmPowerBadge, SparkleIcon } from '../LlmVisual'
 import { Button, Feedback } from '../../ui'
 import '../../styles/chatbot.css'
+import '../../styles/llm-visual.css'
 
 function BotAvatar() {
   return (
@@ -27,7 +29,7 @@ function UserAvatar() {
   )
 }
 
-function ChatBotMessage({ role, text, insights, runId, onInsightSelect }) {
+function ChatBotMessage({ role, text, insights, runId, onInsightSelect, llmUsed, llmDetail }) {
   const isUser = role === 'user'
 
   return (
@@ -35,6 +37,23 @@ function ChatBotMessage({ role, text, insights, runId, onInsightSelect }) {
       {isUser ? <UserAvatar /> : <BotAvatar />}
       <div className="chatbot-bubble">
         <p className="chatbot-bubble-text">{text}</p>
+        {!isUser && llmUsed != null ? (
+          <span
+            className={`chatbot-message-llm ${
+              llmUsed ? 'chatbot-message-llm--active' : 'chatbot-message-llm--local'
+            }`}
+            title={llmDetail || ''}
+          >
+            {llmUsed ? (
+              <>
+                <SparkleIcon size={12} />
+                Respuesta con Azure AI
+              </>
+            ) : (
+              'Respuesta con reglas locales'
+            )}
+          </span>
+        ) : null}
         {!isUser && insights?.length ? (
           <div className="chatbot-insights">
             {insights.map((insight) => (
@@ -60,7 +79,45 @@ function ChatBotMessage({ role, text, insights, runId, onInsightSelect }) {
   )
 }
 
-function TypingIndicator() {
+function ExpandIcon({ expanded }) {
+  if (expanded) {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+        <path
+          d="M8 3v3H5M16 3v3h3M8 21v-3H5M16 21v-3h3"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    )
+  }
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M8 3H5v3M16 3h3v3M8 21H5v-3M16 21h3v-3"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function TypingIndicator({ llmPending = false }) {
+  if (llmPending) {
+    return (
+      <div className="chatbot-row chatbot-row--assistant">
+        <BotAvatar />
+        <div className="chatbot-loading-llm" aria-live="polite">
+          <SparkleIcon size={16} />
+          Consultando Azure OpenAI…
+        </div>
+      </div>
+    )
+  }
   return (
     <div className="chatbot-row chatbot-row--assistant">
       <BotAvatar />
@@ -80,6 +137,8 @@ export function ChatBot({
   headerAction,
   onClose,
   variant = 'embedded',
+  expanded = false,
+  onToggleExpand,
   messages = [],
   suggestions = [],
   loading = false,
@@ -91,6 +150,7 @@ export function ChatBot({
   onSuggestionClick,
   onInsightSelect,
   runId,
+  llmReady = false,
   placeholder = 'Escribe tu pregunta…',
   emptyTitle = 'Chat inactivo',
   emptyDescription = 'Ejecuta el pipeline para habilitar la exploración conversacional.',
@@ -144,6 +204,17 @@ export function ChatBot({
         </div>
         <div className="chatbot-header-actions">
           {headerAction}
+          {variant === 'float' && onToggleExpand ? (
+            <button
+              type="button"
+              className="chatbot-close"
+              onClick={onToggleExpand}
+              aria-label={expanded ? 'Reducir chat' : 'Ampliar chat'}
+              title={expanded ? 'Reducir chat' : 'Ampliar chat'}
+            >
+              <ExpandIcon expanded={expanded} />
+            </button>
+          ) : null}
           {onClose ? (
             <button
               type="button"
@@ -164,13 +235,19 @@ export function ChatBot({
         </div>
       </header>
 
-      {error ? (
-        <div className="chatbot-error">
-          <Feedback variant="danger" message={error} />
+      {active && llmReady ? (
+        <div className="chatbot-llm-banner">
+          <LlmPowerBadge active modelName="gpt-4.1-mini" size="md" />
+          <span>El asistente puede reescribir respuestas con Azure OpenAI</span>
         </div>
       ) : null}
 
       <div className="chatbot-body" ref={bodyRef} aria-live="polite">
+        {error ? (
+          <div className="chatbot-error">
+            <Feedback variant="danger" message={error} />
+          </div>
+        ) : null}
         {!messages.length && !loading ? (
           <div className="chatbot-empty">
             <div className="chatbot-empty-icon" aria-hidden>
@@ -196,16 +273,23 @@ export function ChatBot({
                 insights={message.insights}
                 runId={runId}
                 onInsightSelect={onInsightSelect}
+                llmUsed={message.llmUsed}
+                llmDetail={message.llmDetail}
               />
             ))}
-            {loading ? <TypingIndicator /> : null}
+            {loading ? <TypingIndicator llmPending={llmReady} /> : null}
           </>
         )}
       </div>
 
       <footer className="chatbot-footer">
         {suggestions.length ? (
-          <div className="chatbot-suggestions" aria-label="Preguntas sugeridas">
+          <div
+            className={`chatbot-suggestions${
+              variant === 'float' ? ' chatbot-suggestions--compact' : ''
+            }`}
+            aria-label="Preguntas sugeridas"
+          >
             {suggestions.map((item) => (
               <button
                 type="button"
@@ -270,7 +354,7 @@ export function ChatBot({
 
 ChatBot.DashboardLink = function ChatBotDashboardLink({ to = '/dashboard-conversacional', children = 'Ver dashboard' }) {
   return (
-    <Link className="chatbot-header-action" to={to}>
+    <Link className="chatbot-header-action" to={to} state={{ refreshAt: Date.now() }}>
       {children}
     </Link>
   )
