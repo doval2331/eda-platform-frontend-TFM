@@ -1,9 +1,6 @@
 import { apiRequest } from './apiClient'
 
-/**
- * Ejecuta el pipeline y persiste el run (requiere sesión).
- * @returns {Promise<{ run: object, result: object }>}
- */
+
 export async function executePipeline({
   modality,
   reductionMethod,
@@ -11,6 +8,8 @@ export async function executePipeline({
   nSamples,
   datasetId,
   idColumn,
+  projectName,
+  sourceType,
   excludeColumns,
   numericColumns,
   categoricalColumns,
@@ -23,6 +22,8 @@ export async function executePipeline({
   if (nSamples != null) body.n_samples = nSamples
   if (datasetId) body.dataset_id = datasetId
   if (idColumn) body.id_column = idColumn
+  if (projectName) body.project_name = projectName
+  if (sourceType) body.source_type = sourceType
   if (excludeColumns?.length) body.exclude_columns = excludeColumns
   if (numericColumns?.length) body.numeric_columns = numericColumns
   if (categoricalColumns?.length) body.categorical_columns = categoricalColumns
@@ -38,6 +39,14 @@ export async function executePipeline({
 
 export async function listRuns(limit = 50) {
   return apiRequest(`/api/runs?limit=${limit}`, { auth: true })
+}
+
+export async function clearAllRuns() {
+  return apiRequest('/api/runs', { method: 'DELETE', auth: true })
+}
+
+export async function deleteRun(runId) {
+  return apiRequest(`/api/runs/${runId}`, { method: 'DELETE', auth: true })
 }
 
 export async function fetchRun(runId) {

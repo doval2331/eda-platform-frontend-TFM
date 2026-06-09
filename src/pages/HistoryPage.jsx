@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import '../styles/history.css'
 import '../styles/app.css'
-import { fetchRun, listRuns } from '../api/pipeline'
-import { RunKpis } from '../components/RunKpis'
-import { Scatter2D } from '../Scatter2D'
+import { clearAllRuns, deleteRun, listRuns } from '../api/pipeline'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import {
   Button,
   Card,
@@ -14,8 +13,10 @@ import {
   DataTableRoot,
   DataTableScroll,
   DataTableTable,
+  LoadingPanel,
 } from '../ui'
 import { formatModality } from '../utils/runMetrics'
+import { sourceTypeLabel } from '../utils/projectLabels'
 
 function formatDate(iso) {
   if (!iso) return '—'
@@ -29,12 +30,20 @@ function formatDate(iso) {
   }
 }
 
+function runLabel(run) {
+  return run.project_name ?? formatModality(run.modality)
+}
+
 export function HistoryPage() {
+  const navigate = useNavigate()
+  const location = useLocation()
   const [runs, setRuns] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [selected, setSelected] = useState(null)
-  const [detailLoading, setDetailLoading] = useState(false)
+  const [message, setMessage] = useState(null)
+  const [clearing, setClearing] = useState(false)
+  const [deletingRunId, setDeletingRunId] = useState(null)
+  const [confirmState, setConfirmState] = useState(null)
 
   const loadList = useCallback(async () => {
     setLoading(true)
@@ -53,16 +62,65 @@ export function HistoryPage() {
     loadList()
   }, [loadList])
 
-  async function openRun(runId) {
-    setDetailLoading(true)
+  useEffect(() => {
+    const deletedMessage = location.state?.deletedMessage
+    if (!deletedMessage) return
+    setMessage(deletedMessage)
+    navigate(location.pathname, { replace: true, state: null })
+  }, [location.pathname, location.state, navigate])
+
+  const confirmBusy = Boolean(clearing || deletingRunId)
+  const pendingRun = confirmState?.type === 'single' ? confirmState.run : null
+
+  function openRun(runId) {
+    navigate(`/historial/${runId}`)
+  }
+
+  function closeConfirm() {
+    if (confirmBusy) return
+    setConfirmState(null)
+  }
+
+  function requestDeleteRun(run) {
+    setConfirmState({ type: 'single', run })
+  }
+
+  function requestClearHistory() {
+    setConfirmState({ type: 'all' })
+  }
+
+  async function confirmDeleteRun() {
+    const run = confirmState?.run
+    if (!run) return
+
+    setDeletingRunId(run.id)
     setError(null)
+    setMessage(null)
     try {
-      const detail = await fetchRun(runId)
-      setSelected(detail)
+      const result = await deleteRun(run.id)
+      setRuns((current) => current.filter((item) => item.id !== run.id))
+      setMessage(result.message ?? 'Ejecución eliminada.')
+      setConfirmState(null)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo cargar la ejecución')
+      setError(err instanceof Error ? err.message : 'No se pudo eliminar la ejecución')
     } finally {
-      setDetailLoading(false)
+      setDeletingRunId(null)
+    }
+  }
+
+  async function confirmClearHistory() {
+    setClearing(true)
+    setError(null)
+    setMessage(null)
+    try {
+      const result = await clearAllRuns()
+      setRuns([])
+      setMessage(result.message ?? `Se eliminaron ${result.deleted_runs} ejecuciones.`)
+      setConfirmState(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo vaciar el historial')
+    } finally {
+      setClearing(false)
     }
   }
 
@@ -72,20 +130,27 @@ export function HistoryPage() {
         breadcrumbParent="Plataforma"
         breadcrumbCurrent="Historial"
         title="Historial de ejecuciones"
-        description="Consultas guardadas en PostgreSQL. Abre una fila para ver el gráfico sin volver a ejecutar el pipeline."
         rightSlot={
-          <Button type="button" variant="secondary" onClick={loadList} disabled={loading}>
-            Actualizar
-          </Button>
+          <div className="history-page-actions">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={requestClearHistory}
+              disabled={loading || clearing || runs.length === 0}
+            >
+              {clearing ? 'Borrando…' : 'Vaciar historial'}
+            </Button>
+            <Button type="button" variant="secondary" onClick={loadList} disabled={loading}>
+              Actualizar
+            </Button>
+          </div>
         }
       />
-
-      {error ? <Feedback variant="danger" message={error} /> : null}
 
       <Card className="history-table-card">
         <h2 className="history-section-title">Ejecuciones recientes</h2>
         {loading ? (
-          <p className="muted">Cargando historial…</p>
+          <LoadingPanel compact title="Cargando historial…" />
         ) : runs.length === 0 ? (
           <DataTableEmpty>
             Aún no hay ejecuciones. Ve al{' '}
@@ -98,25 +163,22 @@ export function HistoryPage() {
                 <thead>
                   <tr>
                     <th>Fecha</th>
-                    <th>Modalidad</th>
+                    <th>Escenario</th>
+                    <th>Fuente</th>
                     <th>Reducción</th>
                     <th>Puntos</th>
                     <th>Clusters</th>
                     <th>Silhouette</th>
                     <th>Outliers</th>
-                    <th></th>
+                    <th aria-label="Acciones" />
                   </tr>
                 </thead>
                 <tbody>
                   {runs.map((run) => (
-                    <tr
-                      key={run.id}
-                      className={
-                        selected?.id === run.id ? 'history-row--active' : undefined
-                      }
-                    >
+                    <tr key={run.id}>
                       <td>{formatDate(run.created_at)}</td>
-                      <td>{formatModality(run.modality)}</td>
+                      <td>{runLabel(run)}</td>
+                      <td>{run.source_type ? sourceTypeLabel(run.source_type) : '—'}</td>
                       <td>{run.reduction_method}</td>
                       <td>{run.n_samples}</td>
                       <td>{run.metrics?.n_clusters ?? '—'}</td>
@@ -127,15 +189,25 @@ export function HistoryPage() {
                       </td>
                       <td>{run.outliers_count}</td>
                       <td>
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          className="btn-sm"
-                          disabled={detailLoading}
-                          onClick={() => openRun(run.id)}
-                        >
-                          Ver
-                        </Button>
+                        <div className="history-row-actions">
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            className="btn-sm"
+                            onClick={() => openRun(run.id)}
+                          >
+                            Ver resultados
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            className="btn-sm btn-danger"
+                            onClick={() => requestDeleteRun(run)}
+                            disabled={deletingRunId === run.id || clearing}
+                          >
+                            {deletingRunId === run.id ? 'Eliminando…' : 'Eliminar'}
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -146,31 +218,59 @@ export function HistoryPage() {
         )}
       </Card>
 
-      {selected ? (
-        <Card className="panel-results history-detail-card">
-          <div className="panel-header panel-header--stacked">
-            <div>
-              <h2>Detalle — {formatDate(selected.created_at)}</h2>
-              <p className="muted history-detail-meta">
-                {formatModality(selected.modality)} · {selected.reduction_method} · seed{' '}
-                {selected.seed} · id{' '}
-                <code className="history-run-id">{selected.id.slice(0, 8)}…</code>
-              </p>
-            </div>
-          </div>
-          <RunKpis result={selected.result} runMeta={selected} />
+      <ConfirmDialog
+        open={confirmState?.type === 'single'}
+        onClose={closeConfirm}
+        title="Eliminar ejecución"
+        description="Esta acción no se puede deshacer."
+        confirmLabel="Eliminar"
+        cancelLabel="Cancelar"
+        danger
+        busy={confirmBusy}
+        onConfirm={confirmDeleteRun}
+      >
+        {pendingRun ? (
+          <>
+            <p>¿Seguro que quieres eliminar esta ejecución del historial?</p>
+            <p className="note">
+              Se borrarán resultados, evidencias, agentes e insights asociados.
+            </p>
+          </>
+        ) : null}
+      </ConfirmDialog>
 
-          <Scatter2D
-            X_2d={selected.result?.X_2d}
-            clusterLabels={selected.result?.cluster_labels}
-            metadata={selected.result?.metadata}
-          />
+      <ConfirmDialog
+        open={confirmState?.type === 'all'}
+        onClose={closeConfirm}
+        title="Vaciar historial"
+        description="Se eliminarán todas las ejecuciones guardadas."
+        confirmLabel="Vaciar historial"
+        cancelLabel="Cancelar"
+        danger
+        busy={confirmBusy}
+        onConfirm={confirmClearHistory}
+      >
+        <p>¿Borrar todas las ejecuciones del historial?</p>
+        <p className="note">
+          Se eliminarán runs, evidencias, insights, agentes y dashboard conversacional. El usuario
+          de login no se borra.
+        </p>
+      </ConfirmDialog>
 
-          <p className="legend-note note">
-            Color = cluster HDBSCAN; gris = outlier (-1). Datos recuperados del historial.
-          </p>
-        </Card>
-      ) : null}
+      <Feedback
+        open={Boolean(error)}
+        variant="danger"
+        message={error ?? ''}
+        onClose={() => setError(null)}
+        position="bottom-right"
+      />
+      <Feedback
+        open={Boolean(message)}
+        variant="success"
+        message={message ?? ''}
+        onClose={() => setMessage(null)}
+        position="bottom-right"
+      />
     </div>
   )
 }

@@ -19,11 +19,9 @@ export const REDUCTION_OPTIONS = [
 ]
 
 export const MODALITY_OPTIONS = [
-  { value: 'tabular', label: 'Mis incidencias (subir CSV)' },
+  { value: 'tabular', label: 'Un solo CSV (mis incidencias)' },
+  { value: 'project', label: 'Escenario multifuente (proyecto)' },
   { value: 'it_ops', label: 'Datos de demo (incidencias IT)' },
-  { value: 'texto', label: 'Demo sintética — texto' },
-  { value: 'imagen', label: 'Demo sintética — imagen' },
-  { value: 'multimodal', label: 'Demo sintética — multimodal' },
 ]
 
 export function clusterDisplayName(clusterId) {

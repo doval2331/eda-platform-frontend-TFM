@@ -134,6 +134,67 @@
   align-items: start;
 }
 
+.app-main--results-only {
+  grid-template-columns: 1fr;
+}
+
+.panel-results-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+}
+
+.panel-results-head-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.panel-results-head h2 {
+  margin: 0;
+}
+
+.panel-results-head .run-saved-note {
+  margin: 0;
+}
+
+.prepare-data-btn {
+  width: auto;
+  min-width: 10rem;
+  flex-shrink: 0;
+}
+
+.prepare-data-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-height: min(70vh, 720px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.prepare-data-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--border-subtle, #e2e8f0);
+}
+
+.prepare-data-section:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.project-subsection-title {
+  margin: 0.25rem 0 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
 .panel-config {
   display: flex;
   flex-direction: column;
@@ -286,6 +347,32 @@
 
 .plot-loader svg {
   animation: plot-loader-spin 0.85s linear infinite;
+}
+
+.plot-loader--llm {
+  position: relative;
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.2), rgba(168, 85, 247, 0.2));
+  color: #5b21b6;
+}
+
+.plot-loader--llm svg:last-child {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+}
+
+.loading-panel--compact {
+  min-height: 220px;
+  padding: 24px 16px;
+}
+
+.loading-panel--llm {
+  border-color: color-mix(in srgb, #7c3aed 24%, var(--color-fog-border));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, rgba(6, 182, 212, 0.14) 100%, #fff 0%),
+    color-mix(in srgb, rgba(168, 85, 247, 0.12) 100%, #fff 0%)
+  );
 }
 
 @keyframes plot-loader-spin {
@@ -538,6 +625,113 @@
 
 .cluster-insights .btn-secondary:hover:enabled {
   background: #eff6ff;
+}
+
+.agent-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.agent-panel--empty,
+.agent-panel-empty {
+  padding: 16px;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.agent-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.agent-llm-status {
+  margin: 0;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.agent-llm-status--active {
+  color: #0f766e;
+  font-weight: 600;
+}
+
+.agent-panel-section h4 {
+  margin: 0 0 10px;
+  font-size: 16px;
+  color: #061b31;
+}
+
+.agent-trace-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 60vh;
+  overflow: auto;
+}
+
+.agent-trace-card {
+  border: 1px solid #dbe7f3;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.agent-trace-head {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 0;
+  background: #f8fbff;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.agent-trace-head strong {
+  display: block;
+  color: #061b31;
+}
+
+.agent-trace-head span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.agent-trace-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.agent-trace-body {
+  display: grid;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #fff;
+}
+
+.agent-trace-body h4 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: #334155;
+}
+
+.agent-trace-body pre {
+  margin: 0;
+  padding: 10px;
+  border-radius: 8px;
+  background: #f1f5f9;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow: auto;
 }
 
 .run-saved-note a {
@@ -1601,4 +1795,163 @@
   .metabase-facts div {
     grid-template-columns: 1fr;
   }
+}
+
+/* --- Proyecto multifuente --- */
+.project-active-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.project-active-summary {
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle, #e2e8f0);
+  background: var(--surface-muted, #f8fafc);
+}
+
+.project-active-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.project-active-strategy {
+  font-size: 0.85rem;
+  color: var(--text-muted, #64748b);
+}
+
+.project-active-description {
+  margin: 0.35rem 0 0;
+}
+
+.project-active-sources {
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.project-runs-picker {
+  margin-top: 0.75rem;
+}
+
+.project-wizard {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.project-wizard-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.project-wizard-step {
+  font-size: 0.85rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  background: var(--surface-muted, #f1f5f9);
+  color: var(--text-muted, #64748b);
+}
+
+.project-wizard-step--active {
+  background: var(--accent-soft, #dbeafe);
+  color: var(--accent-strong, #1d4ed8);
+  font-weight: 600;
+}
+
+.project-wizard-step--done {
+  color: var(--text-primary, #0f172a);
+}
+
+.project-wizard-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.project-section-title {
+  margin: 0.25rem 0 0;
+  font-size: 1rem;
+}
+
+.project-source-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.project-source-row {
+  padding: 0.75rem 0.9rem;
+  border: 1px dashed var(--border-subtle, #cbd5e1);
+  border-radius: 10px;
+}
+
+.project-source-row--ready {
+  border-style: solid;
+  background: var(--surface-muted, #f8fafc);
+}
+
+.project-source-row-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.project-source-badge {
+  font-size: 0.75rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.project-source-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+
+.project-source-remove {
+  border: none;
+  background: transparent;
+  color: var(--danger, #b91c1c);
+  cursor: pointer;
+  font-size: 0.85rem;
+  text-decoration: underline;
+}
+
+.project-description-input {
+  width: 100%;
+  min-height: 4.5rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--border-subtle, #cbd5e1);
+  border-radius: 8px;
+  font: inherit;
+  resize: vertical;
+}
+
+.project-summary-card {
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle, #e2e8f0);
+}
+
+.project-summary-list {
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.project-dialog-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  width: 100%;
 }

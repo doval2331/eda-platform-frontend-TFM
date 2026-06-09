@@ -10,7 +10,16 @@ const DEFAULT_SUGGESTIONS = [
   '¿Cuántos casos atípicos hay?',
 ]
 
-export function ExplorationChatBot({ run, onClose, variant = 'embedded' }) {
+export function ExplorationChatBot({
+  run,
+  onClose,
+  variant = 'embedded',
+  llmReady = true,
+  expanded = false,
+  onToggleExpand,
+  externalPrompt = null,
+  onExternalPromptConsumed,
+}) {
   const [question, setQuestion] = useState('')
   const [messages, setMessages] = useState([])
   const [suggestions, setSuggestions] = useState(DEFAULT_SUGGESTIONS)
@@ -36,15 +45,31 @@ export function ExplorationChatBot({ run, onClose, variant = 'embedded' }) {
     }
   }, [run?.id])
 
+  useEffect(() => {
+    if (!externalPrompt?.text || !run?.id) return
+    setMessages((current) => [
+      ...current,
+      {
+        role: 'assistant',
+        text: 'Te traigo un resumen desde el análisis asistido. Voy a consultar Azure OpenAI con tu pregunta…',
+      },
+      { role: 'user', text: externalPrompt.text },
+    ])
+    void sendQuestion(externalPrompt.text, { fromBridge: true })
+    onExternalPromptConsumed?.()
+  }, [externalPrompt?.at, externalPrompt?.text, run?.id])
+
   const shortRunId = useMemo(() => (run?.id ? run.id.slice(0, 8) : ''), [run?.id])
 
-  async function sendQuestion(text) {
+  async function sendQuestion(text, options = {}) {
     const clean = text.trim()
     if (!run?.id || !clean) return
     setLoading(true)
     setError(null)
     setQuestion('')
-    setMessages((current) => [...current, { role: 'user', text: clean }])
+    if (!options.fromBridge) {
+      setMessages((current) => [...current, { role: 'user', text: clean }])
+    }
 
     try {
       const response = await askRunQuestion(run.id, clean)
@@ -54,6 +79,8 @@ export function ExplorationChatBot({ run, onClose, variant = 'embedded' }) {
           role: 'assistant',
           text: response.answer,
           insights: response.insights ?? [],
+          llmUsed: Boolean(response.llm_used),
+          llmDetail: response.llm_detail,
         },
       ])
       if (response.suggested_questions?.length) {
@@ -66,18 +93,16 @@ export function ExplorationChatBot({ run, onClose, variant = 'embedded' }) {
     }
   }
 
+  function pushAssistantNote(text) {
+    setMessages((current) => [...current, { role: 'assistant', text }])
+  }
+
   async function onInsightSelected(runId, insight) {
     if (!runId || selectedIds.has(insight.id)) return
     try {
       await selectRunInsight(runId, insight)
       setSelectedIds((current) => new Set([...current, insight.id]))
-      setMessages((current) => [
-        ...current,
-        {
-          role: 'assistant',
-          text: `Anotado: «${insight.title}». Quedó guardado para tu informe o dashboard.`,
-        },
-      ])
+      pushAssistantNote(`Anotado: «${insight.title}». Quedó guardado para tu informe o dashboard.`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar el insight')
     }
@@ -88,9 +113,12 @@ export function ExplorationChatBot({ run, onClose, variant = 'embedded' }) {
       title="Asistente de incidencias"
       subtitle={run?.id ? `Análisis ${shortRunId}` : null}
       active={Boolean(run?.id)}
+      llmReady={llmReady}
       headerAction={<ChatBot.DashboardLink />}
       onClose={onClose}
       variant={variant}
+      expanded={expanded}
+      onToggleExpand={onToggleExpand}
       messages={messages}
       suggestions={suggestions}
       loading={loading}

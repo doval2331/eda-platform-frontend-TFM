@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import createPlotlyComponent from 'react-plotly.js/factory'
 import Plotly from 'plotly.js-dist-min'
 import { fetchConversationDashboard } from '../api/conversation'
@@ -483,6 +483,7 @@ function DecisionReading({ reading }) {
 }
 
 export function ConversationDashboardPage() {
+  const location = useLocation()
   const [selectedRunId, setSelectedRunId] = useState('')
   const [metricFilter, setMetricFilter] = useState('all')
   const [activeInsightKey, setActiveInsightKey] = useState('')
@@ -499,19 +500,22 @@ export function ConversationDashboardPage() {
         fetchConversationDashboard(runId || undefined),
         listRuns(50),
       ])
-      setDashboard(dashboardData)
+      setDashboard(dashboardData ?? { total: 0, insights: [] })
       setRuns(runsData)
       setActiveInsightKey('')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo cargar el dashboard')
+      setDashboard({ total: 0, insights: [] })
     } finally {
       setLoading(false)
     }
   }, [])
 
   useEffect(() => {
-    void Promise.resolve().then(() => loadDashboard(''))
-  }, [loadDashboard])
+    setSelectedRunId('')
+    setMetricFilter('all')
+    void loadDashboard('')
+  }, [location.pathname, location.key, loadDashboard])
 
   const insights = useMemo(() => dashboard.insights ?? [], [dashboard.insights])
   const metricKinds = useMemo(() => {
@@ -566,24 +570,6 @@ export function ConversationDashboardPage() {
           </Button>
         }
       />
-      <Card as="header" className="shell-header">
-        <SectionHeader
-          titleAs="h1"
-          eyebrow="Dashboard conversacional"
-          title={<>Dashboard de decisi&oacute;n de incidencias</>}
-          description={
-            <>
-              Vista interactiva de los hallazgos guardados desde la exploraci&oacute;n
-              conversacional de incidencias IT.
-            </>
-          }
-          rightSlot={
-            <Button type="button" variant="secondary" onClick={() => loadDashboard(selectedRunId)}>
-              Actualizar
-            </Button>
-          }
-        />
-      </Card>
 
       {error ? <Feedback variant="danger" message={error} /> : null}
 
@@ -690,7 +676,7 @@ export function ConversationDashboardPage() {
               <section className="decision-run-group" key={runId}>
                 <div className="decision-run-heading">
                   <div>
-                    <h2>Detalle agrupado - Run {runId.slice(0, 8)}</h2>
+                    <h2>Detalle agrupado</h2>
                     <p>
                       {formatDate(items[0]?.run_created_at)} - {items[0]?.modality} -{' '}
                       {items[0]?.reduction_method}
