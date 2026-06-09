@@ -1,5 +1,6 @@
 import createPlotlyComponent from 'react-plotly.js/factory'
 import Plotly from 'plotly.js-dist-min'
+import { LoadingPanel } from './ui'
 import { clusterDisplayName, clusterLegendName } from './utils/businessLabels'
 
 const plotlyFactory =
@@ -82,32 +83,10 @@ const HOVER_LEGACY =
 export function Scatter2D({ X_2d, clusterLabels, metadata, loading = false }) {
   if (loading) {
     return (
-      <div
-        className="empty-state empty-state--loading"
-        aria-live="polite"
-        aria-busy="true"
-      >
-        <div className="plot-loader" aria-hidden>
-          <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-            <circle
-              cx="24"
-              cy="24"
-              r="20"
-              stroke="currentColor"
-              strokeWidth="3"
-              opacity="0.2"
-            />
-            <path
-              d="M24 4a20 20 0 0120 20"
-              stroke="currentColor"
-              strokeWidth="3"
-              strokeLinecap="round"
-            />
-          </svg>
-        </div>
-        <h3>Analizando incidencias&hellip;</h3>
-        <p>Agrupando registros similares. Esto puede tardar unos segundos.</p>
-      </div>
+      <LoadingPanel
+        title="Analizando incidencias…"
+        description="Agrupando registros similares. Esto puede tardar unos segundos."
+      />
     )
   }
 

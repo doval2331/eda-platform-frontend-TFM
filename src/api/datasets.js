@@ -1,10 +1,16 @@
 import { apiRequest } from './apiClient'
+import { validateCsvUploadFile } from '../utils/csvUpload'
 
 /**
  * Sube un CSV y devuelve el perfil de columnas inferido.
  * @param {File} file
  */
 export async function uploadDataset(file) {
+  const validation = validateCsvUploadFile(file)
+  if (!validation.ok) {
+    throw new Error(validation.message)
+  }
+
   const form = new FormData()
   form.append('file', file)
   return apiRequest('/api/datasets/upload', {

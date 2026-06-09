@@ -80,8 +80,14 @@
   background: color-mix(in srgb, var(--surface-ghost-canvas, #e8f1fb) 55%, #fff 45%);
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  align-items: center;
+  gap: 10px;
   justify-content: flex-end;
+}
+
+.dialog-footer .btn {
+  width: auto;
+  min-width: 7.5rem;
 }
 
 .feedback {
@@ -135,6 +141,8 @@
   z-index: 9999;
   min-width: 320px;
   max-width: 520px;
+  padding: 12px 14px;
+  border-radius: 12px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
 }
 
