@@ -155,12 +155,12 @@ export function DashboardPage() {
       const profile = await uploadDataset(file)
       setDatasetProfile(profile)
       if (!scenarioName.trim()) {
-        const baseName = file.name.replace(/\.csv$/i, '').trim()
+        const baseName = file.name.replace(/\.[^.]+$/i, '').trim()
         if (baseName) setScenarioName(baseName)
       }
       handleModalidadChange('tabular')
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : 'Error al subir el CSV')
+      setUploadError(err instanceof Error ? err.message : 'Error al subir el archivo tabular')
       setDatasetProfile(null)
     } finally {
       setUploading(false)
@@ -289,7 +289,11 @@ export function DashboardPage() {
                 <p className="note run-saved-note">
                   Análisis guardado
                   {lastRun.project_name ? ` · ${lastRun.project_name}` : ''}
-                  {lastRun.source_type ? ` · ${sourceTypeLabel(lastRun.source_type)}` : ''} ·{' '}
+                  {lastRun.source_name
+                    ? ` · ${lastRun.source_name}`
+                    : lastRun.source_type
+                      ? ` · ${sourceTypeLabel(lastRun.source_type)}`
+                      : ''} ·{' '}
                   <Link to="/historial">Ver historial</Link>
                 </p>
               ) : null}
@@ -314,7 +318,7 @@ export function DashboardPage() {
               >
                 {projectRuns.map((run, index) => (
                   <option key={run.id} value={index}>
-                    {sourceTypeLabel(run.source_type)} — {run.n_samples} incidencias
+                    {run.source_name || sourceTypeLabel(run.source_type)} — {run.n_samples} incidencias
                   </option>
                 ))}
               </select>

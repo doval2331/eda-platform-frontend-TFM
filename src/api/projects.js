@@ -1,5 +1,5 @@
 import { apiRequest } from './apiClient'
-import { validateCsvUploadFile } from '../utils/csvUpload'
+import { validateProjectSourceFile } from '../utils/csvUpload'
 
 export async function createProject({ name, description = '', strategy = 'per_source' }) {
   return apiRequest('/api/projects', {
@@ -25,17 +25,17 @@ export async function updateProject(projectId, patch) {
   })
 }
 
-export async function uploadProjectSource(projectId, sourceType, file) {
-  const isCsv = ['incidents', 'change_mgmt', 'software', 'hardware'].includes(sourceType)
-  if (isCsv) {
-    const validation = validateCsvUploadFile(file)
-    if (!validation.ok) {
-      throw new Error(validation.message)
-    }
+export async function uploadProjectSource(projectId, sourceType, file, sourceName = '') {
+  const validation = validateProjectSourceFile(file, sourceType)
+  if (!validation.ok) {
+    throw new Error(validation.message)
   }
 
   const form = new FormData()
   form.append('file', file)
+  if (sourceName.trim()) {
+    form.append('source_name', sourceName.trim())
+  }
   const query = new URLSearchParams({ source_type: sourceType })
   return apiRequest(`/api/projects/${projectId}/sources?${query}`, {
     method: 'POST',

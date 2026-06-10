@@ -136,7 +136,11 @@ export function HistoryRunDetailPage() {
         <>
           <p className="muted history-detail-meta history-detail-meta--top">
             {run.project_name ?? formatModality(run.modality)}
-            {run.source_type ? ` · ${sourceTypeLabel(run.source_type)}` : ''} ·{' '}
+            {run.source_name
+              ? ` · ${run.source_name}`
+              : run.source_type
+                ? ` · ${sourceTypeLabel(run.source_type)}`
+                : ''} ·{' '}
             {run.reduction_method} · seed {run.seed} · id{' '}
             <code className="history-run-id">{run.id.slice(0, 8)}…</code>
           </p>
