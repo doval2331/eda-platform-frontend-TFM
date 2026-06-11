@@ -19,7 +19,7 @@ export const REDUCTION_OPTIONS = [
 ]
 
 export const MODALITY_OPTIONS = [
-  { value: 'tabular', label: 'Un solo CSV (mis incidencias)' },
+  { value: 'tabular', label: 'Una fuente tabular (mis incidencias)' },
   { value: 'project', label: 'Escenario multifuente (proyecto)' },
   { value: 'it_ops', label: 'Datos de demo (incidencias IT)' },
 ]

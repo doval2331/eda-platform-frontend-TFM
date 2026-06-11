@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   fetchAgentResults,
   fetchAgentTraces,
+  fetchProjectAgentTraces,
+  recordHumanAgentDecision,
   runAgentInterpretation,
   runAgentStrategy,
 } from '../api/agents'
@@ -184,6 +186,7 @@ function TraceRow({ trace }) {
           <span>{trace.decision_type}</span>
         </div>
         <div className="agent-trace-meta">
+          {trace.scope ? <span>{trace.scope}</span> : null}
           <span>{trace.model_name}</span>
           <span>{formatDate(trace.created_at)}</span>
           <span>{open ? '▾' : '▸'}</span>
@@ -205,8 +208,19 @@ function TraceRow({ trace }) {
   )
 }
 
-export function AgentAnalysisPanel({ run, onOpenChatWithPrompt }) {
+async function fetchOptionalTraces(loader) {
+  try {
+    const data = await loader()
+    return data.traces ?? []
+  } catch (err) {
+    if (err?.status === 404) return []
+    throw err
+  }
+}
+
+export function AgentAnalysisPanel({ run, projectId: projectIdProp, onOpenChatWithPrompt }) {
   const runId = run?.id
+  const projectId = projectIdProp ?? run?.project_id ?? null
   const [recommendations, setRecommendations] = useState([])
   const [insights, setInsights] = useState([])
   const [hasTraces, setHasTraces] = useState(false)
@@ -215,6 +229,7 @@ export function AgentAnalysisPanel({ run, onOpenChatWithPrompt }) {
   const [initialLoading, setInitialLoading] = useState(false)
   const [strategyLoading, setStrategyLoading] = useState(false)
   const [interpretationLoading, setInterpretationLoading] = useState(false)
+  const [validationLoading, setValidationLoading] = useState(false)
   const [tracesLoading, setTracesLoading] = useState(false)
   const [tracesOpen, setTracesOpen] = useState(false)
   const [error, setError] = useState(null)
@@ -324,13 +339,49 @@ export function AgentAnalysisPanel({ run, onOpenChatWithPrompt }) {
     }
   }
 
+  async function onValidateStrategy() {
+    if (!runId || !recommendations.length) return
+    setValidationLoading(true)
+    setError(null)
+    setMessage(null)
+    try {
+      const approvedStrategyIds = recommendations
+        .map((item) => item.strategy_id)
+        .filter(Boolean)
+        .map(String)
+      const response = await recordHumanAgentDecision(runId, {
+        decision_type: 'strategy_approval',
+        status: 'approved',
+        summary:
+          'El analista valida la estrategia propuesta por el agente para continuar con la interpretacion de clusters.',
+        approved_strategy_ids: approvedStrategyIds,
+        parameters: {
+          recommendation_count: recommendations.length,
+          insight_count: insights.length,
+        },
+      })
+      setHasTraces(true)
+      setMessage(`Validacion humana registrada. Traza: ${response.trace_id}`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo registrar la validacion humana')
+    } finally {
+      setValidationLoading(false)
+    }
+  }
+
   async function onOpenTraces() {
     if (!runId) return
     setTracesLoading(true)
     setError(null)
     try {
-      const data = await fetchAgentTraces(runId)
-      setTraces(data.traces ?? [])
+      const runTraces = await fetchOptionalTraces(() => fetchAgentTraces(runId))
+      const projectTraces = projectId
+        ? await fetchOptionalTraces(() => fetchProjectAgentTraces(projectId))
+        : []
+      setTraces([
+        ...projectTraces.map((trace) => ({ ...trace, scope: 'Proyecto' })),
+        ...runTraces.map((trace) => ({ ...trace, scope: 'Ejecucion' })),
+      ])
       setTracesOpen(true)
     } catch (err) {
       if (err?.status === 404) {
@@ -376,7 +427,7 @@ export function AgentAnalysisPanel({ run, onOpenChatWithPrompt }) {
     )
   }
 
-  const busy = strategyLoading || interpretationLoading || initialLoading
+  const busy = strategyLoading || interpretationLoading || validationLoading || initialLoading
 
   return (
     <section className="agent-panel cluster-insights">
@@ -449,11 +500,25 @@ export function AgentAnalysisPanel({ run, onOpenChatWithPrompt }) {
             <SparkleIcon size={14} /> Llevar al chat
           </Button>
         ) : null}
+        {recommendations.length ? (
+          <Button
+            type="button"
+            variant="secondary"
+            className="btn-sm"
+            disabled={busy}
+            onClick={onValidateStrategy}
+          >
+            {validationLoading ? 'Registrando validacion...' : 'Validar estrategia'}
+          </Button>
+        ) : null}
         <Button
           type="button"
           variant="secondary"
           className="btn-sm"
-          disabled={tracesLoading || (!hasTraces && !recommendations.length && !insights.length)}
+          disabled={
+            tracesLoading ||
+            (!projectId && !hasTraces && !recommendations.length && !insights.length)
+          }
           onClick={onOpenTraces}
         >
           {tracesLoading ? 'Cargando trazas…' : 'Ver trazas'}
@@ -559,9 +624,15 @@ export function AgentAnalysisPanel({ run, onOpenChatWithPrompt }) {
         size="xl"
       >
         <div className="agent-trace-list">
-          {traces.map((trace) => (
-            <TraceRow key={trace.trace_id} trace={trace} />
-          ))}
+          {traces.length ? (
+            traces.map((trace) => <TraceRow key={trace.trace_id} trace={trace} />)
+          ) : (
+            <Card className="agent-trace-empty">
+              Todavia no hay trazas registradas para este proyecto o ejecucion. Ejecuta primero
+              el agente de estrategia, la interpretacion de clusters o registra una validacion
+              humana.
+            </Card>
+          )}
         </div>
       </Dialog>
     </section>
