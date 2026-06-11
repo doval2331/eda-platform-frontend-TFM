@@ -11,7 +11,7 @@ import { RunKpis } from '../components/RunKpis'
 import { Scatter2D } from '../Scatter2D'
 import { Button, Card, Feedback, LoadingPanel, PageNavbar } from '../ui'
 import { formatModality } from '../utils/runMetrics'
-import { sourceTypeLabel } from '../utils/projectLabels'
+import { ACTIVE_PROJECT_KEY, sourceTypeLabel } from '../utils/projectLabels'
 
 function formatDate(iso) {
   if (!iso) return '—'
@@ -46,6 +46,17 @@ export function HistoryRunDetailPage() {
   function handleChatPromptConsumed() {
     setChatExternalPrompt(null)
     setChatForceOpen(false)
+  }
+
+  function handleEditScenario() {
+    if (!run?.project_id) return
+    localStorage.setItem(ACTIVE_PROJECT_KEY, run.project_id)
+    navigate('/', {
+      state: {
+        editProjectId: run.project_id,
+        openPrepareDialog: true,
+      },
+    })
   }
 
   const loadRun = useCallback(async () => {
@@ -101,6 +112,11 @@ export function HistoryRunDetailPage() {
        
         rightSlot={
           <div className="history-page-actions">
+            {run?.project_id ? (
+              <Button type="button" variant="secondary" onClick={handleEditScenario}>
+                Editar escenario
+              </Button>
+            ) : null}
             <Button type="button" variant="secondary" onClick={() => navigate('/historial')}>
               Volver al historial
             </Button>
