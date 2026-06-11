@@ -391,7 +391,11 @@ export function DashboardPage() {
           </div>
 
           <div hidden={resultView !== 'agents'} className="results-tab-panel">
-            <AgentAnalysisPanel run={lastRun} onOpenChatWithPrompt={handleOpenChatWithPrompt} />
+            <AgentAnalysisPanel
+              run={lastRun}
+              projectId={activeProject?.id}
+              onOpenChatWithPrompt={handleOpenChatWithPrompt}
+            />
           </div>
         </Card>
       </div>

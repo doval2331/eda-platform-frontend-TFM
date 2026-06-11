@@ -36,3 +36,22 @@ export async function fetchAgentResults(runId) {
 export async function fetchAgentTraces(runId) {
   return apiRequest(`/api/runs/${runId}/agents/traces`, { auth: true })
 }
+
+export async function fetchProjectAgentTraces(projectId) {
+  return apiRequest(`/api/projects/${projectId}/agents/traces`, { auth: true })
+}
+
+export async function recordHumanAgentDecision(runId, body = {}) {
+  return apiRequest(`/api/runs/${runId}/agents/human-decision`, {
+    method: 'POST',
+    body: {
+      decision_type: 'strategy_approval',
+      status: 'approved',
+      summary: 'Estrategia validada por el analista.',
+      approved_strategy_ids: [],
+      parameters: {},
+      ...body,
+    },
+    auth: true,
+  })
+}
