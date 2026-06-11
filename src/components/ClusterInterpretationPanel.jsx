@@ -2,7 +2,35 @@ import { useMemo, useState } from 'react'
 import { selectRunInsight } from '../api/conversation'
 import { Button, Feedback } from '../ui'
 
+const FALLBACK_FIELDS = [
+  'sla_breach_rate',
+  'sla_incumplido',
+  'sla_breached',
+  'tiempo_resolucion_horas',
+  'avg_resolution_hours',
+  'resolution_minutes',
+  'operational_risk_score',
+  'business_impact_score',
+  'prioridad',
+  'priority',
+  'severity',
+  'categoria',
+  'category',
+  'servicio_afectado',
+  'affected_service',
+  'assignment_group',
+  'status',
+]
+
 function toNumber(value) {
+  if (value === true) return 1
+  if (value === false) return 0
+  if (typeof value === 'string') {
+    const cleaned = value.replace('%', '').replace(',', '.').trim()
+    if (!cleaned) return null
+    const number = Number(cleaned)
+    return Number.isFinite(number) ? number : null
+  }
   const number = Number(value)
   return Number.isFinite(number) ? number : null
 }
@@ -13,22 +41,37 @@ function average(values) {
   return numbers.reduce((acc, value) => acc + value, 0) / numbers.length
 }
 
-function averageByFields(items, fields) {
-  for (const field of fields) {
-    const value = average(items.map((item) => item?.[field]))
-    if (value != null) return value
+function cleanText(value) {
+  if (value == null) return ''
+  return String(value).trim()
+}
+
+function normalizeText(value) {
+  return cleanText(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+}
+
+function humanizeField(field) {
+  return cleanText(field)
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function featureValue(item, field) {
+  if (item?.features && Object.prototype.hasOwnProperty.call(item.features, field)) {
+    return item.features[field]
   }
-  return null
+  return item?.[field]
 }
 
 function formatPct(value) {
   if (value == null) return 'sin dato'
-  return `${(value * 100).toFixed(1)}%`
-}
-
-function formatHours(value) {
-  if (value == null) return 'sin dato'
-  return `${value.toFixed(1)} h`
+  const pct = Math.abs(value) <= 1 ? value * 100 : value
+  return `${pct.toFixed(1)}%`
 }
 
 function formatNumber(value) {
@@ -37,10 +80,22 @@ function formatNumber(value) {
   return value.toLocaleString('es-ES', { maximumFractionDigits: 1 })
 }
 
+function formatFieldValue(field, value) {
+  if (value == null) return 'sin dato'
+  const role = fieldRole(field)
+  const norm = normalizeText(field)
+  if (role === 'sla') return formatPct(value)
+  if (role === 'time') {
+    if (norm.includes('minute') || norm.includes('minuto')) return `${formatNumber(value)} min`
+    return `${formatNumber(value)} h`
+  }
+  return formatNumber(value)
+}
+
 function topValue(items, field) {
   const counts = new Map()
   items.forEach((item) => {
-    const value = item?.[field]
+    const value = cleanText(featureValue(item, field))
     if (!value) return
     counts.set(value, (counts.get(value) ?? 0) + 1)
   })
@@ -48,114 +103,286 @@ function topValue(items, field) {
   return [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0]
 }
 
-function topValueByFields(items, fields) {
-  for (const field of fields) {
-    const value = topValue(items, field)
-    if (value) return value
+function severityScore(value) {
+  const text = normalizeText(value)
+  if (!text) return null
+  const leadingNumber = text.match(/^\s*(\d+)/)?.[1]
+  if (leadingNumber) {
+    const numeric = Number(leadingNumber)
+    if (numeric === 1) return 100
+    if (numeric === 2) return 80
+    if (numeric === 3) return 55
+    if (numeric === 4) return 30
+    if (numeric >= 5) return 15
   }
+  if (/crit|urgent|blocker|alta|high|severa|grave/.test(text)) return 90
+  if (/media|medium|moderad/.test(text)) return 55
+  if (/baja|low|menor|minor|planif/.test(text)) return 25
   return null
 }
 
-function priorityLabel(score) {
-  if (score >= 85) return 'Alta'
-  if (score >= 45) return 'Media'
-  return 'Baja'
+function fieldRole(field) {
+  const text = normalizeText(field)
+  if (/sla|breach|incumpl|cumpl/.test(text)) return 'sla'
+  if (/prioridad|priority|urgencia|severity|critic/.test(text)) return 'criticality'
+  if (/impacto|impact|riesgo|risk|valor|cost|coste|downtime|caida/.test(text)) return 'risk'
+  if (/tiempo|duracion|duration|resolution|resolucion|resuelto|work|trabajo|hora|minut/.test(text)) {
+    return 'time'
+  }
+  return 'generic'
 }
 
-function priorityClass(score) {
-  if (score >= 85) return 'cluster-priority--high'
-  if (score >= 45) return 'cluster-priority--medium'
-  return 'cluster-priority--low'
+function collectFieldCatalog(metadata) {
+  const fields = new Set(FALLBACK_FIELDS)
+  metadata.forEach((item) => {
+    Object.keys(item?.features ?? {}).forEach((field) => fields.add(field))
+  })
+
+  const numericFields = []
+  const categoricalFields = []
+  for (const field of fields) {
+    const values = metadata
+      .map((item) => featureValue(item, field))
+      .filter((value) => cleanText(value) !== '')
+    if (!values.length) continue
+
+    const numbers = values.map(toNumber).filter((value) => value != null)
+    const unique = new Set(values.map((value) => cleanText(value))).size
+    const mostlyNumeric = numbers.length >= Math.max(3, Math.ceil(values.length * 0.6))
+    if (mostlyNumeric && unique > 1) {
+      const min = Math.min(...numbers)
+      const max = Math.max(...numbers)
+      numericFields.push({
+        field,
+        label: humanizeField(field),
+        role: fieldRole(field),
+        min,
+        max,
+      })
+    } else if (unique > 1 && unique <= 60) {
+      categoricalFields.push({
+        field,
+        label: humanizeField(field),
+        role: fieldRole(field),
+      })
+    }
+  }
+
+  return { numericFields, categoricalFields }
 }
 
-function clusterName(summary) {
-  if (summary.clusterLabel === -1) return 'Casos atipicos'
-  const anchor = summary.service || summary.category || `cluster ${summary.clusterLabel}`
-  if ((summary.avgSla ?? 0) >= 0.14) return `SLA alto en ${anchor}`
-  if ((summary.avgResolution ?? 0) >= 22) return `Resolucion lenta en ${anchor}`
-  if ((summary.avgRisk ?? 0) >= 50) return `Riesgo operativo en ${anchor}`
-  if (summary.count >= 100) return `Alto volumen en ${anchor}`
-  return `Grupo similar de ${anchor}`
-}
-
-function recommendation(summary) {
-  if (summary.clusterLabel === -1) {
-    return 'Accion recomendada: revisar individualmente estas incidencias porque no siguen el patron comun.'
-  }
-  if ((summary.avgSla ?? 0) >= 0.14) {
-    return 'Accion recomendada: revisar acuerdos de SLA, capacidad del equipo y reglas de escalamiento.'
-  }
-  if ((summary.avgResolution ?? 0) >= 22) {
-    return 'Accion recomendada: buscar cuellos de botella, automatizacion posible y transferencias entre equipos.'
-  }
-  if ((summary.avgRisk ?? 0) >= 50) {
-    return 'Accion recomendada: analizar dependencias criticas antes de planificar cambios.'
-  }
-  return 'Accion recomendada: usarlo como grupo de referencia y compararlo contra clusters mas criticos.'
-}
-
-function buildSummaries(result) {
+function groupedByCluster(result) {
   const labels = result?.cluster_labels ?? []
   const metadata = result?.metadata ?? []
-  if (!labels.length) return []
-
-  const grouped = labels.reduce((acc, label, index) => {
+  return labels.reduce((acc, label, index) => {
     const clusterLabel = Number(label)
     if (!acc.has(clusterLabel)) acc.set(clusterLabel, [])
     acc.get(clusterLabel).push(metadata[index] ?? {})
     return acc
   }, new Map())
+}
 
+function buildSummaries(result, catalog) {
+  const grouped = groupedByCluster(result)
   return [...grouped.entries()].map(([clusterLabel, items]) => {
-    const avgSla = averageByFields(items, ['sla_breach_rate', 'sla_incumplido', 'sla_breached'])
-    const avgResolution = averageByFields(items, [
-      'tiempo_resolucion_horas',
-      'avg_resolution_hours',
-    ])
-    const avgRisk = averageByFields(items, ['operational_risk_score', 'business_impact_score'])
-    const avgTickets = average(items.map((item) => item.monthly_tickets))
-    const criticalIncidents = average(items.map((item) => item.critical_incidents))
-    const service = topValueByFields(items, [
-      'servicio_afectado',
-      'affected_service',
-      'service_line',
-    ])
-    const category = topValueByFields(items, ['categoria', 'category', 'sector'])
-    const priority = topValueByFields(items, ['prioridad', 'severity'])
-    const rootCause = topValueByFields(items, ['causa_raiz_simulada', 'root_cause'])
-    const channel = topValueByFields(items, ['canal_entrada', 'support_channel'])
-    const score =
-      (avgSla ?? 0) * 120 +
-      (avgResolution ?? 0) * 1.8 +
-      (avgRisk ?? 0) +
-      (criticalIncidents ?? 0) * 4 +
-      (clusterLabel === -1 ? 15 : 0)
-
-    const summary = {
-      clusterLabel,
-      count: items.length,
-      avgSla,
-      avgResolution,
-      avgRisk,
-      avgTickets,
-      criticalIncidents,
-      service,
-      category,
-      priority,
-      rootCause,
-      channel,
-      score,
+    const numericStats = {}
+    for (const fieldInfo of catalog.numericFields) {
+      const avg = average(items.map((item) => featureValue(item, fieldInfo.field)))
+      if (avg != null) numericStats[fieldInfo.field] = avg
     }
 
-    summary.name = clusterName(summary)
-    summary.priority = priorityLabel(score)
-    summary.recommendation = recommendation(summary)
-    summary.explanation =
-      clusterLabel === -1
-        ? `Este grupo contiene ${items.length} incidencias atipicas. No se parecen lo suficiente al patron principal y conviene revisarlas como excepciones.`
-        : `Este cluster agrupa ${items.length} incidencias similares. El patron dominante es ${service || category || 'un comportamiento comun'}${priority ? ` con prioridad ${priority}` : ''}${rootCause ? ` y causa raiz ${rootCause}` : ''}. Por que importa: combina SLA ${formatPct(avgSla)}, resolucion ${formatHours(avgResolution)} y riesgo ${formatNumber(avgRisk)}.`
-    return summary
+    const categoricalStats = {}
+    for (const fieldInfo of catalog.categoricalFields) {
+      const top = topValue(items, fieldInfo.field)
+      const scored = items
+        .map((item) => severityScore(featureValue(item, fieldInfo.field)))
+        .filter((value) => value != null)
+      const scoreAvg = scored.length
+        ? scored.reduce((acc, value) => acc + value, 0) / scored.length
+        : null
+      if (top) categoricalStats[fieldInfo.field] = { top, scoreAvg }
+    }
+
+    const anchorFields = [
+      'servicio_afectado',
+      'affected_service',
+      'Catálogo',
+      'Catalogo',
+      'categoria',
+      'category',
+    ]
+    const anchor =
+      anchorFields.map((field) => categoricalStats[field]?.top).find(Boolean) ||
+      Object.values(categoricalStats)[0]?.top ||
+      `cluster ${clusterLabel}`
+
+    return {
+      clusterLabel,
+      count: items.length,
+      numericStats,
+      categoricalStats,
+      anchor,
+    }
   })
+}
+
+function normalizeMetric(value, min, max) {
+  if (value == null) return 0
+  if (max === min) return value ? 50 : 0
+  return Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100))
+}
+
+function buildCriteria(summaries, catalog) {
+  const criteria = []
+  const usedFields = new Set()
+
+  function addNumeric(fieldInfo, customLabel = null) {
+    if (!fieldInfo || usedFields.has(fieldInfo.field)) return
+    usedFields.add(fieldInfo.field)
+    criteria.push({
+      id: `num:${fieldInfo.field}`,
+      label: customLabel ?? `Mayor ${fieldInfo.label}`,
+      shortLabel: fieldInfo.label,
+      field: fieldInfo.field,
+      value: (summary) => summary.numericStats[fieldInfo.field],
+      normalized: (summary) =>
+        normalizeMetric(summary.numericStats[fieldInfo.field], fieldInfo.min, fieldInfo.max),
+      display: (summary) => formatFieldValue(fieldInfo.field, summary.numericStats[fieldInfo.field]),
+    })
+  }
+
+  function addCategorical(fieldInfo, customLabel = null) {
+    if (!fieldInfo || usedFields.has(fieldInfo.field)) return
+    const hasScore = summaries.some(
+      (summary) => summary.categoricalStats[fieldInfo.field]?.scoreAvg != null,
+    )
+    if (!hasScore) return
+    usedFields.add(fieldInfo.field)
+    criteria.push({
+      id: `cat:${fieldInfo.field}`,
+      label: customLabel ?? `Mayor ${fieldInfo.label}`,
+      shortLabel: fieldInfo.label,
+      field: fieldInfo.field,
+      value: (summary) => summary.categoricalStats[fieldInfo.field]?.scoreAvg,
+      normalized: (summary) => summary.categoricalStats[fieldInfo.field]?.scoreAvg ?? 0,
+      display: (summary) => summary.categoricalStats[fieldInfo.field]?.top ?? 'sin dato',
+    })
+  }
+
+  const byRole = (role) => ({
+    numeric: catalog.numericFields.find((field) => field.role === role),
+    categorical: catalog.categoricalFields.find((field) => field.role === role),
+  })
+
+  const criticality = byRole('criticality')
+  addCategorical(criticality.categorical, 'Mayor criticidad')
+  addNumeric(criticality.numeric, 'Mayor criticidad')
+
+  const risk = byRole('risk')
+  addNumeric(risk.numeric, 'Mayor impacto/riesgo')
+  addCategorical(risk.categorical, 'Mayor impacto/riesgo')
+
+  const sla = byRole('sla')
+  addNumeric(sla.numeric, 'Mayor SLA')
+  addCategorical(sla.categorical, 'Mayor SLA')
+
+  const time = byRole('time')
+  addNumeric(time.numeric, 'Mayor tiempo')
+
+  catalog.numericFields
+    .filter((field) => !usedFields.has(field.field))
+    .slice(0, 2)
+    .forEach((field) => addNumeric(field))
+
+  const maxCount = Math.max(1, ...summaries.map((summary) => summary.count))
+  criteria.push({
+    id: 'volume',
+    label: 'Mas casos',
+    shortLabel: 'Incidencias',
+    value: (summary) => summary.count,
+    normalized: (summary) => (summary.count / maxCount) * 100,
+    display: (summary) => String(summary.count),
+  })
+
+  const outlierCriterion = summaries.some((summary) => summary.clusterLabel === -1)
+    ? {
+      id: 'outliers',
+      label: 'Outliers',
+      shortLabel: 'Outliers',
+      value: (summary) => (summary.clusterLabel === -1 ? summary.count : null),
+      normalized: (summary) => (summary.clusterLabel === -1 ? 100 : 0),
+      display: (summary) => (summary.clusterLabel === -1 ? String(summary.count) : 'sin dato'),
+      filter: (summary) => summary.clusterLabel === -1,
+    }
+    : null
+
+  const visibleCriteria = criteria.slice(0, outlierCriterion ? 5 : 6)
+  return outlierCriterion ? [...visibleCriteria, outlierCriterion] : visibleCriteria
+}
+
+function priorityLabel(score) {
+  if (score >= 70) return 'Alta'
+  if (score >= 35) return 'Media'
+  return 'Baja'
+}
+
+function priorityClass(score) {
+  if (score >= 70) return 'cluster-priority--high'
+  if (score >= 35) return 'cluster-priority--medium'
+  return 'cluster-priority--low'
+}
+
+function clusterName(summary, criterion) {
+  if (summary.clusterLabel === -1) return 'Casos atipicos'
+  if (!criterion || criterion.id === 'volume') return `Grupo similar de ${summary.anchor}`
+  return `${criterion.shortLabel} alto en ${summary.anchor}`
+}
+
+function recommendation(summary, criterion) {
+  if (summary.clusterLabel === -1) {
+    return 'Accion recomendada: revisar individualmente estos casos porque no siguen el patron comun.'
+  }
+  if (!criterion || criterion.id === 'volume') {
+    return 'Accion recomendada: revisar el volumen del grupo y compararlo contra otros clusters.'
+  }
+  return `Accion recomendada: investigar la variable ${criterion.shortLabel} en este grupo y contrastarla con la muestra original.`
+}
+
+function explanation(summary, criterion, score) {
+  if (summary.clusterLabel === -1) {
+    return `Este grupo contiene ${summary.count} casos atipicos. No se parecen lo suficiente al patron principal y conviene revisarlos como excepciones.`
+  }
+  const metricText = criterion ? `${criterion.shortLabel}: ${criterion.display(summary)}` : ''
+  return `Este cluster agrupa ${summary.count} registros similares. El patron dominante es ${summary.anchor}${metricText ? `. Variable destacada: ${metricText}` : ''}.`
+}
+
+function metricCards(summary, criteria, activeCriterion) {
+  const cards = [{ label: 'Registros', value: String(summary.count) }]
+  const metricCriteria = [
+    activeCriterion,
+    ...criteria.filter((criterion) => criterion.id !== activeCriterion?.id),
+  ]
+    .filter((criterion) => criterion && criterion.id !== 'outliers' && criterion.id !== 'volume')
+    .slice(0, 3)
+
+  for (const criterion of metricCriteria) {
+    cards.push({
+      label: criterion.shortLabel,
+      value: criterion.display(summary),
+    })
+  }
+
+  if (cards.length < 4) {
+    for (const [field, stat] of Object.entries(summary.categoricalStats)) {
+      if (cards.length >= 4) break
+      if (!stat?.top) continue
+      const label = humanizeField(field)
+      if (cards.some((card) => card.label === label)) continue
+      cards.push({ label, value: stat.top })
+    }
+  }
+
+  return cards.slice(0, 4)
 }
 
 function insightFromSummary(runId, summary) {
@@ -163,8 +390,8 @@ function insightFromSummary(runId, summary) {
     id: `cluster-${runId}-${summary.clusterLabel}`,
     title: summary.name,
     description: `${summary.explanation} Recomendacion: ${summary.recommendation}`,
-    metric_label: 'cluster_critical_score',
-    metric_value: Number(summary.score.toFixed(2)),
+    metric_label: summary.activeCriterion?.shortLabel ?? 'cluster_score',
+    metric_value: Number((summary.activeScore ?? 0).toFixed(2)),
     dimension: 'cluster_label',
     filter_kind: 'cluster_label',
     filter_value: String(summary.clusterLabel),
@@ -172,21 +399,41 @@ function insightFromSummary(runId, summary) {
 }
 
 export function ClusterInterpretationPanel({ result, run }) {
-  const [filter, setFilter] = useState('priority')
+  const [filter, setFilter] = useState('auto')
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [message, setMessage] = useState(null)
   const [error, setError] = useState(null)
 
-  const summaries = useMemo(() => buildSummaries(result), [result])
+  const metadata = result?.metadata ?? []
+  const catalog = useMemo(() => collectFieldCatalog(metadata), [metadata])
+  const summaries = useMemo(() => buildSummaries(result, catalog), [result, catalog])
+  const criteria = useMemo(() => buildCriteria(summaries, catalog), [summaries, catalog])
+  const activeFilter = criteria.some((criterion) => criterion.id === filter)
+    ? filter
+    : criteria[0]?.id
+  const activeCriterion = criteria.find((criterion) => criterion.id === activeFilter)
+
   const ranked = useMemo(() => {
-    const sorted = [...summaries].sort((a, b) => b.score - a.score)
-    if (filter === 'outliers') return sorted.filter((item) => item.clusterLabel === -1)
-    if (filter === 'sla') return sorted.sort((a, b) => (b.avgSla ?? 0) - (a.avgSla ?? 0))
-    if (filter === 'time') {
-      return sorted.sort((a, b) => (b.avgResolution ?? 0) - (a.avgResolution ?? 0))
-    }
-    return sorted
-  }, [filter, summaries])
+    if (!activeCriterion) return summaries
+    return [...summaries]
+      .filter((summary) => (activeCriterion.filter ? activeCriterion.filter(summary) : true))
+      .map((summary) => {
+        const activeScore = activeCriterion.normalized(summary)
+        const name = clusterName(summary, activeCriterion)
+        const recommendationText = recommendation(summary, activeCriterion)
+        return {
+          ...summary,
+          activeScore,
+          activeCriterion,
+          name,
+          priority: priorityLabel(activeScore),
+          recommendation: recommendationText,
+          explanation: explanation(summary, activeCriterion, activeScore),
+          metricCards: metricCards(summary, criteria, activeCriterion),
+        }
+      })
+      .sort((a, b) => b.activeScore - a.activeScore || b.count - a.count)
+  }, [activeCriterion, criteria, summaries])
 
   const top = ranked[0]
 
@@ -221,13 +468,13 @@ export function ClusterInterpretationPanel({ result, run }) {
         <div>
           <h3>Lectura guiada de clusters</h3>
           <p>
-            Cada punto es una incidencia. Los puntos cercanos se parecen entre si. Los
-            colores muestran grupos de incidencias similares y los grises son casos atipicos.
+            Los criterios se calculan con las columnas detectadas en la fuente cargada y los
+            resultados del clustering. Si una variable no existe, no se muestra como filtro.
           </p>
         </div>
         {top ? (
-          <div className={`cluster-priority ${priorityClass(top.score)}`}>
-            <span>Cluster prioritario</span>
+          <div className={`cluster-priority ${priorityClass(top.activeScore)}`}>
+            <span>Cluster destacado</span>
             <strong>{top.name}</strong>
           </div>
         ) : null}
@@ -236,92 +483,62 @@ export function ClusterInterpretationPanel({ result, run }) {
       {message ? <Feedback variant="success" message={message} /> : null}
       {error ? <Feedback variant="danger" message={error} /> : null}
 
-      <div className="cluster-filter-row" aria-label="Filtros de clusters">
-            <button
-              type="button"
-              className={filter === 'priority' ? 'cluster-filter--active' : ''}
-              onClick={() => setFilter('priority')}
-            >
-              Mayor prioridad
-            </button>
-            <button
-              type="button"
-              className={filter === 'sla' ? 'cluster-filter--active' : ''}
-              onClick={() => setFilter('sla')}
-            >
-              Mayor SLA
-            </button>
-            <button
-              type="button"
-              className={filter === 'time' ? 'cluster-filter--active' : ''}
-              onClick={() => setFilter('time')}
-            >
-              Mayor tiempo
-            </button>
-            <button
-              type="button"
-              className={filter === 'outliers' ? 'cluster-filter--active' : ''}
-              onClick={() => setFilter('outliers')}
-            >
-              Outliers
-            </button>
-          </div>
+      <div className="cluster-filter-row" aria-label="Criterios dinamicos de clusters">
+        {criteria.map((criterion) => (
+          <button
+            key={criterion.id}
+            type="button"
+            className={activeFilter === criterion.id ? 'cluster-filter--active' : ''}
+            onClick={() => setFilter(criterion.id)}
+          >
+            {criterion.label}
+          </button>
+        ))}
+      </div>
 
-          <div className="cluster-summary-list">
-            {ranked.slice(0, 5).map((summary) => {
-              const insightId = run?.id ? `cluster-${run.id}-${summary.clusterLabel}` : ''
-              const selected = selectedIds.has(insightId)
-              return (
-                <article className="cluster-summary-card" key={summary.clusterLabel}>
-                  <div className="cluster-summary-title">
-                    <div>
-                      <span>
-                        {summary.clusterLabel === -1
-                          ? 'Outliers'
-                          : `Cluster ${summary.clusterLabel}`}
-                      </span>
-                      <h4>{summary.name}</h4>
-                    </div>
-                    <strong className={priorityClass(summary.score)}>{summary.priority}</strong>
+      <div className="cluster-summary-list">
+        {ranked.slice(0, 5).map((summary) => {
+          const insightId = run?.id ? `cluster-${run.id}-${summary.clusterLabel}` : ''
+          const selected = selectedIds.has(insightId)
+          return (
+            <article className="cluster-summary-card" key={summary.clusterLabel}>
+              <div className="cluster-summary-title">
+                <div>
+                  <span>
+                    {summary.clusterLabel === -1 ? 'Outliers' : `Cluster ${summary.clusterLabel}`}
+                  </span>
+                  <h4>{summary.name}</h4>
+                </div>
+                <strong className={priorityClass(summary.activeScore)}>{summary.priority}</strong>
+              </div>
+
+              <p>{summary.explanation}</p>
+
+              <div className="cluster-metrics-grid">
+                {summary.metricCards.map((card) => (
+                  <div key={card.label}>
+                    <span>{card.label}</span>
+                    <strong>{card.value}</strong>
                   </div>
+                ))}
+              </div>
 
-                  <p>{summary.explanation}</p>
-
-                  <div className="cluster-metrics-grid">
-                    <div>
-                      <span>Incidencias</span>
-                      <strong>{summary.count}</strong>
-                    </div>
-                    <div>
-                      <span>SLA</span>
-                      <strong>{formatPct(summary.avgSla)}</strong>
-                    </div>
-                    <div>
-                      <span>Resolucion</span>
-                      <strong>{formatHours(summary.avgResolution)}</strong>
-                    </div>
-                    <div>
-                      <span>Riesgo</span>
-                      <strong>{formatNumber(summary.avgRisk)}</strong>
-                    </div>
-                  </div>
-
-                  <div className="cluster-action-row">
-                    <p>{summary.recommendation}</p>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      className="btn-sm"
-                      disabled={selected}
-                      onClick={() => addCluster(summary)}
-                    >
-                      {selected ? 'Agregado' : 'Agregar al dashboard'}
-                    </Button>
-                  </div>
-                </article>
-              )
-            })}
-          </div>
+              <div className="cluster-action-row">
+                <p>{summary.recommendation}</p>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="btn-sm"
+                  disabled={selected}
+                  onClick={() => addCluster(summary)}
+                >
+                  {selected ? 'Agregado' : 'Agregar al dashboard'}
+                </Button>
+              </div>
+            </article>
+          )
+        })}
+      </div>
     </section>
   )
 }

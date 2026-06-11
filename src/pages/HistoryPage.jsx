@@ -178,7 +178,10 @@ export function HistoryPage() {
                     <tr key={run.id}>
                       <td>{formatDate(run.created_at)}</td>
                       <td>{runLabel(run)}</td>
-                      <td>{run.source_type ? sourceTypeLabel(run.source_type) : '—'}</td>
+                      <td>
+                        {run.source_name ||
+                          (run.source_type ? sourceTypeLabel(run.source_type) : '—')}
+                      </td>
                       <td>{run.reduction_method}</td>
                       <td>{run.n_samples}</td>
                       <td>{run.metrics?.n_clusters ?? '—'}</td>

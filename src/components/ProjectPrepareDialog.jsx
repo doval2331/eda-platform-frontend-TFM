@@ -11,50 +11,78 @@ import InputUi from '../ui/Input'
 import { MODALITY_OPTIONS, REDUCTION_OPTIONS } from '../utils/businessLabels'
 import {
   ACTIVE_PROJECT_KEY,
-  CSV_SOURCE_SLOTS,
+  ALL_SOURCE_ACCEPT,
   PROJECT_STRATEGY_OPTIONS,
-  TEXT_SOURCE_SLOTS,
+  SOURCE_TYPE_OPTIONS,
+  TABULAR_ACCEPT,
+  TABULAR_SOURCE_TYPES,
+  defaultSourceName,
+  detectedFileFormat,
+  sourceKindLabel,
   sourceTypeLabel,
   strategyLabel,
+  suggestSourceType,
 } from '../utils/projectLabels'
 
-function SourceSlotRow({ slot, source, uploading, onUpload, onRemove }) {
-  const inputId = `source-${slot.type}`
+function isTabularSource(source) {
+  return source?.normalized_kind === 'tabular' || TABULAR_SOURCE_TYPES.includes(source?.source_type)
+}
+
+function sourceStatusLabel(status) {
+  const map = {
+    processed: 'Procesada',
+    processing: 'Procesando',
+    error: 'Error',
+  }
+  return map[status] ?? status ?? 'Procesada'
+}
+
+function formatSpanishNumber(value) {
+  return Number(value ?? 0).toLocaleString('es-ES')
+}
+
+function SourceListItem({ source, removing, onRemove }) {
+  const columns = source.all_columns ?? []
+  const visibleColumns = columns.slice(0, 10)
+  const meta = [
+    source.original_format ? source.original_format.toUpperCase() : null,
+    source.normalized_kind ? sourceKindLabel(source.normalized_kind) : null,
+    source.n_rows != null ? `${source.n_rows} filas` : null,
+    source.n_cols != null ? `${source.n_cols} columnas` : null,
+    source.word_count != null ? `${source.word_count} palabras` : null,
+    source.char_count != null ? `${source.char_count} caracteres` : null,
+  ].filter(Boolean)
 
   return (
-    <div className={`project-source-row ${source ? 'project-source-row--ready' : ''}`}>
+    <div className="project-source-row project-source-row--ready">
       <div className="project-source-row-head">
-        <strong>{slot.label}</strong>
-        {slot.required ? <span className="project-source-badge">Recomendado</span> : null}
-      </div>
-      <p className="field-help">{slot.helper}</p>
-      {source ? (
-        <div className="project-source-meta note">
-          <span>
-            <strong>{source.filename}</strong>
-            {source.n_rows != null ? ` · ${source.n_rows} filas` : null}
-            {source.char_count != null ? ` · ${source.char_count} caracteres` : null}
-          </span>
-          <button type="button" className="project-source-remove" onClick={() => onRemove(source)}>
-            Quitar
-          </button>
+        <div>
+          <strong>{source.source_name || source.filename}</strong>
+          <p className="field-help">{source.filename}</p>
         </div>
-      ) : (
-        <label className="field field--full" htmlFor={inputId}>
-          <input
-            id={inputId}
-            type="file"
-            accept={slot.accept ?? '.csv'}
-            disabled={uploading}
-            className="file-input"
-            onChange={(e) => {
-              const file = e.target.files?.[0]
-              if (file) onUpload(slot.type, file)
-              e.target.value = ''
-            }}
-          />
-        </label>
-      )}
+        <span className="project-source-badge">{sourceTypeLabel(source.source_type)}</span>
+        <span className="project-source-status">{sourceStatusLabel(source.processing_status)}</span>
+      </div>
+      <div className="project-source-meta note">
+        <span>{meta.length ? meta.join(' - ') : 'Formato detectado pendiente'}</span>
+        <button
+          type="button"
+          className="project-source-remove"
+          disabled={removing}
+          onClick={() => onRemove(source)}
+        >
+          Quitar
+        </button>
+      </div>
+      {isTabularSource(source) && columns.length ? (
+        <p className="project-source-preview">
+          Columnas detectadas: {visibleColumns.join(', ')}
+          {columns.length > visibleColumns.length ? `, +${columns.length - visibleColumns.length} mas` : ''}
+        </p>
+      ) : null}
+      {!isTabularSource(source) && source.preview ? (
+        <p className="project-source-preview">Texto extraido: {source.preview}</p>
+      ) : null}
     </div>
   )
 }
@@ -102,21 +130,19 @@ export function ProjectPrepareDialog({
   const [uploadingType, setUploadingType] = useState(null)
   const [localError, setLocalError] = useState(null)
   const [saving, setSaving] = useState(false)
-
-  const sourcesByType = useMemo(() => {
-    const map = new Map()
-    for (const source of project?.sources ?? []) {
-      map.set(source.source_type, source)
-    }
-    return map
-  }, [project])
+  const [newSourceName, setNewSourceName] = useState('')
+  const [newSourceType, setNewSourceType] = useState('other')
+  const [newSourceFile, setNewSourceFile] = useState(null)
+  const [sourceFileInputKey, setSourceFileInputKey] = useState(0)
 
   const csvCount = useMemo(
-    () =>
-      (project?.sources ?? []).filter((s) =>
-        ['incidents', 'change_mgmt', 'software', 'hardware'].includes(s.source_type),
-      ).length,
+    () => (project?.sources ?? []).filter((s) => isTabularSource(s)).length,
     [project],
+  )
+
+  const suggestedSource = useMemo(
+    () => (newSourceFile ? suggestSourceType(newSourceFile) : null),
+    [newSourceFile],
   )
 
   const reduccionOptions = useMemo(
@@ -143,23 +169,35 @@ export function ProjectPrepareDialog({
 
   const helperModalidad = useMemo(() => {
     if (modalidad === 'tabular') {
-      return 'Sube un único CSV donde cada fila sea una incidencia.'
+      return 'Sube un archivo tabular donde cada fila sea una incidencia.'
     }
     if (modalidad === 'project') {
-      return 'Combina varias fuentes CSV en un escenario multifuente.'
+      return 'Combina varias fuentes tabulares en un escenario multifuente.'
     }
     return 'Dataset de ejemplo con incidencias IT para probar sin subir archivos.'
   }, [modalidad])
 
   const rowCountHint = useMemo(() => {
     if (modalidad === 'tabular' && datasetProfile?.n_rows) {
-      return `las ${datasetProfile.n_rows} incidencias del CSV`
+      return `las ${datasetProfile.n_rows} incidencias del archivo tabular`
     }
     if (modalidad === 'project' && project?.total_rows) {
       return `las ${project.total_rows} filas del escenario`
     }
     return 'todas las incidencias del dataset'
   }, [modalidad, datasetProfile, project])
+
+  const processingMessage = useMemo(() => {
+    if (modalidad === 'project' && project) {
+      const sourceCount = (project.sources ?? []).length || csvCount || project.csv_source_count || 0
+      const sourceLabel = sourceCount === 1 ? 'fuente' : 'fuentes'
+      return `Procesando ${sourceCount} ${sourceLabel} y ${formatSpanishNumber(project.total_rows)} filas. La reducción dimensional y el clustering pueden tardar varios minutos según el tamaño de los archivos.`
+    }
+    if (modalidad === 'tabular' && datasetProfile?.n_rows) {
+      return `Procesando 1 fuente y ${formatSpanishNumber(datasetProfile.n_rows)} filas. La reducción dimensional y el clustering pueden tardar varios minutos según el tamaño del archivo.`
+    }
+    return 'Ejecutando reducción dimensional y clustering. El análisis puede tardar varios minutos según el tamaño de los archivos.'
+  }, [modalidad, project, csvCount, datasetProfile])
 
   const loadProject = useCallback(async (id) => {
     if (!id) return
@@ -181,6 +219,10 @@ export function ProjectPrepareDialog({
   useEffect(() => {
     if (!open) return
     setLocalError(null)
+    setNewSourceName('')
+    setNewSourceType('other')
+    setNewSourceFile(null)
+    setSourceFileInputKey((current) => current + 1)
     if (projectId) {
       loadProject(projectId)
     } else {
@@ -216,17 +258,48 @@ export function ProjectPrepareDialog({
     return created
   }
 
-  async function handleUpload(sourceType, file) {
+  function handleNewSourceFileChange(file) {
+    const previousFile = newSourceFile
+    const previousDefaultName = previousFile ? defaultSourceName(previousFile) : ''
+    const previousSuggestedType = previousFile ? suggestSourceType(previousFile).value : 'other'
+    setNewSourceFile(file)
+    if (!file) return
+    setNewSourceName((current) =>
+      !current || current === previousDefaultName ? defaultSourceName(file) : current,
+    )
+    const suggestion = suggestSourceType(file)
+    if (
+      suggestion.value !== 'other' &&
+      (newSourceType === 'other' || newSourceType === previousSuggestedType)
+    ) {
+      setNewSourceType(suggestion.value)
+    }
+  }
+
+  async function handleAddSource() {
     setLocalError(null)
-    setUploadingType(sourceType)
+    if (!newSourceFile) {
+      setLocalError('Selecciona un archivo para agregarlo al escenario.')
+      return
+    }
+    setUploadingType('new-source')
     try {
       if (modalidad !== 'project') {
         onModalidadChange('project')
       }
       const current = await ensureProject()
-      const detail = await uploadProjectSource(current.id, sourceType, file)
+      const detail = await uploadProjectSource(
+        current.id,
+        newSourceType,
+        newSourceFile,
+        newSourceName || defaultSourceName(newSourceFile),
+      )
       setProject(detail)
       onProjectSaved?.(detail)
+      setNewSourceName('')
+      setNewSourceType('other')
+      setNewSourceFile(null)
+      setSourceFileInputKey((current) => current + 1)
     } catch (err) {
       setLocalError(err instanceof Error ? err.message : 'Error al subir el archivo')
     } finally {
@@ -237,7 +310,7 @@ export function ProjectPrepareDialog({
   async function handleRemove(source) {
     if (!project?.id) return
     setLocalError(null)
-    setUploadingType(source.source_type)
+    setUploadingType(source.id)
     try {
       const detail = await removeProjectSource(project.id, source.id)
       setProject(detail)
@@ -259,7 +332,7 @@ export function ProjectPrepareDialog({
           return
         }
         if (!datasetProfile?.dataset_id) {
-          setLocalError('Sube un CSV antes de analizar.')
+          setLocalError('Sube un archivo tabular antes de analizar.')
           return
         }
       }
@@ -269,7 +342,7 @@ export function ProjectPrepareDialog({
           return
         }
         if (csvCount < 1) {
-          setLocalError('Sube al menos un CSV antes de analizar.')
+          setLocalError('Sube al menos una fuente tabular antes de analizar.')
           return
         }
         await ensureProject()
@@ -338,16 +411,16 @@ export function ProjectPrepareDialog({
                 rows={2}
                 value={scenarioDescription}
                 onChange={(e) => onScenarioDescriptionChange?.(e.target.value)}
-                placeholder="Contexto breve del análisis con un único CSV."
+                placeholder="Contexto breve del analisis con una fuente tabular."
               />
             </label>
 
-            <h4 className="project-subsection-title">Archivo CSV</h4>
+            <h4 className="project-subsection-title">Archivo tabular</h4>
             <label className="field field--full">
               <span className="field-label">Incidencias (un solo dataset)</span>
               <input
                 type="file"
-                accept=".csv"
+                accept={TABULAR_ACCEPT}
                 disabled={uploading}
                 className="file-input"
                 onChange={(e) => {
@@ -357,7 +430,7 @@ export function ProjectPrepareDialog({
                 }}
               />
               <p className="field-help">
-                Solo formato CSV (máx. 50 MB). Si tienes Excel, exporta como «CSV UTF-8».
+                Formatos tabulares: CSV, TSV, XLSX, XLSM, JSON o Parquet (max. 250 MB).
               </p>
             </label>
             {uploading ? <p className="note">Analizando columnas del archivo…</p> : null}
@@ -407,7 +480,7 @@ export function ProjectPrepareDialog({
                   {scenarioDescription.trim() ? ` — ${scenarioDescription.trim()}` : ''}
                 </p>
                 <p>
-                  1 fuente CSV · {datasetProfile.n_rows} filas · {datasetProfile.filename}
+                  1 fuente tabular · {datasetProfile.n_rows} filas · {datasetProfile.filename}
                 </p>
               </div>
             ) : null}
@@ -436,32 +509,89 @@ export function ProjectPrepareDialog({
               />
             </label>
 
-            <h4 className="project-subsection-title">Fuentes CSV</h4>
-            <div className="project-source-list">
-              {CSV_SOURCE_SLOTS.map((slot) => (
-                <SourceSlotRow
-                  key={slot.type}
-                  slot={slot}
-                  source={sourcesByType.get(slot.type)}
-                  uploading={uploadingType === slot.type}
-                  onUpload={handleUpload}
-                  onRemove={handleRemove}
+            <h4 className="project-subsection-title">Fuentes del proyecto</h4>
+            <div className="project-add-source-panel">
+              <Input
+                label="Nombre de la fuente"
+                id="new-source-name"
+                value={newSourceName}
+                onChange={(e) => setNewSourceName(e.target.value)}
+                helperText="Ej.: Incidencias 2023, Diccionario ITSM, Audio reunion."
+              />
+              <Select
+                label="Tipo de informacion"
+                id="new-source-type"
+                value={newSourceType}
+                onChange={(e) => setNewSourceType(e.target.value)}
+                options={SOURCE_TYPE_OPTIONS}
+                helperText="Si no esta claro, usa Otro o acepta la sugerencia automatica."
+              />
+              <label className="field field--full" htmlFor="new-project-source-file">
+                <span className="field-label">Archivo</span>
+                <input
+                  key={sourceFileInputKey}
+                  id="new-project-source-file"
+                  type="file"
+                  accept={ALL_SOURCE_ACCEPT}
+                  disabled={uploadingType === 'new-source'}
+                  className="file-input"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] ?? null
+                    handleNewSourceFileChange(file)
+                  }}
                 />
-              ))}
+                <p className="field-help">
+                  CSV, TSV, Excel, JSON, Parquet, TXT, MD, Word, PDF o audio.
+                </p>
+              </label>
+              {newSourceFile ? (
+                <div className="project-source-detection note">
+                  <span>Archivo seleccionado: {newSourceFile.name}</span>
+                  <span>Formato detectado: {detectedFileFormat(newSourceFile)}</span>
+                  {suggestedSource ? (
+                    <span>
+                      Sugerencia: {sourceTypeLabel(suggestedSource.value)} por {suggestedSource.reason}.
+                    </span>
+                  ) : null}
+                  {suggestedSource && suggestedSource.value !== newSourceType ? (
+                    <button
+                      type="button"
+                      className="project-source-remove"
+                      onClick={() => setNewSourceType(suggestedSource.value)}
+                    >
+                      Usar sugerencia
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+              {uploadingType === 'new-source' ? (
+                <p className="field-help">
+                  Procesando la fuente. Los Excel grandes pueden tardar entre 30 y 60 segundos.
+                </p>
+              ) : null}
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={handleAddSource}
+                disabled={uploadingType === 'new-source' || !newSourceFile}
+              >
+                {uploadingType === 'new-source' ? 'Procesando fuente...' : '+ Añadir fuente'}
+              </Button>
             </div>
 
-            <h4 className="project-subsection-title">Contexto opcional</h4>
             <div className="project-source-list">
-              {TEXT_SOURCE_SLOTS.map((slot) => (
-                <SourceSlotRow
-                  key={slot.type}
-                  slot={slot}
-                  source={sourcesByType.get(slot.type)}
-                  uploading={uploadingType === slot.type}
-                  onUpload={handleUpload}
-                  onRemove={handleRemove}
-                />
-              ))}
+              {(project?.sources ?? []).length ? (
+                (project?.sources ?? []).map((source) => (
+                  <SourceListItem
+                    key={source.id}
+                    source={source}
+                    removing={uploadingType === source.id}
+                    onRemove={handleRemove}
+                  />
+                ))
+              ) : (
+                <p className="note">Aun no hay fuentes agregadas al escenario.</p>
+              )}
             </div>
 
             <Select
@@ -481,7 +611,7 @@ export function ProjectPrepareDialog({
                   <strong>{project.name}</strong> · {strategyLabel(strategy)}
                 </p>
                 <p>
-                  {csvCount} fuente{csvCount === 1 ? '' : 's'} CSV · {project.total_rows ?? 0}{' '}
+                  {csvCount} fuente{csvCount === 1 ? '' : 's'} tabular{csvCount === 1 ? '' : 'es'} · {project.total_rows ?? 0}{' '}
                   filas
                 </p>
               </div>
@@ -554,7 +684,7 @@ export function ProjectPrepareDialog({
         {ejecutando ? (
           <Feedback
             variant="info"
-            message="Ejecutando reducción dimensional y clustering. Con UMAP/HDBSCAN puede tardar cerca de un minuto."
+            message={processingMessage}
           />
         ) : null}
         {apiOnline === false ? (
@@ -579,7 +709,7 @@ export function ProjectPrepareDialog({
               >
                 {projectRuns.map((run, index) => (
                   <option key={run.id} value={index}>
-                    {sourceTypeLabel(run.source_type)} — {run.n_samples} incidencias
+                    {run.source_name || sourceTypeLabel(run.source_type)} — {run.n_samples} incidencias
                   </option>
                 ))}
               </select>

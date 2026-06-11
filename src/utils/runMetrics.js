@@ -14,7 +14,7 @@ export function outliersPercent(outliersCount, nSamples) {
 
 export function formatModality(modality) {
   const map = {
-    tabular: 'CSV tabular',
+    tabular: 'Fuente tabular',
     it_ops: 'IT Ops',
     project: 'Proyecto multifuente',
     texto: 'Texto',
