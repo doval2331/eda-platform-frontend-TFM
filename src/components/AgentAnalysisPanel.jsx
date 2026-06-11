@@ -653,31 +653,81 @@ function formatDate(value) {
   }
 }
 
+function parseTraceRecord(trace) {
+  if (!trace) return {}
+  if (typeof trace === 'string') {
+    try {
+      return JSON.parse(trace)
+    } catch {
+      return { response: trace }
+    }
+  }
+  return trace
+}
+
+function traceField(record, keys, fallback = 'No registrado') {
+  for (const key of keys) {
+    const value = record?.[key]
+    if (value !== null && value !== undefined && String(value).trim()) return String(value)
+  }
+  return fallback
+}
+
+function traceBlockValue(value) {
+  if (value === null || value === undefined || value === '') return 'No registrado'
+  if (typeof value === 'object') return JSON.stringify(value, null, 2)
+  const text = String(value)
+  try {
+    const parsed = JSON.parse(text)
+    if (typeof parsed === 'object') return JSON.stringify(parsed, null, 2)
+  } catch {
+    // Keep plain text as-is when it is not JSON.
+  }
+  return text
+}
+
 function TraceRow({ trace }) {
   const [open, setOpen] = useState(false)
+  const record = parseTraceRecord(trace)
+  const agentName = traceField(record, ['agent_name', 'agentName', 'agent'], 'Agente')
+  const decisionType = traceField(record, ['decision_type', 'decisionType', 'type'], 'Decision registrada')
+  const modelName = traceField(record, ['model_name', 'modelName'], 'Modelo no informado')
+  const traceId = traceField(record, ['trace_id', 'traceId', 'id'], '')
+  const createdAt = traceField(record, ['created_at', 'createdAt', 'timestamp'], '')
   return (
     <article className="agent-trace-card">
       <button type="button" className="agent-trace-head" onClick={() => setOpen((v) => !v)}>
         <div>
-          <strong>{trace.agent_name}</strong>
-          <span>{trace.decision_type}</span>
+          <strong>{agentName}</strong>
+          <span>{decisionType}</span>
+          {traceId ? <span className="agent-trace-id">{traceId.slice(0, 8)}...</span> : null}
         </div>
         <div className="agent-trace-meta">
-          {trace.scope ? <span>{trace.scope}</span> : null}
-          <span>{trace.model_name}</span>
-          <span>{formatDate(trace.created_at)}</span>
+          {record.scope ? <span>{record.scope}</span> : null}
+          <span>{modelName}</span>
+          <span>{formatDate(createdAt)}</span>
           <span>{open ? '▾' : '▸'}</span>
         </div>
       </button>
       {open ? (
         <div className="agent-trace-body">
           <div>
+            <h4>Variables y parametros</h4>
+            <pre>
+              {[
+                `Variables: ${traceBlockValue(record.variables_used)}`,
+                `Parametros: ${traceBlockValue(record.parameters)}`,
+                `Artefactos: ${traceBlockValue(record.input_artifacts)}`,
+              ].join('\n\n')}
+            </pre>
+          </div>
+          <div>
             <h4>Prompt</h4>
-            <pre>{trace.prompt}</pre>
+            <pre>{traceBlockValue(record.prompt)}</pre>
           </div>
           <div>
             <h4>Respuesta</h4>
-            <pre>{trace.response}</pre>
+            <pre>{traceBlockValue(record.response)}</pre>
           </div>
         </div>
       ) : null}
@@ -1328,7 +1378,9 @@ export function AgentAnalysisPanel({ run, projectId: projectIdProp, onOpenChatWi
       >
         <div className="agent-trace-list">
           {traces.length ? (
-            traces.map((trace) => <TraceRow key={trace.trace_id} trace={trace} />)
+            traces.map((trace, index) => (
+              <TraceRow key={parseTraceRecord(trace).trace_id ?? `trace-${index}`} trace={trace} />
+            ))
           ) : (
             <Card className="agent-trace-empty">
               Todavia no hay trazas registradas para este proyecto o ejecucion. Ejecuta primero

@@ -700,6 +700,13 @@
   font-size: 12px;
 }
 
+.agent-trace-id {
+  display: inline-block;
+  margin-top: 2px;
+  font-family: ui-monospace, monospace;
+  color: #475569;
+}
+
 .agent-trace-meta {
   display: flex;
   flex-direction: column;
