@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { askRunQuestion, selectRunInsight } from '../api/conversation'
+import { askRunQuestion, fetchRunSuggestedQuestions, selectRunInsight } from '../api/conversation'
 import { Button, Feedback } from '../ui'
 
 const DEFAULT_SUGGESTIONS = [
@@ -75,6 +75,15 @@ export function ConversationPanel({ run }) {
         },
       ])
       setSuggestions(DEFAULT_SUGGESTIONS)
+      void fetchRunSuggestedQuestions(run.id)
+        .then((response) => {
+          if (response.suggested_questions?.length) {
+            setSuggestions(response.suggested_questions)
+          }
+        })
+        .catch(() => {
+          setSuggestions(DEFAULT_SUGGESTIONS)
+        })
     } else {
       setMessages([])
     }

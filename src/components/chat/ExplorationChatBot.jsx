@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { askRunQuestion, selectRunInsight } from '../../api/conversation'
+import { askRunQuestion, fetchRunSuggestedQuestions, selectRunInsight } from '../../api/conversation'
 import { ChatBot } from './ChatBot'
 
 const DEFAULT_SUGGESTIONS = [
@@ -39,6 +39,15 @@ export function ExplorationChatBot({
         },
       ])
       setSuggestions(DEFAULT_SUGGESTIONS)
+      void fetchRunSuggestedQuestions(run.id)
+        .then((response) => {
+          if (response.suggested_questions?.length) {
+            setSuggestions(response.suggested_questions)
+          }
+        })
+        .catch(() => {
+          setSuggestions(DEFAULT_SUGGESTIONS)
+        })
     } else {
       setMessages([])
       setSuggestions(DEFAULT_SUGGESTIONS)

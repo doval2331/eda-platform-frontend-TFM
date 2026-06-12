@@ -8,6 +8,10 @@ export async function askRunQuestion(runId, question) {
   })
 }
 
+export async function fetchRunSuggestedQuestions(runId) {
+  return apiRequest(`/api/runs/${runId}/chat/suggestions`, { auth: true })
+}
+
 export async function selectRunInsight(runId, insight) {
   return apiRequest(`/api/runs/${runId}/insights/select`, {
     method: 'POST',

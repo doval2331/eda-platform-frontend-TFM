@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import '../styles/app.css'
 import { Scatter2D } from '../Scatter2D'
 import { uploadDataset } from '../api/datasets'
@@ -22,6 +22,8 @@ import {
 const ONBOARDING_KEY = 'eda-dashboard-onboarding-dismissed'
 
 export function DashboardPage() {
+  const location = useLocation()
+  const navigate = useNavigate()
   const [modalidad, setModalidad] = useState('it_ops')
   const [metodoReduccion, setMetodoReduccion] = useState('UMAP')
   const [seed, setSeed] = useState('42')
@@ -78,6 +80,21 @@ export function DashboardPage() {
       loadActiveProject(storedId)
     }
   }, [loadActiveProject])
+
+  useEffect(() => {
+    const state = location.state ?? {}
+    if (!state.openPrepareDialog && !state.editProjectId) return
+
+    if (state.editProjectId) {
+      localStorage.setItem(ACTIVE_PROJECT_KEY, state.editProjectId)
+      void loadActiveProject(state.editProjectId).finally(() => {
+        setPrepareDialogOpen(true)
+      })
+    } else {
+      setPrepareDialogOpen(true)
+    }
+    navigate(location.pathname, { replace: true, state: null })
+  }, [loadActiveProject, location.pathname, location.state, navigate])
 
   useEffect(() => {
     if (modalidad !== 'project') {
