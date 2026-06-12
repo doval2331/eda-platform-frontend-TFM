@@ -332,28 +332,116 @@ function priorityClass(score) {
   return 'cluster-priority--low'
 }
 
+function lowercaseValue(value) {
+  return cleanText(value).toLowerCase()
+}
+
+function readableLevel(value) {
+  const text = normalizeText(value)
+  if (/alta|alto|high|critical|critica|critico|urgent|urgente|grave|severa|severo/.test(text)) {
+    return 'alta'
+  }
+  if (/media|medio|medium|moderada|moderado/.test(text)) return 'media'
+  if (/baja|bajo|low|menor|minor/.test(text)) return 'baja'
+  return lowercaseValue(value)
+}
+
+function anchorPhrase(anchor) {
+  const value = cleanText(anchor)
+  const text = normalizeText(value)
+  if (!value || text.startsWith('cluster ')) return 'con comportamiento similar'
+
+  const known = {
+    industrial: 'industriales',
+    industria: 'industriales',
+    energia: 'de energia',
+    energetico: 'de energia',
+    energetica: 'de energia',
+    cloud: 'de cloud',
+    backup: 'de backup',
+    seguridad: 'de seguridad',
+    red: 'de red',
+    redes: 'de red',
+    infraestructura: 'de infraestructura',
+    usuarios: 'de usuarios',
+  }
+  if (known[text]) return known[text]
+  return `relacionadas con ${lowercaseValue(value)}`
+}
+
+function anchorExplanation(anchor) {
+  const value = cleanText(anchor)
+  const text = normalizeText(value)
+  if (!value || text.startsWith('cluster ')) return 'con un patron comun'
+  return `asociados a ${value}`
+}
+
+function businessCriterionPhrase(summary, criterion) {
+  if (!criterion || criterion.id === 'volume') return 'mayor volumen de casos'
+  if (criterion.id === 'outliers') return 'casos atipicos'
+
+  const role = fieldRole(criterion.field)
+  const field = normalizeText(criterion.shortLabel)
+  const displayedValue = criterion.display(summary)
+  const level = readableLevel(displayedValue)
+
+  if (role === 'criticality') {
+    if (field.includes('urgencia')) return `urgencia ${level}`
+    if (field.includes('prioridad')) return `prioridad ${level}`
+    if (field.includes('severity') || field.includes('severidad')) return `severidad ${level}`
+    return `criticidad ${level}`
+  }
+  if (role === 'risk') {
+    if (field.includes('impact')) return `impacto ${level}`
+    if (field.includes('riesgo') || field.includes('risk')) return `riesgo ${level}`
+    return `impacto o riesgo ${level}`
+  }
+  if (role === 'sla') return 'posible incumplimiento de SLA'
+  if (role === 'time') return 'mayor tiempo de atencion'
+  return `${lowercaseValue(criterion.shortLabel)}: ${displayedValue}`
+}
+
 function clusterName(summary, criterion) {
-  if (summary.clusterLabel === -1) return 'Casos atipicos'
-  if (!criterion || criterion.id === 'volume') return `Grupo similar de ${summary.anchor}`
-  return `${criterion.shortLabel} alto en ${summary.anchor}`
+  if (summary.clusterLabel === -1) return 'Casos atipicos a revisar'
+  if (!criterion || criterion.id === 'volume') {
+    return `Grupo de incidencias ${anchorPhrase(summary.anchor)}`
+  }
+  return `Grupo de incidencias ${anchorPhrase(summary.anchor)} con ${businessCriterionPhrase(summary, criterion)}`
 }
 
 function recommendation(summary, criterion) {
   if (summary.clusterLabel === -1) {
-    return 'Accion recomendada: revisar individualmente estos casos porque no siguen el patron comun.'
+    return 'Accion recomendada: revisar estos casos uno por uno, porque no siguen el patron comun del resto de incidencias.'
   }
   if (!criterion || criterion.id === 'volume') {
-    return 'Accion recomendada: revisar el volumen del grupo y compararlo contra otros clusters.'
+    return 'Accion recomendada: comparar este grupo con los demas para entender por que concentra tantos casos.'
   }
-  return `Accion recomendada: investigar la variable ${criterion.shortLabel} en este grupo y contrastarla con la muestra original.`
+
+  const role = fieldRole(criterion.field)
+  const phrase = businessCriterionPhrase(summary, criterion)
+  if (role === 'criticality') {
+    return `Accion recomendada: revisar una muestra de tickets de este grupo para entender por que aparecen con ${phrase} y definir si requieren priorizacion operativa.`
+  }
+  if (role === 'risk') {
+    return `Accion recomendada: validar los servicios o areas afectadas para confirmar si el ${phrase} requiere una accion correctiva.`
+  }
+  if (role === 'time') {
+    return 'Accion recomendada: revisar algunos tickets del grupo para identificar causas de demora y posibles cuellos de botella.'
+  }
+  if (role === 'sla') {
+    return 'Accion recomendada: comprobar los compromisos de SLA de este grupo y priorizar los casos con mayor incumplimiento.'
+  }
+  return `Accion recomendada: revisar una muestra de tickets para confirmar el patron observado en ${lowercaseValue(criterion.shortLabel)}.`
 }
 
 function explanation(summary, criterion, score) {
   if (summary.clusterLabel === -1) {
     return `Este grupo contiene ${summary.count} casos atipicos. No se parecen lo suficiente al patron principal y conviene revisarlos como excepciones.`
   }
-  const metricText = criterion ? `${criterion.shortLabel}: ${criterion.display(summary)}` : ''
-  return `Este cluster agrupa ${summary.count} registros similares. El patron dominante es ${summary.anchor}${metricText ? `. Variable destacada: ${metricText}` : ''}.`
+  const metricText = criterion && criterion.id !== 'volume'
+    ? ` La senal mas importante es ${businessCriterionPhrase(summary, criterion)}.`
+    : ''
+  return `Este grupo reune ${summary.count} incidencias similares, principalmente ${anchorExplanation(summary.anchor)}.${metricText}`
 }
 
 function metricCards(summary, criteria, activeCriterion) {
@@ -456,7 +544,7 @@ export function ClusterInterpretationPanel({ result, run }) {
   if (!result?.cluster_labels?.length) {
     return (
       <section className="cluster-insights cluster-insights--empty">
-        <h3>Lectura guiada de clusters</h3>
+        <h3>Lectura guiada de grupos</h3>
         <p>Ejecuta el pipeline para ver una interpretacion automatica de las incidencias agrupadas.</p>
       </section>
     )
@@ -466,15 +554,15 @@ export function ClusterInterpretationPanel({ result, run }) {
     <section className="cluster-insights">
       <div className="cluster-insights-header">
         <div>
-          <h3>Lectura guiada de clusters</h3>
+          <h3>Lectura guiada de grupos</h3>
           <p>
             Los criterios se calculan con las columnas detectadas en la fuente cargada y los
-            resultados del clustering. Si una variable no existe, no se muestra como filtro.
+            resultados del agrupamiento. Si una variable no existe, no se muestra como filtro.
           </p>
         </div>
         {top ? (
           <div className={`cluster-priority ${priorityClass(top.activeScore)}`}>
-            <span>Cluster destacado</span>
+            <span>Grupo destacado</span>
             <strong>{top.name}</strong>
           </div>
         ) : null}
@@ -483,7 +571,7 @@ export function ClusterInterpretationPanel({ result, run }) {
       {message ? <Feedback variant="success" message={message} /> : null}
       {error ? <Feedback variant="danger" message={error} /> : null}
 
-      <div className="cluster-filter-row" aria-label="Criterios dinamicos de clusters">
+      <div className="cluster-filter-row" aria-label="Criterios dinamicos de grupos">
         {criteria.map((criterion) => (
           <button
             key={criterion.id}
@@ -505,7 +593,7 @@ export function ClusterInterpretationPanel({ result, run }) {
               <div className="cluster-summary-title">
                 <div>
                   <span>
-                    {summary.clusterLabel === -1 ? 'Outliers' : `Cluster ${summary.clusterLabel}`}
+                    {summary.clusterLabel === -1 ? 'Casos atipicos' : `Grupo ${summary.clusterLabel}`}
                   </span>
                   <h4>{summary.name}</h4>
                 </div>

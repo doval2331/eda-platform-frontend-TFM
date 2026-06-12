@@ -41,6 +41,17 @@ function formatSpanishNumber(value) {
   return Number(value ?? 0).toLocaleString('es-ES')
 }
 
+const AUTO_SOURCE_TYPE = 'auto'
+const SOURCE_TYPE_SELECTION_OPTIONS = [
+  { value: AUTO_SOURCE_TYPE, label: 'Automatico segun archivo' },
+  ...SOURCE_TYPE_OPTIONS,
+]
+
+function resolveSourceTypeSelection(sourceType, file) {
+  if (sourceType !== AUTO_SOURCE_TYPE) return sourceType
+  return suggestSourceType(file).value || 'other'
+}
+
 function SourceListItem({ source, removing, onRemove }) {
   const columns = source.all_columns ?? []
   const visibleColumns = columns.slice(0, 10)
@@ -131,19 +142,31 @@ export function ProjectPrepareDialog({
   const [localError, setLocalError] = useState(null)
   const [saving, setSaving] = useState(false)
   const [newSourceName, setNewSourceName] = useState('')
-  const [newSourceType, setNewSourceType] = useState('other')
-  const [newSourceFile, setNewSourceFile] = useState(null)
+  const [newSourceType, setNewSourceType] = useState(AUTO_SOURCE_TYPE)
+  const [newSourceFiles, setNewSourceFiles] = useState([])
   const [sourceFileInputKey, setSourceFileInputKey] = useState(0)
+  const [uploadProgress, setUploadProgress] = useState(null)
 
   const csvCount = useMemo(
     () => (project?.sources ?? []).filter((s) => isTabularSource(s)).length,
     [project],
   )
 
-  const suggestedSource = useMemo(
-    () => (newSourceFile ? suggestSourceType(newSourceFile) : null),
-    [newSourceFile],
+  const selectedSourceSummaries = useMemo(
+    () =>
+      newSourceFiles.map((file) => {
+        const suggestion = suggestSourceType(file)
+        return {
+          file,
+          format: detectedFileFormat(file),
+          suggestion,
+          appliedType: resolveSourceTypeSelection(newSourceType, file),
+        }
+      }),
+    [newSourceFiles, newSourceType],
   )
+
+  const selectedFileCount = newSourceFiles.length
 
   const reduccionOptions = useMemo(
     () =>
@@ -220,8 +243,9 @@ export function ProjectPrepareDialog({
     if (!open) return
     setLocalError(null)
     setNewSourceName('')
-    setNewSourceType('other')
-    setNewSourceFile(null)
+    setNewSourceType(AUTO_SOURCE_TYPE)
+    setNewSourceFiles([])
+    setUploadProgress(null)
     setSourceFileInputKey((current) => current + 1)
     if (projectId) {
       loadProject(projectId)
@@ -258,52 +282,61 @@ export function ProjectPrepareDialog({
     return created
   }
 
-  function handleNewSourceFileChange(file) {
-    const previousFile = newSourceFile
+  function handleNewSourceFileChange(fileList) {
+    const files = Array.from(fileList ?? [])
+    const previousFile = newSourceFiles.length === 1 ? newSourceFiles[0] : null
     const previousDefaultName = previousFile ? defaultSourceName(previousFile) : ''
-    const previousSuggestedType = previousFile ? suggestSourceType(previousFile).value : 'other'
-    setNewSourceFile(file)
-    if (!file) return
-    setNewSourceName((current) =>
-      !current || current === previousDefaultName ? defaultSourceName(file) : current,
-    )
-    const suggestion = suggestSourceType(file)
-    if (
-      suggestion.value !== 'other' &&
-      (newSourceType === 'other' || newSourceType === previousSuggestedType)
-    ) {
-      setNewSourceType(suggestion.value)
+    setNewSourceFiles(files)
+    setUploadProgress(null)
+    if (!files.length) return
+    if (files.length === 1) {
+      setNewSourceName((current) =>
+        !current || current === previousDefaultName ? defaultSourceName(files[0]) : current,
+      )
+      return
     }
+    setNewSourceName('')
   }
 
   async function handleAddSource() {
     setLocalError(null)
-    if (!newSourceFile) {
-      setLocalError('Selecciona un archivo para agregarlo al escenario.')
+    if (!newSourceFiles.length) {
+      setLocalError('Selecciona uno o varios archivos para agregarlos al escenario.')
       return
     }
     setUploadingType('new-source')
+    let pendingFiles = [...newSourceFiles]
+    let failedFilename = ''
     try {
       if (modalidad !== 'project') {
         onModalidadChange('project')
       }
       const current = await ensureProject()
-      const detail = await uploadProjectSource(
-        current.id,
-        newSourceType,
-        newSourceFile,
-        newSourceName || defaultSourceName(newSourceFile),
-      )
-      setProject(detail)
-      onProjectSaved?.(detail)
+      const total = newSourceFiles.length
+      for (let index = 0; index < newSourceFiles.length; index += 1) {
+        const file = newSourceFiles[index]
+        failedFilename = file.name
+        setUploadProgress({ current: index + 1, total, filename: file.name })
+        const sourceType = resolveSourceTypeSelection(newSourceType, file)
+        const sourceName =
+          total === 1 ? newSourceName || defaultSourceName(file) : defaultSourceName(file)
+        const detail = await uploadProjectSource(current.id, sourceType, file, sourceName)
+        pendingFiles = pendingFiles.slice(1)
+        setNewSourceFiles(pendingFiles)
+        setProject(detail)
+        onProjectSaved?.(detail)
+      }
       setNewSourceName('')
-      setNewSourceType('other')
-      setNewSourceFile(null)
+      setNewSourceType(AUTO_SOURCE_TYPE)
+      setNewSourceFiles([])
       setSourceFileInputKey((current) => current + 1)
     } catch (err) {
-      setLocalError(err instanceof Error ? err.message : 'Error al subir el archivo')
+      const message = err instanceof Error ? err.message : 'Error al subir el archivo'
+      setNewSourceFiles(pendingFiles)
+      setLocalError(failedFilename ? `No se pudo procesar ${failedFilename}: ${message}` : message)
     } finally {
       setUploadingType(null)
+      setUploadProgress(null)
     }
   }
 
@@ -516,66 +549,80 @@ export function ProjectPrepareDialog({
                 id="new-source-name"
                 value={newSourceName}
                 onChange={(e) => setNewSourceName(e.target.value)}
-                helperText="Ej.: Incidencias 2023, Diccionario ITSM, Audio reunion."
+                disabled={selectedFileCount > 1}
+                helperText={
+                  selectedFileCount > 1
+                    ? 'Con varios archivos se usa el nombre de cada archivo como nombre de fuente.'
+                    : 'Ej.: Incidencias 2023, Diccionario ITSM, Audio reunion.'
+                }
               />
               <Select
                 label="Tipo de informacion"
                 id="new-source-type"
                 value={newSourceType}
                 onChange={(e) => setNewSourceType(e.target.value)}
-                options={SOURCE_TYPE_OPTIONS}
-                helperText="Si no esta claro, usa Otro o acepta la sugerencia automatica."
+                options={SOURCE_TYPE_SELECTION_OPTIONS}
+                helperText="Usa Automatico para que la app sugiera el tipo segun cada archivo."
               />
               <label className="field field--full" htmlFor="new-project-source-file">
-                <span className="field-label">Archivo</span>
+                <span className="field-label">Archivos</span>
                 <input
                   key={sourceFileInputKey}
                   id="new-project-source-file"
                   type="file"
                   accept={ALL_SOURCE_ACCEPT}
+                  multiple
                   disabled={uploadingType === 'new-source'}
                   className="file-input"
                   onChange={(e) => {
-                    const file = e.target.files?.[0] ?? null
-                    handleNewSourceFileChange(file)
+                    handleNewSourceFileChange(e.target.files)
                   }}
                 />
                 <p className="field-help">
-                  CSV, TSV, Excel, JSON, Parquet, TXT, MD, Word, PDF o audio.
+                  Puedes seleccionar uno o varios archivos: CSV, TSV, Excel, JSON, Parquet, TXT, MD, Word, PDF o audio.
                 </p>
               </label>
-              {newSourceFile ? (
-                <div className="project-source-detection note">
-                  <span>Archivo seleccionado: {newSourceFile.name}</span>
-                  <span>Formato detectado: {detectedFileFormat(newSourceFile)}</span>
-                  {suggestedSource ? (
-                    <span>
-                      Sugerencia: {sourceTypeLabel(suggestedSource.value)} por {suggestedSource.reason}.
-                    </span>
-                  ) : null}
-                  {suggestedSource && suggestedSource.value !== newSourceType ? (
-                    <button
-                      type="button"
-                      className="project-source-remove"
-                      onClick={() => setNewSourceType(suggestedSource.value)}
-                    >
-                      Usar sugerencia
-                    </button>
-                  ) : null}
+              {selectedFileCount ? (
+                <div className="project-source-detection project-source-detection--stack note">
+                  <span>
+                    {selectedFileCount} archivo{selectedFileCount === 1 ? '' : 's'} seleccionado
+                    {selectedFileCount === 1 ? '' : 's'}
+                  </span>
+                  <ul className="project-source-selection-list">
+                    {selectedSourceSummaries.map(({ file, format, suggestion, appliedType }) => (
+                      <li key={`${file.name}-${file.size}-${file.lastModified}`}>
+                        <strong>{file.name}</strong>
+                        <span>{format}</span>
+                        <span>Tipo aplicado: {sourceTypeLabel(appliedType)}</span>
+                        {newSourceType === AUTO_SOURCE_TYPE ? (
+                          <span>Sugerencia: {sourceTypeLabel(suggestion.value)} por {suggestion.reason}.</span>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               ) : null}
               {uploadingType === 'new-source' ? (
                 <p className="field-help">
-                  Procesando la fuente. Los Excel grandes pueden tardar entre 30 y 60 segundos.
+                  {uploadProgress
+                    ? `Procesando ${uploadProgress.current} de ${uploadProgress.total}: ${uploadProgress.filename}.`
+                    : 'Preparando carga de fuentes.'}{' '}
+                  Los archivos grandes pueden tardar varios minutos.
                 </p>
               ) : null}
               <Button
                 type="button"
                 variant="secondary"
                 onClick={handleAddSource}
-                disabled={uploadingType === 'new-source' || !newSourceFile}
+                disabled={uploadingType === 'new-source' || !selectedFileCount}
               >
-                {uploadingType === 'new-source' ? 'Procesando fuente...' : '+ Añadir fuente'}
+                {uploadingType === 'new-source'
+                  ? uploadProgress
+                    ? `Procesando ${uploadProgress.current}/${uploadProgress.total}...`
+                    : 'Procesando fuentes...'
+                  : selectedFileCount > 1
+                    ? '+ Añadir fuentes'
+                    : '+ Añadir fuente'}
               </Button>
             </div>
 
