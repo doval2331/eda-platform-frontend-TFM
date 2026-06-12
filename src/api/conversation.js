@@ -1,9 +1,15 @@
 import { apiRequest } from './apiClient'
 
-export async function askRunQuestion(runId, question) {
+export async function askRunQuestion(runId, question, history = []) {
   return apiRequest(`/api/runs/${runId}/chat`, {
     method: 'POST',
-    body: { question },
+    body: {
+      question,
+      history: history
+        .filter((item) => item?.role && item?.text)
+        .slice(-8)
+        .map((item) => ({ role: item.role, text: item.text })),
+    },
     auth: true,
   })
 }

@@ -100,7 +100,7 @@ export function ConversationPanel({ run }) {
     setMessages((current) => [...current, { role: 'user', text: clean }])
 
     try {
-      const response = await askRunQuestion(run.id, clean)
+      const response = await askRunQuestion(run.id, clean, messages)
       setMessages((current) => [
         ...current,
         {
