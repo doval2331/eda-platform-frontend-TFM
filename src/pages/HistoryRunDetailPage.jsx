@@ -9,7 +9,15 @@ import { ClusterInterpretationPanel } from '../components/ClusterInterpretationP
 import { FloatingChatWidget } from '../components/chat'
 import { RunKpis } from '../components/RunKpis'
 import { Scatter2D } from '../Scatter2D'
-import { Button, Card, Feedback, LoadingPanel, PageNavbar } from '../ui'
+import {
+  Button,
+  Card,
+  Feedback,
+  LoadingPanel,
+  PageNavbar,
+  ResultsTabs,
+  RunMetaChips,
+} from '../ui'
 import { formatModality } from '../utils/runMetrics'
 import { ACTIVE_PROJECT_KEY, sourceTypeLabel } from '../utils/projectLabels'
 
@@ -106,7 +114,7 @@ export function HistoryRunDetailPage() {
         breadcrumbCurrent="Resultados"
         title={
           run
-            ? `Ejecución del ${formatDate(run.created_at)}`
+            ? run.project_name ?? formatModality(run.modality)
             : 'Resultados de ejecución'
         }
        
@@ -150,64 +158,28 @@ export function HistoryRunDetailPage() {
         />
       ) : run ? (
         <>
-          <p className="muted history-detail-meta history-detail-meta--top">
-            {run.project_name ?? formatModality(run.modality)}
-            {run.source_name
-              ? ` · ${run.source_name}`
-              : run.source_type
-                ? ` · ${sourceTypeLabel(run.source_type)}`
-                : ''} ·{' '}
-            {run.reduction_method} · seed {run.seed} · id{' '}
-            <code className="history-run-id">{run.id.slice(0, 8)}…</code>
-          </p>
-
           <RunKpis result={run.result} runMeta={run} />
 
           <Card className="panel-results history-detail-card">
             <div className="panel-header panel-header--stacked">
               <div>
                 <h2>Resultados</h2>
-                <p className="results-intro note">
-                  Revisa el resumen por grupos o el mapa visual de la ejecución guardada.
-                </p>
+                <RunMetaChips
+                  items={[
+                    { label: formatDate(run.created_at) },
+                    ...(run.source_name
+                      ? [{ label: run.source_name }]
+                      : run.source_type
+                        ? [{ label: sourceTypeLabel(run.source_type) }]
+                        : []),
+                    { label: run.reduction_method },
+                    { label: `Seed ${run.seed}` },
+                  ]}
+                />
               </div>
             </div>
 
-            <div className="results-tabs" role="tablist" aria-label="Vista de resultados">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={resultView === 'interpretation'}
-                className={`result-tab ${
-                  resultView === 'interpretation' ? 'result-tab--active' : ''
-                }`}
-                onClick={() => setResultView('interpretation')}
-              >
-                Resumen por grupos
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={resultView === 'visualization'}
-                className={`result-tab ${
-                  resultView === 'visualization' ? 'result-tab--active' : ''
-                }`}
-                onClick={() => setResultView('visualization')}
-              >
-                Mapa visual
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={resultView === 'agents'}
-                className={`result-tab result-tab--llm ${
-                  resultView === 'agents' ? 'result-tab--active' : ''
-                }`}
-                onClick={() => setResultView('agents')}
-              >
-                Análisis asistido
-              </button>
-            </div>
+            <ResultsTabs value={resultView} onChange={setResultView} />
 
             <div hidden={resultView !== 'interpretation'} className="results-tab-panel">
               <ClusterInterpretationPanel result={run.result} run={run} />

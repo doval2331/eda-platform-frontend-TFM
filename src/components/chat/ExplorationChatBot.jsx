@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { askRunQuestion, fetchRunSuggestedQuestions, selectRunInsight } from '../../api/conversation'
 import { ChatBot } from './ChatBot'
 
@@ -68,8 +68,6 @@ export function ExplorationChatBot({
     onExternalPromptConsumed?.()
   }, [externalPrompt?.at, externalPrompt?.text, run?.id])
 
-  const shortRunId = useMemo(() => (run?.id ? run.id.slice(0, 8) : ''), [run?.id])
-
   async function sendQuestion(text, options = {}) {
     const clean = text.trim()
     if (!run?.id || !clean) return
@@ -120,7 +118,7 @@ export function ExplorationChatBot({
   return (
     <ChatBot
       title="Asistente de incidencias"
-      subtitle={run?.id ? `Análisis ${shortRunId}` : null}
+      subtitle={run?.id ? 'Exploración del análisis activo' : null}
       active={Boolean(run?.id)}
       llmReady={llmReady}
       headerAction={<ChatBot.DashboardLink />}

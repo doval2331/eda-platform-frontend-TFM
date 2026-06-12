@@ -1,10 +1,18 @@
-import { useEffect } from 'react'
-import '../styles/ui.css'
+import PropTypes from 'prop-types'
+import {
+  Dialog as MuiDialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  IconButton,
+  Typography,
+} from '@mui/material'
+import CloseIcon from '@mui/icons-material/Close'
 
-const SIZE_CLASS = {
-  default: '',
-  wide: 'dialog-panel--wide',
-  xl: 'dialog-panel--xl',
+const SIZE_MAP = {
+  default: 'sm',
+  wide: 'md',
+  xl: 'xl',
 }
 
 export function Dialog({
@@ -20,69 +28,80 @@ export function Dialog({
   showCloseButton = true,
   disableBackdropClose = false,
   panelClassName = '',
-  ...rest
+  ...props
 }) {
   const open = openProp ?? Boolean(isOpen)
   const actions = actionsProp ?? footer
-  const panelSizeClass = SIZE_CLASS[size] ?? ''
+  const maxWidth = SIZE_MAP[size] ?? 'sm'
 
-  useEffect(() => {
-    if (!open) return undefined
-    const onKeyDown = (event) => {
-      if (event.key === 'Escape') {
-        onClose?.(event, 'escapeKey')
-      }
+  function handleClose(event, reason) {
+    if (disableBackdropClose && (reason === 'backdropClick' || reason === 'escapeKeyDown')) {
+      return
     }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [open, onClose])
-
-  if (!open) return null
-
-  const handleBackdropClick = (event) => {
-    if (disableBackdropClose) return
-    onClose?.(event, 'backdropClick')
+    onClose?.(event, reason)
   }
 
   return (
-    <div
-      className="dialog-backdrop"
-      role="presentation"
-      onClick={handleBackdropClick}
-      {...rest}
+    <MuiDialog
+      open={open}
+      onClose={handleClose}
+      maxWidth={maxWidth}
+      fullWidth
+      className={panelClassName}
+      aria-labelledby={title ? 'app-dialog-title' : undefined}
+      aria-describedby={description ? 'app-dialog-description' : undefined}
+      {...props}
     >
-      <div
-        className={`dialog-panel ${panelSizeClass} ${panelClassName}`.trim()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={title ? 'dialog-title' : undefined}
-        onClick={(event) => event.stopPropagation()}
-      >
-        {title ? (
-          <header className="dialog-header">
-            <div>
-              <h2 className="dialog-title" id="dialog-title">
-                {title}
-              </h2>
-              {description ? <p className="dialog-description">{description}</p> : null}
-            </div>
-            {showCloseButton ? (
-              <button
-                type="button"
-                className="dialog-close"
-                aria-label="Cerrar"
-                onClick={(event) => onClose?.(event, 'closeButton')}
-              >
-                ×
-              </button>
-            ) : null}
-          </header>
-        ) : null}
+      {title ? (
+        <DialogTitle
+          id="app-dialog-title"
+          sx={{ pr: showCloseButton ? 6 : 2, pb: description ? 1 : 2 }}
+        >
+          {title}
+          {description ? (
+            <Typography
+              id="app-dialog-description"
+              variant="body2"
+              color="text.secondary"
+              sx={{ mt: 0.5, fontWeight: 400 }}
+            >
+              {description}
+            </Typography>
+          ) : null}
+          {showCloseButton ? (
+            <IconButton
+              aria-label="Cerrar"
+              onClick={(event) => onClose?.(event, 'closeButton')}
+              sx={{ position: 'absolute', right: 8, top: 8 }}
+            >
+              <CloseIcon />
+            </IconButton>
+          ) : null}
+        </DialogTitle>
+      ) : null}
 
-        <div className="dialog-body">{children}</div>
+      <DialogContent dividers={Boolean(title)} sx={{ pt: title ? 2 : 3 }}>
+        {children}
+      </DialogContent>
 
-        {actions ? <footer className="dialog-footer">{actions}</footer> : null}
-      </div>
-    </div>
+      {actions ? (
+        <DialogActions sx={{ px: 3, py: 2, gap: 1 }}>{actions}</DialogActions>
+      ) : null}
+    </MuiDialog>
   )
+}
+
+Dialog.propTypes = {
+  open: PropTypes.bool,
+  isOpen: PropTypes.bool,
+  onClose: PropTypes.func,
+  title: PropTypes.node,
+  description: PropTypes.node,
+  children: PropTypes.node,
+  actions: PropTypes.node,
+  footer: PropTypes.node,
+  size: PropTypes.oneOf(['default', 'wide', 'xl']),
+  showCloseButton: PropTypes.bool,
+  disableBackdropClose: PropTypes.bool,
+  panelClassName: PropTypes.string,
 }
