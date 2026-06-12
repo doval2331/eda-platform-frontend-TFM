@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { askRunQuestion, fetchRunSuggestedQuestions, selectRunInsight } from '../api/conversation'
 import { Button, Feedback } from '../ui'
@@ -90,7 +90,6 @@ export function ConversationPanel({ run }) {
   }, [run?.id])
 
   const canSend = Boolean(run?.id) && question.trim().length > 0 && !loading
-  const shortRunId = useMemo(() => (run?.id ? run.id.slice(0, 8) : ''), [run?.id])
 
   async function sendQuestion(text) {
     const clean = text.trim()
@@ -152,7 +151,7 @@ export function ConversationPanel({ run }) {
           <h2>3. Exploracion conversacional</h2>
           <p className="note">
             {run?.id
-              ? `Consultando incidencias materializadas en DuckDB. Run ${shortRunId}.`
+              ? 'Consulta los grupos detectados en lenguaje natural.'
               : 'Ejecuta el pipeline para habilitar preguntas sobre la corrida.'}
           </p>
         </div>

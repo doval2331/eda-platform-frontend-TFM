@@ -1,0 +1,44 @@
+.cluster-insights-premium {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cluster-insights-premium__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cluster-insights-premium__list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dashboard-kpis-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.dashboard-kpis-grid--secondary {
+  margin-top: 12px;
+}
+
+.kpi-advanced-toggle {
+  margin-top: 8px;
+}
+
+@media (max-width: 960px) {
+  .dashboard-kpis-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .dashboard-kpis-grid {
+    grid-template-columns: 1fr;
+  }
+}

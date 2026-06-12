@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import '../styles/app.css'
 import { Scatter2D } from '../Scatter2D'
@@ -11,7 +11,8 @@ import { ClusterInterpretationPanel } from '../components/ClusterInterpretationP
 import { FloatingChatWidget } from '../components/chat'
 import { ProjectPrepareDialog } from '../components/ProjectPrepareDialog'
 import { RunKpis } from '../components/RunKpis'
-import { PageNavbar, Button, Card, Feedback } from '../ui'
+import { PageNavbar, Button, Card, Feedback, LoadingPanel, ResultsTabs } from '../ui'
+import { buildAnalysisStatusMessage } from '../utils/analysisStatus'
 import {
   ACTIVE_PROJECT_KEY,
   loadTabularScenario,
@@ -52,6 +53,17 @@ export function DashboardPage() {
   )
   const [chatForceOpen, setChatForceOpen] = useState(false)
   const [chatExternalPrompt, setChatExternalPrompt] = useState(null)
+  const resultsPanelRef = useRef(null)
+
+  const analysisStatusMessage = useMemo(
+    () =>
+      buildAnalysisStatusMessage({
+        modalidad,
+        datasetProfile,
+        activeProject,
+      }),
+    [modalidad, datasetProfile, activeProject],
+  )
 
   const loadActiveProject = useCallback(async (projectId) => {
     if (!projectId) {
@@ -116,6 +128,11 @@ export function DashboardPage() {
       setIdColumn(datasetProfile.suggested_id_column)
     }
   }, [datasetProfile])
+
+  useEffect(() => {
+    if (!ejecutando) return
+    resultsPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [ejecutando])
 
   function handleOpenChatWithPrompt(prompt) {
     setChatExternalPrompt({ text: prompt, at: Date.now() })
@@ -205,8 +222,13 @@ export function DashboardPage() {
   }
 
   async function ejecutarPipeline() {
+    setPrepareDialogOpen(false)
     setEjecutando(true)
     setError(null)
+    setResultado(null)
+    setLastRun(null)
+    setProjectRuns([])
+    setResultView('interpretation')
 
     const seedNum = Number.parseInt(seed, 10) || 42
     let nSamplesParam = null
@@ -297,7 +319,7 @@ export function DashboardPage() {
 
       <RunKpis result={resultado} runMeta={lastRun} advancedMode={advancedMode} />
 
-      <div className="app-main app-main--results-only">
+      <div className="app-main app-main--results-only" ref={resultsPanelRef}>
         <Card className="panel-results">
           <div className="panel-results-head">
             <div className="panel-results-head-main">
@@ -319,7 +341,10 @@ export function DashboardPage() {
               type="button"
               variant="primary"
               className="prepare-data-btn"
-              onClick={() => setPrepareDialogOpen(true)}
+              onClick={() => {
+                setError(null)
+                setPrepareDialogOpen(true)
+              }}
             >
               Preparar datos
             </Button>
@@ -341,47 +366,18 @@ export function DashboardPage() {
               </select>
             </label>
           ) : null}
-          <p className="results-intro note">
-            Revisa primero el resumen por grupos; el mapa visual muestra cómo se distribuyen las
-            incidencias similares.
-          </p>
-          <div className="results-tabs" role="tablist" aria-label="Vista de resultados">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={resultView === 'interpretation'}
-              className={`result-tab ${
-                resultView === 'interpretation' ? 'result-tab--active' : ''
-              }`}
-              onClick={() => setResultView('interpretation')}
-            >
-              Resumen por grupos
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={resultView === 'visualization'}
-              className={`result-tab ${
-                resultView === 'visualization' ? 'result-tab--active' : ''
-              }`}
-              onClick={() => setResultView('visualization')}
-            >
-              Mapa visual
-            </button>
-            {lastRun?.id ? (
-              <button
-                type="button"
-                role="tab"
-                aria-selected={resultView === 'agents'}
-                className={`result-tab result-tab--llm ${
-                  resultView === 'agents' ? 'result-tab--active' : ''
-                }`}
-                onClick={() => setResultView('agents')}
-              >
-                Análisis asistido
-              </button>
-            ) : null}
-          </div>
+          <ResultsTabs
+            value={resultView}
+            onChange={setResultView}
+            showAgentsTab={Boolean(lastRun?.id)}
+          />
+
+          {ejecutando ? (
+            <LoadingPanel
+              title="Analizando incidencias…"
+              description={analysisStatusMessage}
+            />
+          ) : null}
 
           {!resultado && !ejecutando ? (
             <Feedback
@@ -390,8 +386,12 @@ export function DashboardPage() {
             />
           ) : null}
 
-          <div hidden={resultView !== 'interpretation'} className="results-tab-panel">
-            <ClusterInterpretationPanel result={resultado} run={lastRun} />
+          <div hidden={resultView !== 'interpretation' || ejecutando} className="results-tab-panel">
+            <ClusterInterpretationPanel
+              result={resultado}
+              run={lastRun}
+              loading={ejecutando}
+            />
           </div>
 
           <div hidden={resultView !== 'visualization'} className="results-tab-panel">
@@ -462,6 +462,26 @@ export function DashboardPage() {
         forceOpen={chatForceOpen}
         externalPrompt={chatExternalPrompt}
         onExternalPromptConsumed={handleChatPromptConsumed}
+      />
+
+      <Feedback
+        open={ejecutando}
+        variant="info"
+        title="Analizando incidencias"
+        message={analysisStatusMessage}
+        position="top-center"
+        onClose={() => {}}
+        autoHideDuration={null}
+        showCloseButton={false}
+        maxWidth="520px"
+      />
+      <Feedback
+        open={Boolean(error)}
+        variant="danger"
+        message={error ?? ''}
+        position="top-center"
+        onClose={() => setError(null)}
+        maxWidth="520px"
       />
     </div>
   )
