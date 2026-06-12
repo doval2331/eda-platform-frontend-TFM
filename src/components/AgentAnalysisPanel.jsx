@@ -692,7 +692,6 @@ function TraceRow({ trace }) {
   const agentName = traceField(record, ['agent_name', 'agentName', 'agent'], 'Agente')
   const decisionType = traceField(record, ['decision_type', 'decisionType', 'type'], 'Decision registrada')
   const modelName = traceField(record, ['model_name', 'modelName'], 'Modelo no informado')
-  const traceId = traceField(record, ['trace_id', 'traceId', 'id'], '')
   const createdAt = traceField(record, ['created_at', 'createdAt', 'timestamp'], '')
   return (
     <article className="agent-trace-card">
@@ -700,7 +699,6 @@ function TraceRow({ trace }) {
         <div>
           <strong>{agentName}</strong>
           <span>{decisionType}</span>
-          {traceId ? <span className="agent-trace-id">{traceId.slice(0, 8)}...</span> : null}
         </div>
         <div className="agent-trace-meta">
           {record.scope ? <span>{record.scope}</span> : null}

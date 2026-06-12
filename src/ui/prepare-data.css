@@ -1,0 +1,133 @@
+.prepare-data-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: min(68vh, 680px);
+}
+
+.prepare-data-dialog__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.prepare-data-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.prepare-data-panel__title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #061b31;
+}
+
+.prepare-form-section {
+  padding: 1rem 1.1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.prepare-data-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem 1.5rem;
+  align-items: start;
+}
+
+.prepare-data-source-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.source-file-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.source-file-card__icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+}
+
+.source-file-card__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.source-file-card__title {
+  line-height: 1.35;
+  color: #061b31;
+}
+
+.source-file-card__subtitle {
+  margin-top: 2px;
+}
+
+.source-file-card__chips {
+  margin-top: 0.5rem;
+}
+
+.source-file-card__actions {
+  flex-shrink: 0;
+}
+
+.prepare-data-upload-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1.1rem;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.prepare-data-upload-panel .prepare-data-form-grid .MuiFormControl-root,
+.prepare-data-upload-panel .prepare-data-form-grid .MuiTextField-root {
+  background: #fff;
+  border-radius: 8px;
+}
+
+.prepare-data-form-grid .MuiOutlinedInput-root {
+  background: #fff;
+}
+
+.prepare-data-selection-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.project-dialog-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.project-dialog-footer__spacer {
+  flex: 1;
+}
+
+@media (max-width: 640px) {
+  .prepare-data-form-grid {
+    grid-template-columns: 1fr;
+  }
+}

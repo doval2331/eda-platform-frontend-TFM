@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { CircularProgress, IconButton, Tooltip } from '@mui/material'
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import '../styles/history.css'
 import '../styles/app.css'
 import { clearAllRuns, deleteRun, listRuns } from '../api/pipeline'
@@ -193,23 +196,35 @@ export function HistoryPage() {
                       <td>{run.outliers_count}</td>
                       <td>
                         <div className="history-row-actions">
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            className="btn-sm"
-                            onClick={() => openRun(run.id)}
-                          >
-                            Ver resultados
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            className="btn-sm btn-danger"
-                            onClick={() => requestDeleteRun(run)}
-                            disabled={deletingRunId === run.id || clearing}
-                          >
-                            {deletingRunId === run.id ? 'Eliminando…' : 'Eliminar'}
-                          </Button>
+                          <Tooltip title="Ver resultados">
+                            <IconButton
+                              type="button"
+                              size="small"
+                              className="history-row-action-btn"
+                              onClick={() => openRun(run.id)}
+                              aria-label="Ver resultados"
+                            >
+                              <VisibilityOutlinedIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Eliminar">
+                            <span>
+                              <IconButton
+                                type="button"
+                                size="small"
+                                className="history-row-action-btn history-row-action-btn--danger"
+                                onClick={() => requestDeleteRun(run)}
+                                disabled={deletingRunId === run.id || clearing}
+                                aria-label="Eliminar ejecución"
+                              >
+                                {deletingRunId === run.id ? (
+                                  <CircularProgress size={18} color="inherit" />
+                                ) : (
+                                  <DeleteOutlineIcon fontSize="small" />
+                                )}
+                              </IconButton>
+                            </span>
+                          </Tooltip>
                         </div>
                       </td>
                     </tr>
@@ -265,14 +280,14 @@ export function HistoryPage() {
         variant="danger"
         message={error ?? ''}
         onClose={() => setError(null)}
-        position="bottom-right"
+        position="top-center"
       />
       <Feedback
         open={Boolean(message)}
         variant="success"
         message={message ?? ''}
         onClose={() => setMessage(null)}
-        position="bottom-right"
+        position="top-center"
       />
     </div>
   )

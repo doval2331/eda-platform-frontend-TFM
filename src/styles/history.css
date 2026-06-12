@@ -72,9 +72,28 @@
 
 .history-row-actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  flex-wrap: nowrap;
+  gap: 4px;
   justify-content: flex-end;
+  align-items: center;
+}
+
+.history-row-action-btn {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  color: #475569;
+}
+
+.history-row-action-btn:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #061b31;
+}
+
+.history-row-action-btn--danger:hover {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
 }
 
 .btn-danger {
