@@ -1,6 +1,16 @@
 import { useMemo, useState } from 'react'
+import { Box, IconButton, Stack, Tooltip, Typography } from '@mui/material'
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import { selectRunInsight } from '../api/conversation'
-import { Button, Feedback } from '../ui'
+import {
+  AlertBanner,
+  ClusterInsightCard,
+  ClusterInsightDetailDialog,
+  Feedback,
+  FilterChips,
+  LoadingPanel,
+} from '../ui'
+import '../ui/results.css'
 
 const FALLBACK_FIELDS = [
   'sla_breach_rate',
@@ -306,14 +316,14 @@ function buildCriteria(summaries, catalog) {
 
   const outlierCriterion = summaries.some((summary) => summary.clusterLabel === -1)
     ? {
-      id: 'outliers',
-      label: 'Outliers',
-      shortLabel: 'Outliers',
-      value: (summary) => (summary.clusterLabel === -1 ? summary.count : null),
-      normalized: (summary) => (summary.clusterLabel === -1 ? 100 : 0),
-      display: (summary) => (summary.clusterLabel === -1 ? String(summary.count) : 'sin dato'),
-      filter: (summary) => summary.clusterLabel === -1,
-    }
+        id: 'outliers',
+        label: 'Outliers',
+        shortLabel: 'Outliers',
+        value: (summary) => (summary.clusterLabel === -1 ? summary.count : null),
+        normalized: (summary) => (summary.clusterLabel === -1 ? 100 : 0),
+        display: (summary) => (summary.clusterLabel === -1 ? String(summary.count) : 'sin dato'),
+        filter: (summary) => summary.clusterLabel === -1,
+      }
     : null
 
   const visibleCriteria = criteria.slice(0, outlierCriterion ? 5 : 6)
@@ -324,12 +334,6 @@ function priorityLabel(score) {
   if (score >= 70) return 'Alta'
   if (score >= 35) return 'Media'
   return 'Baja'
-}
-
-function priorityClass(score) {
-  if (score >= 70) return 'cluster-priority--high'
-  if (score >= 35) return 'cluster-priority--medium'
-  return 'cluster-priority--low'
 }
 
 function lowercaseValue(value) {
@@ -369,13 +373,6 @@ function anchorPhrase(anchor) {
   return `relacionadas con ${lowercaseValue(value)}`
 }
 
-function anchorExplanation(anchor) {
-  const value = cleanText(anchor)
-  const text = normalizeText(value)
-  if (!value || text.startsWith('cluster ')) return 'con un patron comun'
-  return `asociados a ${value}`
-}
-
 function businessCriterionPhrase(summary, criterion) {
   if (!criterion || criterion.id === 'volume') return 'mayor volumen de casos'
   if (criterion.id === 'outliers') return 'casos atipicos'
@@ -409,75 +406,119 @@ function clusterName(summary, criterion) {
   return `Grupo de incidencias ${anchorPhrase(summary.anchor)} con ${businessCriterionPhrase(summary, criterion)}`
 }
 
+function shortClusterTitle(summary) {
+  if (summary.clusterLabel === -1) return 'Casos atípicos'
+  const anchor = cleanText(summary.anchor)
+  const text = normalizeText(anchor)
+  if (!anchor || text.startsWith('cluster ')) return `Patrón ${summary.clusterLabel}`
+  return anchor
+}
+
 function recommendation(summary, criterion) {
   if (summary.clusterLabel === -1) {
-    return 'Accion recomendada: revisar estos casos uno por uno, porque no siguen el patron comun del resto de incidencias.'
+    return 'Revisar estos casos uno por uno, porque no siguen el patrón común del resto de incidencias.'
   }
   if (!criterion || criterion.id === 'volume') {
-    return 'Accion recomendada: comparar este grupo con los demas para entender por que concentra tantos casos.'
+    return 'Comparar este grupo con los demás para entender por qué concentra tantos casos.'
   }
 
   const role = fieldRole(criterion.field)
   const phrase = businessCriterionPhrase(summary, criterion)
   if (role === 'criticality') {
-    return `Accion recomendada: revisar una muestra de tickets de este grupo para entender por que aparecen con ${phrase} y definir si requieren priorizacion operativa.`
+    return `Revisar una muestra de tickets de este grupo para entender por qué aparecen con ${phrase} y definir si requieren priorización operativa.`
   }
   if (role === 'risk') {
-    return `Accion recomendada: validar los servicios o areas afectadas para confirmar si el ${phrase} requiere una accion correctiva.`
+    return `Validar los servicios o áreas afectadas para confirmar si el ${phrase} requiere una acción correctiva.`
   }
   if (role === 'time') {
-    return 'Accion recomendada: revisar algunos tickets del grupo para identificar causas de demora y posibles cuellos de botella.'
+    return 'Revisar algunos tickets del grupo para identificar causas de demora y posibles cuellos de botella.'
   }
   if (role === 'sla') {
-    return 'Accion recomendada: comprobar los compromisos de SLA de este grupo y priorizar los casos con mayor incumplimiento.'
+    return 'Comprobar los compromisos de SLA de este grupo y priorizar los casos con mayor incumplimiento.'
   }
-  return `Accion recomendada: revisar una muestra de tickets para confirmar el patron observado en ${lowercaseValue(criterion.shortLabel)}.`
+  return `Revisar una muestra de tickets para confirmar el patrón observado en ${lowercaseValue(criterion.shortLabel)}.`
 }
 
-function explanation(summary, criterion, score) {
+function anchorExplanation(anchor) {
+  const value = cleanText(anchor)
+  const text = normalizeText(value)
+  if (!value || text.startsWith('cluster ')) return 'con un patrón común'
+  return `asociados a ${value}`
+}
+
+function explanation(summary, criterion) {
   if (summary.clusterLabel === -1) {
-    return `Este grupo contiene ${summary.count} casos atipicos. No se parecen lo suficiente al patron principal y conviene revisarlos como excepciones.`
+    return `Este grupo contiene ${summary.count} casos atípicos. No se parecen lo suficiente al patrón principal y conviene revisarlos como excepciones.`
   }
-  const metricText = criterion && criterion.id !== 'volume'
-    ? ` La senal mas importante es ${businessCriterionPhrase(summary, criterion)}.`
-    : ''
-  return `Este grupo reune ${summary.count} incidencias similares, principalmente ${anchorExplanation(summary.anchor)}.${metricText}`
+  const metricText =
+    criterion && criterion.id !== 'volume'
+      ? ` La señal más importante es ${businessCriterionPhrase(summary, criterion)}.`
+      : ''
+  return `Este grupo reúne ${summary.count} incidencias similares, principalmente ${anchorExplanation(summary.anchor)}.${metricText}`
 }
 
-function metricCards(summary, criteria, activeCriterion) {
-  const cards = [{ label: 'Registros', value: String(summary.count) }]
-  const metricCriteria = [
-    activeCriterion,
-    ...criteria.filter((criterion) => criterion.id !== activeCriterion?.id),
-  ]
-    .filter((criterion) => criterion && criterion.id !== 'outliers' && criterion.id !== 'volume')
-    .slice(0, 3)
+function compactMetricChips(summary, criteria, activeCriterion) {
+  const chips = [{ label: 'Casos', value: String(summary.count) }]
 
-  for (const criterion of metricCriteria) {
-    cards.push({
+  if (activeCriterion && activeCriterion.id !== 'volume' && activeCriterion.id !== 'outliers') {
+    chips.push({
+      label: activeCriterion.shortLabel,
+      value: activeCriterion.display(summary),
+    })
+  }
+
+  for (const [field, stat] of Object.entries(summary.categoricalStats)) {
+    if (chips.length >= 3 || !stat?.top) continue
+    const label = humanizeField(field)
+    if (chips.some((chip) => chip.label === label)) continue
+    chips.push({ label, value: stat.top })
+  }
+
+  for (const criterion of criteria) {
+    if (chips.length >= 3) break
+    if (!criterion || criterion.id === activeCriterion?.id) continue
+    if (criterion.id === 'outliers' || criterion.id === 'volume') continue
+    if (chips.some((chip) => chip.label === criterion.shortLabel)) continue
+    chips.push({
       label: criterion.shortLabel,
       value: criterion.display(summary),
     })
   }
 
-  if (cards.length < 4) {
-    for (const [field, stat] of Object.entries(summary.categoricalStats)) {
-      if (cards.length >= 4) break
-      if (!stat?.top) continue
-      const label = humanizeField(field)
-      if (cards.some((card) => card.label === label)) continue
-      cards.push({ label, value: stat.top })
-    }
+  return chips.slice(0, 3)
+}
+
+function fullDetailMetrics(summary, activeCriterion) {
+  const metrics = [{ label: 'Registros', value: String(summary.count) }]
+
+  if (activeCriterion && activeCriterion.id !== 'outliers' && activeCriterion.id !== 'volume') {
+    metrics.push({
+      label: activeCriterion.shortLabel,
+      value: activeCriterion.display(summary),
+    })
   }
 
-  return cards.slice(0, 4)
+  for (const [field, stat] of Object.entries(summary.categoricalStats ?? {})) {
+    if (!stat?.top) continue
+    const label = humanizeField(field)
+    if (metrics.some((metric) => metric.label === label)) continue
+    metrics.push({ label, value: stat.top })
+  }
+
+  for (const [field, value] of Object.entries(summary.numericStats ?? {})) {
+    const label = humanizeField(field)
+    if (metrics.some((metric) => metric.label === label)) continue
+    metrics.push({ label, value: formatFieldValue(field, value) })
+  }
+
+  return metrics
 }
 
 function insightFromSummary(runId, summary) {
   return {
     id: `cluster-${runId}-${summary.clusterLabel}`,
-    title: summary.name,
-    description: `${summary.explanation} Recomendacion: ${summary.recommendation}`,
+    title: summary.name ?? summary.shortTitle,
+    description: summary.recommendation,
     metric_label: summary.activeCriterion?.shortLabel ?? 'cluster_score',
     metric_value: Number((summary.activeScore ?? 0).toFixed(2)),
     dimension: 'cluster_label',
@@ -486,9 +527,10 @@ function insightFromSummary(runId, summary) {
   }
 }
 
-export function ClusterInterpretationPanel({ result, run }) {
+export function ClusterInterpretationPanel({ result, run, loading = false }) {
   const [filter, setFilter] = useState('auto')
   const [selectedIds, setSelectedIds] = useState(new Set())
+  const [detailSummary, setDetailSummary] = useState(null)
   const [message, setMessage] = useState(null)
   const [error, setError] = useState(null)
 
@@ -514,10 +556,13 @@ export function ClusterInterpretationPanel({ result, run }) {
           activeScore,
           activeCriterion,
           name,
+          shortTitle: shortClusterTitle(summary),
           priority: priorityLabel(activeScore),
           recommendation: recommendationText,
-          explanation: explanation(summary, activeCriterion, activeScore),
-          metricCards: metricCards(summary, criteria, activeCriterion),
+          explanation: explanation(summary, activeCriterion),
+          criterionLabel: activeCriterion?.label,
+          metricChips: compactMetricChips(summary, criteria, activeCriterion),
+          detailMetrics: fullDetailMetrics(summary, activeCriterion),
         }
       })
       .sort((a, b) => b.activeScore - a.activeScore || b.count - a.count)
@@ -534,99 +579,139 @@ export function ClusterInterpretationPanel({ result, run }) {
     try {
       await selectRunInsight(run.id, insight)
       setSelectedIds((current) => new Set([...current, insight.id]))
-      setMessage(`${summary.name} agregado al dashboard conversacional.`)
+      setMessage(`${summary.shortTitle} agregado al dashboard conversacional.`)
       setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar el cluster')
     }
   }
 
+  if (loading) {
+    return (
+      <LoadingPanel
+        title="Analizando incidencias…"
+        description="Agrupando registros similares y generando la lectura guiada."
+      />
+    )
+  }
+
   if (!result?.cluster_labels?.length) {
     return (
       <section className="cluster-insights cluster-insights--empty">
-        <h3>Lectura guiada de grupos</h3>
-        <p>Ejecuta el pipeline para ver una interpretacion automatica de las incidencias agrupadas.</p>
+        <Typography variant="h6" component="h3">
+          Lectura guiada de grupos
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Ejecuta el pipeline para ver una interpretación automática de las incidencias agrupadas.
+        </Typography>
       </section>
     )
   }
 
   return (
-    <section className="cluster-insights">
-      <div className="cluster-insights-header">
-        <div>
-          <h3>Lectura guiada de grupos</h3>
-          <p>
-            Los criterios se calculan con las columnas detectadas en la fuente cargada y los
-            resultados del agrupamiento. Si una variable no existe, no se muestra como filtro.
-          </p>
-        </div>
-        {top ? (
-          <div className={`cluster-priority ${priorityClass(top.activeScore)}`}>
-            <span>Grupo destacado</span>
-            <strong>{top.name}</strong>
-          </div>
-        ) : null}
-      </div>
-
-      {message ? <Feedback variant="success" message={message} /> : null}
-      {error ? <Feedback variant="danger" message={error} /> : null}
-
-      <div className="cluster-filter-row" aria-label="Criterios dinamicos de grupos">
-        {criteria.map((criterion) => (
-          <button
-            key={criterion.id}
-            type="button"
-            className={activeFilter === criterion.id ? 'cluster-filter--active' : ''}
-            onClick={() => setFilter(criterion.id)}
+    <section className="cluster-insights-premium">
+      <div className="cluster-insights-premium__header">
+        <Stack direction="row" spacing={0.75} alignItems="center">
+          <Typography variant="h6" component="h3">
+            Lectura guiada de grupos
+          </Typography>
+          <Tooltip
+            title="Los criterios se calculan con las columnas detectadas en la fuente cargada. Si una variable no existe, no aparece como filtro."
+            arrow
           >
-            {criterion.label}
-          </button>
-        ))}
+            <IconButton size="small" aria-label="Información sobre criterios">
+              <InfoOutlinedIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Stack>
       </div>
 
-      <div className="cluster-summary-list">
+      <Feedback
+        open={Boolean(message)}
+        variant="success"
+        message={message ?? ''}
+        position="top-center"
+        onClose={() => setMessage(null)}
+      />
+      <Feedback
+        open={Boolean(error)}
+        variant="danger"
+        message={error ?? ''}
+        position="top-center"
+        onClose={() => setError(null)}
+      />
+
+      {top ? (
+        <AlertBanner severity="info">
+          <strong>Destacado:</strong>{' '}
+          {top.clusterLabel === -1
+            ? `Casos atípicos · ${top.count} incidencias · Prioridad ${top.priority}`
+            : `Grupo ${top.clusterLabel} · ${top.shortTitle} · ${top.count} incidencias · Prioridad ${top.priority}`}
+        </AlertBanner>
+      ) : null}
+
+      <FilterChips
+        options={criteria.map((criterion) => ({
+          value: criterion.id,
+          label: criterion.label,
+        }))}
+        value={activeFilter}
+        onChange={setFilter}
+        ariaLabel="Criterios dinámicos de grupos"
+      />
+
+      <div className="cluster-insights-premium__list">
         {ranked.slice(0, 5).map((summary) => {
           const insightId = run?.id ? `cluster-${run.id}-${summary.clusterLabel}` : ''
           const selected = selectedIds.has(insightId)
           return (
-            <article className="cluster-summary-card" key={summary.clusterLabel}>
-              <div className="cluster-summary-title">
-                <div>
-                  <span>
-                    {summary.clusterLabel === -1 ? 'Casos atipicos' : `Grupo ${summary.clusterLabel}`}
-                  </span>
-                  <h4>{summary.name}</h4>
-                </div>
-                <strong className={priorityClass(summary.activeScore)}>{summary.priority}</strong>
-              </div>
-
-              <p>{summary.explanation}</p>
-
-              <div className="cluster-metrics-grid">
-                {summary.metricCards.map((card) => (
-                  <div key={card.label}>
-                    <span>{card.label}</span>
-                    <strong>{card.value}</strong>
-                  </div>
-                ))}
-              </div>
-
-              <div className="cluster-action-row">
-                <p>{summary.recommendation}</p>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="btn-sm"
-                  disabled={selected}
-                  onClick={() => addCluster(summary)}
-                >
-                  {selected ? 'Agregado' : 'Agregar al dashboard'}
-                </Button>
-              </div>
-            </article>
+            <ClusterInsightCard
+              key={summary.clusterLabel}
+              clusterLabel={summary.clusterLabel}
+              title={summary.shortTitle}
+              priority={summary.priority}
+              score={summary.activeScore}
+              metricChips={summary.metricChips}
+              onViewDetail={() => setDetailSummary(summary)}
+              actionLabel={selected ? 'Agregado' : 'Agregar al dashboard'}
+              actionDisabled={selected}
+              onAction={() => addCluster(summary)}
+            />
           )
         })}
       </div>
+
+      <ClusterInsightDetailDialog
+        open={Boolean(detailSummary)}
+        onClose={() => setDetailSummary(null)}
+        clusterLabel={detailSummary?.clusterLabel ?? 0}
+        title={detailSummary?.shortTitle ?? ''}
+        fullTitle={detailSummary?.name}
+        priority={detailSummary?.priority ?? 'Baja'}
+        score={detailSummary?.activeScore ?? 0}
+        criterionLabel={detailSummary?.criterionLabel}
+        summary={detailSummary?.explanation}
+        recommendation={detailSummary?.recommendation}
+        metrics={detailSummary?.detailMetrics ?? []}
+        onAddToDashboard={
+          detailSummary && run?.id
+            ? () => {
+                void addCluster(detailSummary)
+                setDetailSummary(null)
+              }
+            : undefined
+        }
+        addDisabled={
+          detailSummary && run?.id
+            ? selectedIds.has(`cluster-${run.id}-${detailSummary.clusterLabel}`)
+            : false
+        }
+        addLabel={
+          detailSummary && run?.id && selectedIds.has(`cluster-${run.id}-${detailSummary.clusterLabel}`)
+            ? 'Agregado'
+            : 'Agregar al dashboard'
+        }
+      />
     </section>
   )
 }

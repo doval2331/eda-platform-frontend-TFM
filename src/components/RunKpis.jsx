@@ -1,11 +1,13 @@
 import { useState } from 'react'
-import { StatChip } from '../ui'
+import { Box, Collapse } from '@mui/material'
+import { MetricCard, Button } from '../ui'
 import { countClusters, outliersPercent } from '../utils/runMetrics'
 import {
   METRIC_HINTS,
   qualityFromSilhouette,
   stabilityLabel,
 } from '../utils/businessLabels'
+import '../ui/results.css'
 
 function KpiIcon({ children }) {
   return (
@@ -110,7 +112,7 @@ function hasTechnicalMetrics(result, runMeta) {
 }
 
 export function RunKpis({ result, runMeta, className = '', advancedMode = false }) {
-  const [showTechnical, setShowTechnical] = useState(false)
+  const [showSecondary, setShowSecondary] = useState(false)
   const outliersCount = result?.outliers_count ?? runMeta?.outliers_count ?? 0
   const nSamples = runMeta?.n_samples ?? result?.cluster_labels?.length ?? null
   const nClusters =
@@ -128,98 +130,97 @@ export function RunKpis({ result, runMeta, className = '', advancedMode = false 
 
   if (!hasResults) return null
 
-  const technicalVisible = advancedMode || showTechnical
+  const secondaryVisible = advancedMode || showSecondary
+  const showToggle = !advancedMode && hasTechnicalMetrics(result, runMeta)
 
   return (
-    <div className={`dashboard-kpis-wrap ${className}`.trim()}>
-      <div className="dashboard-kpis">
-        <StatChip
+    <Box className={`dashboard-kpis-wrap ${className}`.trim()}>
+      <div className="dashboard-kpis-grid">
+        <MetricCard
           label="Grupos encontrados"
           value={nClusters != null ? String(nClusters) : '—'}
           icon={KPI_ICONS.clusters}
           hint="Número de patrones de incidencias detectados automáticamente."
         />
-        {nSamples != null ? (
-          <StatChip
-            label="Incidencias analizadas"
-            value={String(nSamples)}
-            icon={KPI_ICONS.points}
-            hint="Cantidad de registros incluidos en este análisis."
-          />
-        ) : null}
-        <StatChip
+        <MetricCard
+          label="Incidencias analizadas"
+          value={nSamples != null ? String(nSamples) : '—'}
+          icon={KPI_ICONS.points}
+          hint="Cantidad de registros incluidos en este análisis."
+        />
+        <MetricCard
           label="Casos atípicos"
           value={String(outliersCount)}
           icon={KPI_ICONS.outliers}
           hint="Incidencias que no encajan claramente en ningún grupo."
         />
-        <StatChip
-          label="Sin patrón claro"
-          value={noisePct != null ? `${Number(noisePct).toFixed(1)}%` : '—'}
-          icon={KPI_ICONS.outliers}
-          hint={METRIC_HINTS.noise_pct}
-        />
-        <StatChip
+        <MetricCard
           label="Calidad del agrupamiento"
           value={quality?.label ?? '—'}
           icon={KPI_ICONS.silhouette}
           hint={METRIC_HINTS.silhouette}
         />
-        <StatChip
-          label="¿El patrón se repite?"
-          value={stabilityLabel(stabilityRaw)}
-          icon={KPI_ICONS.stability}
-          hint={METRIC_HINTS.cluster_stability}
-        />
       </div>
 
-      {!advancedMode && hasTechnicalMetrics(result, runMeta) ? (
+      {showToggle ? (
         <div className="kpi-advanced-toggle">
-          <button
-            type="button"
-            className="kpi-advanced-toggle-btn"
-            onClick={() => setShowTechnical((v) => !v)}
-            aria-expanded={technicalVisible}
+          <Button
+            variant="text"
+            size="small"
+            startIcon={secondaryVisible ? 'ExpandLess' : 'ExpandMore'}
+            onClick={() => setShowSecondary((value) => !value)}
           >
-            {technicalVisible ? 'Ocultar métricas técnicas' : 'Ver métricas técnicas'}
-          </button>
+            {secondaryVisible ? 'Ocultar métricas adicionales' : 'Ver métricas adicionales'}
+          </Button>
         </div>
       ) : null}
 
-      {technicalVisible ? (
-        <div className="dashboard-kpis dashboard-kpis--technical">
-          <StatChip
+      <Collapse in={secondaryVisible}>
+        <div className="dashboard-kpis-grid dashboard-kpis-grid--secondary">
+          <MetricCard
+            label="Sin patrón claro"
+            value={noisePct != null ? `${Number(noisePct).toFixed(1)}%` : '—'}
+            icon={KPI_ICONS.outliers}
+            hint={METRIC_HINTS.noise_pct}
+          />
+          <MetricCard
+            label="¿El patrón se repite?"
+            value={stabilityLabel(stabilityRaw)}
+            icon={KPI_ICONS.stability}
+            hint={METRIC_HINTS.cluster_stability}
+          />
+          <MetricCard
             label="Silhouette"
             value={metricValue(result, runMeta, 'silhouette')}
             icon={KPI_ICONS.silhouette}
             hint={METRIC_HINTS.silhouette}
           />
-          <StatChip
+          <MetricCard
             label="Davies-Bouldin"
             value={metricValue(result, runMeta, 'davies_bouldin')}
             icon={KPI_ICONS.davies}
             hint={METRIC_HINTS.davies_bouldin}
           />
-          <StatChip
+          <MetricCard
             label="Calinski-Harabasz"
             value={metricValue(result, runMeta, 'calinski_harabasz', 0)}
             icon={KPI_ICONS.calinski}
             hint={METRIC_HINTS.calinski_harabasz}
           />
-          <StatChip
+          <MetricCard
             label="ARI"
             value={metricValue(result, runMeta, 'ari')}
             icon={KPI_ICONS.ari}
             hint={METRIC_HINTS.ari}
           />
-          <StatChip
+          <MetricCard
             label="NMI"
             value={metricValue(result, runMeta, 'nmi')}
             icon={KPI_ICONS.ari}
             hint={METRIC_HINTS.nmi}
           />
         </div>
-      ) : null}
-    </div>
+      </Collapse>
+    </Box>
   )
 }
