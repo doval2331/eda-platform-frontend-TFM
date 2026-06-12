@@ -79,7 +79,7 @@ export function ExplorationChatBot({
     }
 
     try {
-      const response = await askRunQuestion(run.id, clean)
+      const response = await askRunQuestion(run.id, clean, messages)
       setMessages((current) => [
         ...current,
         {
