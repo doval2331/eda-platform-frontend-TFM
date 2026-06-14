@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Box, Collapse } from '@mui/material'
-import { MetricCard, Button } from '../ui'
+import { MetricCard, Button, ClusteringCompareTable } from '../ui'
 import { countClusters, outliersPercent } from '../utils/runMetrics'
+import { buildClusteringCompareRows } from '../utils/clusteringCompareRows'
 import {
   METRIC_HINTS,
   qualityFromSilhouette,
@@ -104,6 +105,7 @@ function metricValue(result, runMeta, key, digits = 2) {
 }
 
 function hasTechnicalMetrics(result, runMeta) {
+  if (result?.baseline_metrics) return true
   const keys = ['davies_bouldin', 'calinski_harabasz', 'ari', 'nmi', 'cluster_stability']
   return keys.some((key) => {
     const v = result?.metrics?.[key] ?? runMeta?.metrics?.[key]
@@ -132,6 +134,11 @@ export function RunKpis({ result, runMeta, className = '', advancedMode = false 
 
   const secondaryVisible = advancedMode || showSecondary
   const showToggle = !advancedMode && hasTechnicalMetrics(result, runMeta)
+  const baselineAlgorithm = result?.baseline_algorithm ?? 'DBSCAN'
+  const compareRows = buildClusteringCompareRows(
+    result?.metrics ?? runMeta?.metrics,
+    result?.baseline_metrics,
+  )
 
   return (
     <Box className={`dashboard-kpis-wrap ${className}`.trim()}>
@@ -220,6 +227,11 @@ export function RunKpis({ result, runMeta, className = '', advancedMode = false 
             hint={METRIC_HINTS.nmi}
           />
         </div>
+        <ClusteringCompareTable
+          title={`Comparativa con ${baselineAlgorithm} (baseline)`}
+          baselineLabel={`${baselineAlgorithm} (baseline)`}
+          rows={compareRows}
+        />
       </Collapse>
     </Box>
   )

@@ -31,6 +31,43 @@
   margin-top: 8px;
 }
 
+.clustering-compare-table__scroll {
+  overflow-x: auto;
+}
+
+.clustering-compare-table__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.clustering-compare-table__table th,
+.clustering-compare-table__table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  text-align: left;
+}
+
+.clustering-compare-table__table thead th {
+  font-weight: 700;
+  background: rgba(15, 23, 42, 0.03);
+}
+
+.clustering-compare-table__table tbody th[scope='row'] {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.clustering-compare-table__label {
+  border-bottom: 1px dotted rgba(15, 23, 42, 0.35);
+  cursor: help;
+}
+
+.clustering-compare-table__cell--better {
+  font-weight: 700;
+  color: #0f766e;
+}
+
 @media (max-width: 960px) {
   .dashboard-kpis-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
