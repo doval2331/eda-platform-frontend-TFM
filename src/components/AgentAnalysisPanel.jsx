@@ -17,6 +17,8 @@ import {
 import { Button, Card, Dialog, Feedback, LoadingPanel } from '../ui'
 import '../styles/llm-visual.css'
 
+const TRACE_DISPLAY_LIMIT = 100
+
 function parseJsonList(value) {
   if (Array.isArray(value)) return value
   if (!value) return []
@@ -653,6 +655,14 @@ function formatDate(value) {
   }
 }
 
+function traceTimestamp(record) {
+  const value = traceField(record, ['created_at', 'createdAt', 'timestamp'], '')
+  if (!value) return 0
+  const date = new Date(value)
+  const time = date.getTime()
+  return Number.isNaN(time) ? 0 : time
+}
+
 function parseTraceRecord(trace) {
   if (!trace) return {}
   if (typeof trace === 'string') {
@@ -686,6 +696,13 @@ function traceBlockValue(value) {
   return text
 }
 
+function tracePreview(value, maxLength = 180) {
+  const text = traceBlockValue(value).replace(/\s+/g, ' ').trim()
+  if (!text || text === 'No registrado') return 'Sin detalle registrado'
+  if (text.length <= maxLength) return text
+  return `${text.slice(0, maxLength).trim()}...`
+}
+
 function hasTraceContent(record) {
   if (!record || typeof record !== 'object') return false
   return [
@@ -707,52 +724,73 @@ function hasTraceContent(record) {
 
 function normalizeTraceList(data) {
   if (!Array.isArray(data?.traces)) return []
-  return data.traces.map(parseTraceRecord).filter(hasTraceContent)
+  return data.traces
+    .map(parseTraceRecord)
+    .filter(hasTraceContent)
+    .sort((a, b) => traceTimestamp(b) - traceTimestamp(a))
 }
 
-function TraceRow({ trace }) {
+function TraceRow({ trace, index }) {
+  const [open, setOpen] = useState(false)
   const record = parseTraceRecord(trace)
   const agentName = traceField(record, ['agent_name', 'agentName', 'agent'], 'Agente')
   const decisionType = traceField(record, ['decision_type', 'decisionType', 'type'], 'Decision registrada')
   const modelName = traceField(record, ['model_name', 'modelName'], 'Modelo no informado')
   const createdAt = traceField(record, ['created_at', 'createdAt', 'timestamp'], '')
+  const traceId = traceField(record, ['trace_id', 'traceId'], '')
 
   return (
-    <details className="agent-trace-card">
-      <summary className="agent-trace-head">
-        <div>
-          <strong>{agentName}</strong>
-          <span>{decisionType}</span>
-          {record.trace_id ? <code className="agent-trace-id">{record.trace_id}</code> : null}
+    <article className={`agent-trace-card${open ? ' agent-trace-card--open' : ''}`}>
+      <div className="agent-trace-head">
+        <div className="agent-trace-main">
+          <span className="agent-trace-number">#{index + 1}</span>
+          <div>
+            <strong>{agentName}</strong>
+            <span>{decisionType}</span>
+            {traceId ? <code className="agent-trace-id">{traceId}</code> : null}
+          </div>
         </div>
         <div className="agent-trace-meta">
           {record.scope ? <span>{record.scope}</span> : null}
           {record.source_run_id ? <span>Run origen: {record.source_run_id}</span> : null}
           <span>{modelName}</span>
           <span>{formatDate(createdAt)}</span>
-        </div>
-      </summary>
-      <div className="agent-trace-body">
-        <div>
-          <h4>Variables y parametros</h4>
-          <pre>
-            {[
-              `Variables: ${traceBlockValue(record.variables_used)}`,
-              `Parametros: ${traceBlockValue(record.parameters)}`,
-              `Artefactos: ${traceBlockValue(record.input_artifacts)}`,
-            ].join('\n\n')}
-          </pre>
-        </div>
-        <div>
-          <h4>Prompt</h4>
-          <pre>{traceBlockValue(record.prompt)}</pre>
-        </div>
-        <div>
-          <h4>Respuesta</h4>
-          <pre>{traceBlockValue(record.response)}</pre>
+          <button
+            type="button"
+            className="agent-trace-toggle"
+            onClick={() => setOpen((value) => !value)}
+            aria-expanded={open}
+          >
+            {open ? 'Ocultar detalle' : 'Ver detalle'}
+          </button>
         </div>
       </div>
-    </details>
+      <div className="agent-trace-preview">
+        <strong>Resumen:</strong> {tracePreview(record.response || record.prompt || record.parameters)}
+      </div>
+      {open ? (
+        <div className="agent-trace-body">
+          <div>
+            <h4>Variables y parametros</h4>
+            <pre>
+              {[
+                `Variables: ${traceBlockValue(record.variables_used)}`,
+                `Parametros: ${traceBlockValue(record.parameters)}`,
+                `Artefactos: ${traceBlockValue(record.input_artifacts)}`,
+              ].join('\n\n')}
+            </pre>
+          </div>
+          <div>
+            <h4>Prompt</h4>
+            <pre>{traceBlockValue(record.prompt)}</pre>
+          </div>
+          <div>
+            <h4>Respuesta</h4>
+            <pre>{traceBlockValue(record.response)}</pre>
+          </div>
+        </div>
+      ) : null}
+    </article>
   )
 }
 
@@ -858,6 +896,11 @@ export function AgentAnalysisPanel({ run, projectId: projectIdProp, onOpenChatWi
     }
     return sortedInsights.slice(0, 30)
   }, [insightFilter, sortedInsights])
+
+  const visibleTraces = useMemo(
+    () => traces.slice(0, TRACE_DISPLAY_LIMIT),
+    [traces],
+  )
 
   const visibleInsightIds = useMemo(
     () => visibleInsights.map((item) => insightIdentity(runId, item)),
@@ -986,16 +1029,34 @@ export function AgentAnalysisPanel({ run, projectId: projectIdProp, onOpenChatWi
     setTracesLoading(true)
     setError(null)
     try {
-      const runTraces = await fetchOptionalTraces(() => fetchAgentTraces(runId))
-      const projectTraces = projectId
-        ? await fetchOptionalTraces(() => fetchProjectAgentTraces(projectId))
-        : []
+      const [runResult, projectResult] = await Promise.allSettled([
+        fetchOptionalTraces(() => fetchAgentTraces(runId, TRACE_DISPLAY_LIMIT)),
+        projectId
+          ? fetchOptionalTraces(() => fetchProjectAgentTraces(projectId, TRACE_DISPLAY_LIMIT))
+          : Promise.resolve([]),
+      ])
+      const failures = [runResult, projectResult].filter((result) => result.status === 'rejected')
+      const runTraces = runResult.status === 'fulfilled' ? runResult.value : []
+      const projectTraces = projectResult.status === 'fulfilled' ? projectResult.value : []
+      const traceKeys = new Set()
       const combinedTraces = [
         ...projectTraces.map((trace) => ({ ...trace, scope: 'Proyecto' })),
         ...runTraces.map((trace) => ({ ...trace, scope: 'Ejecucion' })),
-      ]
+      ].filter((trace, index) => {
+        const record = parseTraceRecord(trace)
+        const key = traceField(record, ['trace_id', 'traceId'], '') || `trace-${index}`
+        if (traceKeys.has(key)) return false
+        traceKeys.add(key)
+        return true
+      })
+      if (!combinedTraces.length && failures.length) {
+        throw failures[0].reason
+      }
       setTraces(combinedTraces)
       setTracesOpen(true)
+      if (failures.length) {
+        setMessage('Se muestran las trazas disponibles; una parte de la trazabilidad no respondió.')
+      }
     } catch (err) {
       if (err?.status === 404) {
         setError('Todavía no hay trazas. Ejecuta primero estrategia o interpretación.')
@@ -1401,13 +1462,21 @@ export function AgentAnalysisPanel({ run, projectId: projectIdProp, onOpenChatWi
       >
         {traces.length ? (
           <p className="agent-trace-count">
-            {traces.length} trazas registradas para este proyecto o ejecucion.
+            {traces.length} trazas registradas para este proyecto o ejecucion. Mostrando las
+            {' '}
+            {visibleTraces.length}
+            {' '}
+            mas recientes.
           </p>
         ) : null}
         <div className="agent-trace-list">
-          {traces.length ? (
-            traces.map((trace, index) => (
-              <TraceRow key={parseTraceRecord(trace).trace_id ?? `trace-${index}`} trace={trace} />
+          {visibleTraces.length ? (
+            visibleTraces.map((trace, index) => (
+              <TraceRow
+                key={parseTraceRecord(trace).trace_id ?? `trace-${index}`}
+                trace={trace}
+                index={index}
+              />
             ))
           ) : (
             <Card className="agent-trace-empty">
