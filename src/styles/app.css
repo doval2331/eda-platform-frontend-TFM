@@ -669,15 +669,38 @@
   gap: 10px;
   max-height: 60vh;
   overflow: auto;
+  padding: 4px;
+  background: #fff;
+}
+
+.agent-trace-count {
+  margin: 0 0 10px;
+  color: #475569;
+  font-size: 13px;
 }
 
 .agent-trace-card {
+  display: block;
   border: 1px solid #dbe7f3;
   border-radius: 10px;
   overflow: hidden;
+  background: #fff;
+}
+
+.agent-trace-empty {
+  min-height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #334155;
+  text-align: center;
+  border: 1px dashed #bfd3ea;
+  background: #f8fbff;
+  box-shadow: none;
 }
 
 .agent-trace-head {
+  list-style: none;
   width: 100%;
   display: flex;
   justify-content: space-between;
@@ -688,6 +711,23 @@
   text-align: left;
   cursor: pointer;
   font: inherit;
+}
+
+.agent-trace-head::-webkit-details-marker {
+  display: none;
+}
+
+.agent-trace-head::after {
+  align-self: center;
+  color: #2563eb;
+  content: "Ver detalle";
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.agent-trace-card[open] .agent-trace-head::after {
+  content: "Ocultar detalle";
 }
 
 .agent-trace-head strong {

@@ -686,57 +686,80 @@ function traceBlockValue(value) {
   return text
 }
 
+function hasTraceContent(record) {
+  if (!record || typeof record !== 'object') return false
+  return [
+    'trace_id',
+    'agent_name',
+    'decision_type',
+    'model_name',
+    'parameters',
+    'variables_used',
+    'input_artifacts',
+    'prompt',
+    'response',
+    'created_at',
+  ].some((key) => {
+    const value = record[key]
+    return value !== null && value !== undefined && String(value).trim() !== ''
+  })
+}
+
+function normalizeTraceList(data) {
+  if (!Array.isArray(data?.traces)) return []
+  return data.traces.map(parseTraceRecord).filter(hasTraceContent)
+}
+
 function TraceRow({ trace }) {
-  const [open, setOpen] = useState(false)
   const record = parseTraceRecord(trace)
   const agentName = traceField(record, ['agent_name', 'agentName', 'agent'], 'Agente')
   const decisionType = traceField(record, ['decision_type', 'decisionType', 'type'], 'Decision registrada')
   const modelName = traceField(record, ['model_name', 'modelName'], 'Modelo no informado')
   const createdAt = traceField(record, ['created_at', 'createdAt', 'timestamp'], '')
+
   return (
-    <article className="agent-trace-card">
-      <button type="button" className="agent-trace-head" onClick={() => setOpen((v) => !v)}>
+    <details className="agent-trace-card">
+      <summary className="agent-trace-head">
         <div>
           <strong>{agentName}</strong>
           <span>{decisionType}</span>
+          {record.trace_id ? <code className="agent-trace-id">{record.trace_id}</code> : null}
         </div>
         <div className="agent-trace-meta">
           {record.scope ? <span>{record.scope}</span> : null}
+          {record.source_run_id ? <span>Run origen: {record.source_run_id}</span> : null}
           <span>{modelName}</span>
           <span>{formatDate(createdAt)}</span>
-          <span>{open ? '▾' : '▸'}</span>
         </div>
-      </button>
-      {open ? (
-        <div className="agent-trace-body">
-          <div>
-            <h4>Variables y parametros</h4>
-            <pre>
-              {[
-                `Variables: ${traceBlockValue(record.variables_used)}`,
-                `Parametros: ${traceBlockValue(record.parameters)}`,
-                `Artefactos: ${traceBlockValue(record.input_artifacts)}`,
-              ].join('\n\n')}
-            </pre>
-          </div>
-          <div>
-            <h4>Prompt</h4>
-            <pre>{traceBlockValue(record.prompt)}</pre>
-          </div>
-          <div>
-            <h4>Respuesta</h4>
-            <pre>{traceBlockValue(record.response)}</pre>
-          </div>
+      </summary>
+      <div className="agent-trace-body">
+        <div>
+          <h4>Variables y parametros</h4>
+          <pre>
+            {[
+              `Variables: ${traceBlockValue(record.variables_used)}`,
+              `Parametros: ${traceBlockValue(record.parameters)}`,
+              `Artefactos: ${traceBlockValue(record.input_artifacts)}`,
+            ].join('\n\n')}
+          </pre>
         </div>
-      ) : null}
-    </article>
+        <div>
+          <h4>Prompt</h4>
+          <pre>{traceBlockValue(record.prompt)}</pre>
+        </div>
+        <div>
+          <h4>Respuesta</h4>
+          <pre>{traceBlockValue(record.response)}</pre>
+        </div>
+      </div>
+    </details>
   )
 }
 
 async function fetchOptionalTraces(loader) {
   try {
     const data = await loader()
-    return data.traces ?? []
+    return normalizeTraceList(data)
   } catch (err) {
     if (err?.status === 404) return []
     throw err
@@ -967,10 +990,11 @@ export function AgentAnalysisPanel({ run, projectId: projectIdProp, onOpenChatWi
       const projectTraces = projectId
         ? await fetchOptionalTraces(() => fetchProjectAgentTraces(projectId))
         : []
-      setTraces([
+      const combinedTraces = [
         ...projectTraces.map((trace) => ({ ...trace, scope: 'Proyecto' })),
         ...runTraces.map((trace) => ({ ...trace, scope: 'Ejecucion' })),
-      ])
+      ]
+      setTraces(combinedTraces)
       setTracesOpen(true)
     } catch (err) {
       if (err?.status === 404) {
@@ -1373,7 +1397,13 @@ export function AgentAnalysisPanel({ run, projectId: projectIdProp, onOpenChatWi
         title="Trazabilidad de agentes"
         description="Prompts, respuestas, variables y parámetros registrados para esta ejecución."
         size="xl"
+        panelClassName="agent-trace-dialog"
       >
+        {traces.length ? (
+          <p className="agent-trace-count">
+            {traces.length} trazas registradas para este proyecto o ejecucion.
+          </p>
+        ) : null}
         <div className="agent-trace-list">
           {traces.length ? (
             traces.map((trace, index) => (
