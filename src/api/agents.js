@@ -33,16 +33,12 @@ export async function fetchAgentResults(runId) {
   return apiRequest(`/api/runs/${runId}/agents/results`, { auth: true })
 }
 
-function traceLimitQuery(limit) {
-  return Number.isFinite(limit) ? `?limit=${encodeURIComponent(limit)}` : ''
+export async function fetchAgentTraces(runId) {
+  return apiRequest(`/api/runs/${runId}/agents/traces`, { auth: true })
 }
 
-export async function fetchAgentTraces(runId, limit) {
-  return apiRequest(`/api/runs/${runId}/agents/traces${traceLimitQuery(limit)}`, { auth: true })
-}
-
-export async function fetchProjectAgentTraces(projectId, limit) {
-  return apiRequest(`/api/projects/${projectId}/agents/traces${traceLimitQuery(limit)}`, { auth: true })
+export async function fetchProjectAgentTraces(projectId) {
+  return apiRequest(`/api/projects/${projectId}/agents/traces`, { auth: true })
 }
 
 export async function recordHumanAgentDecision(runId, body = {}) {
