@@ -10,6 +10,9 @@ import {
 } from '../utils/businessLabels'
 import '../ui/results.css'
 
+const GROUPS_TOOLTIP =
+  'N\u00famero de patrones de incidencias detectados autom\u00e1ticamente. En esta vista, cada grupo o cluster re\u00fane incidencias IT con patrones similares detectados por HDBSCAN; no representa usuarios ni equipos de trabajo.'
+
 function KpiIcon({ children }) {
   return (
     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -144,10 +147,10 @@ export function RunKpis({ result, runMeta, className = '', advancedMode = false 
     <Box className={`dashboard-kpis-wrap ${className}`.trim()}>
       <div className="dashboard-kpis-grid">
         <MetricCard
-          label="Grupos encontrados"
+          label="Grupos (clusters)"
           value={nClusters != null ? String(nClusters) : '—'}
           icon={KPI_ICONS.clusters}
-          hint="Número de patrones de incidencias detectados automáticamente."
+          hint={GROUPS_TOOLTIP}
         />
         <MetricCard
           label="Incidencias analizadas"
