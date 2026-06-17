@@ -12,6 +12,9 @@ import {
 } from '../ui'
 import '../ui/results.css'
 
+const GROUPS_TOOLTIP =
+  'Grupo o cluster: conjunto de incidencias IT con patrones similares detectado autom\u00e1ticamente por HDBSCAN. No representa usuarios ni equipos de trabajo. Los criterios se calculan con las columnas detectadas en la fuente cargada; si una variable no existe, no aparece como filtro.'
+
 const FALLBACK_FIELDS = [
   'sla_breach_rate',
   'sla_incumplido',
@@ -615,11 +618,8 @@ export function ClusterInterpretationPanel({ result, run, loading = false }) {
           <Typography variant="h6" component="h3">
             Lectura guiada de grupos
           </Typography>
-          <Tooltip
-            title="Los criterios se calculan con las columnas detectadas en la fuente cargada. Si una variable no existe, no aparece como filtro."
-            arrow
-          >
-            <IconButton size="small" aria-label="Información sobre criterios">
+          <Tooltip title={GROUPS_TOOLTIP} arrow>
+            <IconButton size="small" aria-label="Información sobre grupos y criterios">
               <InfoOutlinedIcon fontSize="small" />
             </IconButton>
           </Tooltip>

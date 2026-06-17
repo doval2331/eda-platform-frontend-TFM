@@ -18,11 +18,11 @@ function tableCount(tableCounts, tableName) {
 
 function buildBiGuideAnswer(question, { status, syncResult, dashboardResult, tableCounts }) {
   const normalized = question.toLowerCase()
-  const published = syncResult?.status === 'ok'
   const metabaseReady = status?.postgres_status === 'ok'
   const selectedInsights = tableCount(tableCounts, 'bi_selected_insights')
   const evidences = tableCount(tableCounts, 'bi_evidences')
   const clusters = tableCount(tableCounts, 'bi_cluster_summary')
+  const published = syncResult?.status === 'ok' || evidences > 0 || clusters > 0
   const dashboardUrl = dashboardResult?.dashboard_url || status?.dashboard_url
 
   if (!metabaseReady) {
@@ -150,6 +150,8 @@ export function MetabasePage() {
     : 'Crear dashboard en Metabase'
   const tableCounts = syncResult?.tables
     ? Object.entries(syncResult.tables).filter(([, count]) => count != null)
+    : status?.tables
+      ? Object.entries(status.tables).filter(([, count]) => count != null)
     : []
 
   function askBiGuide(question) {
