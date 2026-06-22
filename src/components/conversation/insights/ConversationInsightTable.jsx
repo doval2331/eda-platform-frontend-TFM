@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import PropTypes from 'prop-types'
-import { PriorityChip } from '@/components/agent/PriorityChip'
+import { PriorityChip } from '@/components/agent'
 import {
   buildMaxByKind,
   insightKey,

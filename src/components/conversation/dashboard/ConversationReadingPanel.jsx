@@ -1,7 +1,7 @@
 import PropTypes from 'prop-types'
 import { Link } from 'react-router-dom'
 import { SparkleIcon } from '@/components/LlmVisual'
-import { PriorityChip } from '@/components/agent/PriorityChip'
+import { PriorityChip } from '@/components/agent'
 import {
   buildChatPrompt,
   buildMaxByKind,

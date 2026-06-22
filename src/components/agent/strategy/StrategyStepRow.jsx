@@ -1,7 +1,7 @@
 import PropTypes from 'prop-types'
 import { Collapse } from '@mui/material'
 import { useState } from 'react'
-import { PriorityChip } from './PriorityChip'
+import { PriorityChip } from '../shared/PriorityChip'
 import { StrategyVariableChips } from './StrategyVariableChips'
 
 export function StrategyStepRow({
