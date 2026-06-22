@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Box, IconButton, Stack, Tooltip, Typography } from '@mui/material'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
-import { selectRunInsight } from '../api/conversation'
+import { selectRunInsight } from '@/api/conversation'
 import {
   AlertBanner,
   ClusterInsightCard,
@@ -9,8 +9,9 @@ import {
   Feedback,
   FilterChips,
   LoadingPanel,
-} from '../ui'
-import '../ui/results.css'
+  LoadingSlot,
+} from '@/ui'
+import '@/ui/results.css'
 
 const GROUPS_TOOLTIP =
   'Grupo o cluster: conjunto de incidencias IT con patrones similares detectado autom\u00e1ticamente por HDBSCAN. No representa usuarios ni equipos de trabajo. Los criterios se calculan con las columnas detectadas en la fuente cargada; si una variable no existe, no aparece como filtro.'
@@ -591,10 +592,9 @@ export function ClusterInterpretationPanel({ result, run, loading = false }) {
 
   if (loading) {
     return (
-      <LoadingPanel
-        title="Analizando incidencias…"
-        description="Agrupando registros similares y generando la lectura guiada."
-      />
+      <LoadingSlot variant="panel">
+        <LoadingPanel bare compact title="Analizando incidencias…" />
+      </LoadingSlot>
     )
   }
 

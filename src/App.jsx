@@ -1,13 +1,13 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
-import { MainLayout } from './components/layout/MainLayout'
-import { LoginPage } from './pages/LoginPage'
-import { DashboardPage } from './pages/DashboardPage'
-import { ConversationDashboardPage } from './pages/ConversationDashboardPage'
-import { HistoryPage } from './pages/HistoryPage'
-import { HistoryRunDetailPage } from './pages/HistoryRunDetailPage'
-import { MetabasePage } from './pages/MetabasePage'
-import { ProtectedRoute } from './routes/ProtectedRoute'
-import { useAuth } from './hooks/useAuth'
+import { MainLayout } from '@/components/layout/MainLayout'
+import { LoginPage } from '@/pages/LoginPage'
+import { DashboardPage } from '@/pages/DashboardPage'
+import { ConversationDashboardPage } from '@/pages/ConversationDashboardPage'
+import { HistoryPage } from '@/pages/HistoryPage'
+import { HistoryRunDetailPage } from '@/pages/HistoryRunDetailPage'
+import { MetabasePage } from '@/pages/MetabasePage'
+import { ProtectedRoute } from '@/routes/ProtectedRoute'
+import { useAuth } from '@/hooks/useAuth'
 
 function RootRedirect() {
   const { isAuthenticated } = useAuth()

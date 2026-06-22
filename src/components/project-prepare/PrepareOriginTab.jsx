@@ -1,6 +1,6 @@
 import PropTypes from 'prop-types'
 import { Typography } from '@mui/material'
-import { ModalityCards } from '../../ui'
+import { ModalityCards } from '@/ui'
 import { MODALITY_CARD_OPTIONS } from './constants'
 
 export function PrepareOriginTab({ modalidad, onModalidadChange }) {

@@ -3,15 +3,59 @@ export const PROJECT_STRATEGY_OPTIONS = [
     value: 'per_source',
     label: 'Un analisis por fuente',
     helper:
-      'Ejecuta clustering separado para cada fuente tabular. Recomendado para comparar patrones.',
+      'Cada fuente tabular genera su propio clustering (clusters separados). Ideal para comparar patrones entre incidencias, cambios y software.',
+  },
+  {
+    value: 'merged',
+    label: 'Unificado multifuente (clusters compartidos)',
+    helper:
+      'Combina todas las fuentes tabulares en un solo dataset y ejecuta un unico clustering. Los clusters pueden mezclar filas de distintas fuentes. Requiere al menos 2 fuentes.',
   },
   {
     value: 'unified',
-    label: 'Un solo analisis (fuente principal)',
+    label: 'Solo fuente principal',
     helper:
-      'Analiza solo la fuente principal de incidencias. Util para una vista consolidada rapida.',
+      'Analiza unicamente la fuente principal (incidencias). Las demas fuentes tabulares no entran al clustering; las fuentes de texto siguen siendo contexto documental.',
   },
 ]
+
+export function strategyDescription(strategy) {
+  const found = PROJECT_STRATEGY_OPTIONS.find((option) => option.value === strategy)
+  return found?.helper ?? ''
+}
+
+/** Tipos de fuente que ocupan un único hueco en el escenario (no repetir en el selector). */
+export const SINGLE_SLOT_SOURCE_TYPES = [
+  'incidents',
+  'change_mgmt',
+  'software',
+  'hardware',
+  'dictionary',
+]
+
+export function availableSourceTypeOptions(existingSources = []) {
+  const usedTypes = new Set((existingSources ?? []).map((source) => source.source_type))
+  return [
+    { value: 'auto', label: 'Automático según archivo' },
+    ...SOURCE_TYPE_OPTIONS.filter((option) => {
+      if (option.value === 'other' || option.value === 'notes') return true
+      if (!SINGLE_SLOT_SOURCE_TYPES.includes(option.value)) return true
+      return !usedTypes.has(option.value)
+    }),
+  ]
+}
+
+export function availableStrategyOptions(tabularSourceCount = 0) {
+  return PROJECT_STRATEGY_OPTIONS.filter((option) => {
+    if (option.value === 'merged') return tabularSourceCount >= 2
+    return true
+  })
+}
+
+export function normalizeProjectStrategy(strategy, tabularSourceCount = 0) {
+  if (strategy === 'merged' && tabularSourceCount < 2) return 'per_source'
+  return strategy
+}
 
 export const TABULAR_ACCEPT = '.csv,.tsv,.xlsx,.xlsm,.json,.parquet'
 export const TEXT_ACCEPT = '.txt,.md,.docx,.pdf'
@@ -85,6 +129,7 @@ export function sourceTypeLabel(sourceType) {
     hardware: 'Hardware',
     dictionary: 'Diccionario',
     notes: 'Notas',
+    merged: 'Unificado multifuente',
     other: 'Otro',
   }
   return map[sourceType] ?? sourceType

@@ -1,25 +1,27 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
-import '../styles/app.css'
-import '../styles/history.css'
-import { deleteRun, fetchRun } from '../api/pipeline'
-import { ConfirmDialog } from '../components/ConfirmDialog'
-import { AgentAnalysisPanel } from '../components/AgentAnalysisPanel'
-import { ClusterInterpretationPanel } from '../components/ClusterInterpretationPanel'
-import { FloatingChatWidget } from '../components/chat'
-import { RunKpis } from '../components/RunKpis'
-import { Scatter2D } from '../Scatter2D'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import '@/styles/app.css'
+import '@/styles/history.css'
+import { deleteRun, fetchRun } from '@/api/pipeline'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { AnalysisFlowStrip, MetabaseFlowCTA, MetabaseFlowNextLink } from '@/components/bi'
+import { AgentAnalysisPanel } from '@/components/AgentAnalysisPanel'
+import { ClusterInterpretationPanel } from '@/components/ClusterInterpretationPanel'
+import { FloatingChatWidget } from '@/components/chat'
+import { RunKpis } from '@/components/RunKpis'
+import { Scatter2D } from '@/Scatter2D'
 import {
   Button,
   Card,
   Feedback,
   LoadingPanel,
+  LoadingSlot,
   PageNavbar,
   ResultsTabs,
   RunMetaChips,
-} from '../ui'
-import { formatModality } from '../utils/runMetrics'
-import { ACTIVE_PROJECT_KEY, sourceTypeLabel } from '../utils/projectLabels'
+} from '@/ui'
+import { formatModality } from '@/utils/runMetrics'
+import { ACTIVE_PROJECT_KEY, sourceTypeLabel } from '@/utils/projectLabels'
 
 function formatDate(iso) {
   if (!iso) return '—'
@@ -35,6 +37,7 @@ function formatDate(iso) {
 
 export function HistoryRunDetailPage() {
   const { runId } = useParams()
+  const location = useLocation()
   const navigate = useNavigate()
   const [run, setRun] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -86,6 +89,16 @@ export function HistoryRunDetailPage() {
     void loadRun()
   }, [loadRun])
 
+  useEffect(() => {
+    const state = location.state ?? {}
+    if (!state.openChat) return
+    if (state.chatPrompt) {
+      setChatExternalPrompt({ text: state.chatPrompt, at: Date.now() })
+    }
+    setChatForceOpen(true)
+    navigate(location.pathname, { replace: true, state: null })
+  }, [location.pathname, location.state, navigate])
+
   async function confirmDeleteRun() {
     if (!runId || !run) return
     setDeleting(true)
@@ -108,7 +121,11 @@ export function HistoryRunDetailPage() {
   }
 
   return (
-    <div className="history-page history-detail-page">
+    <div
+      className={`history-page history-detail-page history-run-detail-page${
+        loading ? ' history-page--loading' : ''
+      }`}
+    >
       <PageNavbar
         breadcrumbParent="Historial"
         breadcrumbCurrent="Resultados"
@@ -128,6 +145,9 @@ export function HistoryRunDetailPage() {
             <Button type="button" variant="secondary" onClick={() => navigate('/historial')}>
               Volver al historial
             </Button>
+            {run ? (
+              <MetabaseFlowNextLink currentStepId="explore" runId={run.id} className="decision-link" />
+            ) : null}
             {run ? (
               <Button
                 type="button"
@@ -152,13 +172,17 @@ export function HistoryRunDetailPage() {
       />
 
       {loading ? (
-        <LoadingPanel
-          title="Cargando resultados…"
-          description="Recuperando clusters, métricas y mapa visual de esta ejecución."
-        />
+        <Card className="history-detail-loading-card decision-empty decision-empty--loading">
+          <LoadingSlot variant="card">
+            <LoadingPanel bare compact title="Cargando resultados…" />
+          </LoadingSlot>
+        </Card>
       ) : run ? (
         <>
           <RunKpis result={run.result} runMeta={run} />
+
+          <AnalysisFlowStrip currentStepId="explore" compact />
+          <MetabaseFlowCTA variant="explore" runId={run.id} />
 
           <Card className="panel-results history-detail-card">
             <div className="panel-header panel-header--stacked">

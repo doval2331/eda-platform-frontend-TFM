@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { askRunQuestion, fetchRunSuggestedQuestions, selectRunInsight } from '../api/conversation'
-import { Button, Feedback } from '../ui'
+import { askRunQuestion, fetchRunSuggestedQuestions, selectRunInsight } from '@/api/conversation'
+import { Button, Feedback } from '@/ui'
 
 const DEFAULT_SUGGESTIONS = [
   'Que puedo analizar con estas incidencias?',

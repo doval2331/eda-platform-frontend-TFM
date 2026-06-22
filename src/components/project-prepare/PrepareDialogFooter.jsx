@@ -1,5 +1,5 @@
 import PropTypes from 'prop-types'
-import { Button } from '../../ui'
+import { Button } from '@/ui'
 import { PREPARE_TAB } from './constants'
 
 export function PrepareDialogFooter({

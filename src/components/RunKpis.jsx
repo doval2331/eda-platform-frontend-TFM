@@ -1,14 +1,14 @@
 import { useState } from 'react'
 import { Box, Collapse } from '@mui/material'
-import { MetricCard, Button, ClusteringCompareTable } from '../ui'
-import { countClusters, outliersPercent } from '../utils/runMetrics'
-import { buildClusteringCompareRows } from '../utils/clusteringCompareRows'
+import { MetricCard, Button, ClusteringCompareTable } from '@/ui'
+import { countClusters, outliersPercent } from '@/utils/runMetrics'
+import { buildClusteringCompareRows } from '@/utils/clusteringCompareRows'
 import {
   METRIC_HINTS,
   qualityFromSilhouette,
   stabilityLabel,
-} from '../utils/businessLabels'
-import '../ui/results.css'
+} from '@/utils/businessLabels'
+import '@/ui/results.css'
 
 const GROUPS_TOOLTIP =
   'N\u00famero de patrones de incidencias detectados autom\u00e1ticamente. En esta vista, cada grupo o cluster re\u00fane incidencias IT con patrones similares detectados por HDBSCAN; no representa usuarios ni equipos de trabajo.'

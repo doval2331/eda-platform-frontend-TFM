@@ -1,6 +1,6 @@
 import PropTypes from 'prop-types'
-import { FormSelect } from '../../ui'
-import { sourceTypeLabel } from '../../utils/projectLabels'
+import { FormSelect } from '@/ui'
+import { sourceTypeLabel } from '@/utils/projectLabels'
 
 export function PrepareProjectRunsPicker({ projectRuns, selectedRunIndex, onSelectProjectRun }) {
   if (projectRuns.length <= 1) return null
