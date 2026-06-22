@@ -1,7 +1,7 @@
 import PropTypes from 'prop-types'
 import { Button, Dialog } from '@/ui'
 import { LlmModeChip } from '@/components/LlmVisual'
-import { PriorityChip } from './PriorityChip'
+import { PriorityChip } from '../shared/PriorityChip'
 
 export function InsightDetailDialog({
   open,
