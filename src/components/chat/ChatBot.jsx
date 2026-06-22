@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { LlmPowerBadge, SparkleIcon } from '../LlmVisual'
-import { Button, Feedback } from '../../ui'
-import '../../styles/chatbot.css'
-import '../../styles/llm-visual.css'
+import { LlmPowerBadge, SparkleIcon } from '@/components/LlmVisual'
+import { Button, Feedback } from '@/ui'
+import '@/styles/chatbot.css'
+import '@/styles/llm-visual.css'
 
 function BotAvatar() {
   return (

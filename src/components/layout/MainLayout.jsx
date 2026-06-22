@@ -1,7 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { useAuth } from '../../hooks/useAuth'
+import { useAuth } from '@/hooks/useAuth'
 import { IconDashboard, IconHistory, IconInsights, IconLogout } from './SidebarIcons'
-import '../../styles/sidebar.css'
+import '@/styles/sidebar.css'
 
 export function MainLayout() {
   const { user, logout } = useAuth()
@@ -65,7 +65,10 @@ export function MainLayout() {
             <span className="sidebar-link-icon">
               <IconDashboard />
             </span>
-            <span className="sidebar-link-label">Metabase BI</span>
+            <span className="sidebar-link-label">
+              Informes Metabase
+              <span className="sidebar-link-sublabel">Paso 4</span>
+            </span>
           </NavLink>
         </nav>
 

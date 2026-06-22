@@ -5,14 +5,15 @@ import {
   removeProjectSource,
   updateProject,
   uploadProjectSource,
-} from '../../api/projects'
-import { REDUCTION_OPTIONS } from '../../utils/businessLabels'
+} from '@/api/projects'
+import { REDUCTION_OPTIONS } from '@/utils/businessLabels'
 import {
   ACTIVE_PROJECT_KEY,
   defaultSourceName,
-} from '../../utils/projectLabels'
+  normalizeProjectStrategy,
+} from '@/utils/projectLabels'
 import { AUTO_SOURCE_TYPE, PREPARE_TAB } from './constants'
-import { buildAnalysisStatusMessage } from '../../utils/analysisStatus'
+import { buildAnalysisStatusMessage } from '@/utils/analysisStatus'
 import { isTabularSource, resolveSourceTypeSelection } from './helpers'
 
 export function useProjectPrepareDialog({
@@ -114,7 +115,8 @@ export function useProjectPrepareDialog({
       setProject(detail)
       setName(detail.name)
       setDescription(detail.description ?? '')
-      setStrategy(detail.strategy ?? 'per_source')
+      const tabularCount = (detail.sources ?? []).filter((source) => isTabularSource(source)).length
+      setStrategy(normalizeProjectStrategy(detail.strategy ?? 'per_source', tabularCount))
     } catch (err) {
       setLocalError(err instanceof Error ? err.message : 'No se pudo cargar el escenario')
     } finally {
@@ -157,16 +159,23 @@ export function useProjectPrepareDialog({
     }
   }, [modalidad, activeTab])
 
+  useEffect(() => {
+    if (strategy === 'merged' && csvCount < 2) {
+      setStrategy('per_source')
+    }
+  }, [strategy, csvCount])
+
   const ensureProject = useCallback(async () => {
     if (!name.trim()) {
       throw new Error('Indica un nombre para el escenario.')
     }
     const existingId = project?.id ?? projectId ?? null
+    const effectiveStrategy = normalizeProjectStrategy(strategy, csvCount)
     if (existingId) {
       const updated = await updateProject(existingId, {
         name: name.trim(),
         description: description.trim(),
-        strategy,
+        strategy: effectiveStrategy,
       })
       setProject(updated)
       onProjectSaved?.(updated)
@@ -175,13 +184,13 @@ export function useProjectPrepareDialog({
     const created = await createProject({
       name: name.trim(),
       description: description.trim(),
-      strategy,
+      strategy: effectiveStrategy,
     })
     setProject(created)
     localStorage.setItem(ACTIVE_PROJECT_KEY, created.id)
     onProjectSaved?.(created)
     return created
-  }, [name, description, strategy, project, projectId, onProjectSaved])
+  }, [name, description, strategy, csvCount, project, projectId, onProjectSaved])
 
   const handleNewSourceFileChange = useCallback((fileList) => {
     const files = Array.from(fileList ?? [])
@@ -292,11 +301,17 @@ export function useProjectPrepareDialog({
             setLocalError('Sube al menos una fuente tabular antes de continuar.')
             return false
           }
+          if (strategy === 'merged' && csvCount < 2) {
+            setLocalError(
+              'La estrategia unificada multifuente requiere al menos dos fuentes tabulares.',
+            )
+            return false
+          }
         }
       }
       return true
     },
-    [modalidad, scenarioName, datasetProfile, name, csvCount],
+    [modalidad, scenarioName, datasetProfile, name, csvCount, strategy],
   )
 
   const goNextTab = useCallback(() => {

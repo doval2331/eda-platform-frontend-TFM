@@ -1,5 +1,5 @@
 import { apiRequest } from './apiClient'
-import { validateProjectSourceFile } from '../utils/csvUpload'
+import { validateProjectSourceFile } from '@/utils/csvUpload'
 
 export async function createProject({ name, description = '', strategy = 'per_source' }) {
   return apiRequest('/api/projects', {

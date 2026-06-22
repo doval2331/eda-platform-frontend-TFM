@@ -1,35 +1,76 @@
 .history-page {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--section-gap);
 }
 
 .history-page-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--element-gap);
 }
 
 .history-section-title {
-  margin: 0 0 12px;
-  font-size: 18px;
+  margin: 0 0 var(--spacing-12);
+  font-size: var(--text-subheading);
   color: var(--color-midnight-navy, #1b2540);
+  flex-shrink: 0;
 }
 
 .history-table-card {
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.history-table-card .loading-slot--card {
+  flex: 1;
+  min-height: min(160px, 24vh);
+  padding: var(--spacing-16) 0 0;
+}
+
+.history-table-card .oui-dt--embedded {
+  margin-top: var(--spacing-4);
+}
+
+/* Estado de carga: card ocupa el alto disponible y centra el spinner */
+.history-page--loading {
+  flex: 1;
+  min-height: 0;
+}
+
+.history-page--loading .history-table-card {
+  flex: 1;
+  min-height: 0;
+}
+
+.history-page--loading .history-section-title {
+  margin-bottom: var(--spacing-8);
+}
+
+.history-page--loading .history-detail-loading-card {
+  flex: 1;
+  min-height: 0;
+}
+
+.history-detail-loading-card {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .history-row--active {
   background: color-mix(in srgb, var(--color-ice-veil, #e0f6ff) 35%, #fff 65%);
 }
 
+/* Detalle de ejecución */
 .history-detail-page {
-  gap: 16px;
+  gap: var(--section-gap);
 }
 
 .history-detail-card {
-  margin-top: 4px;
+  margin-top: 0;
 }
 
 .history-detail-meta--top {
@@ -37,7 +78,7 @@
 }
 
 .history-detail-back {
-  margin: 4px 0 0;
+  margin: 0;
   font-size: 14px;
 }
 
@@ -52,7 +93,7 @@
 }
 
 .history-detail-meta {
-  margin: 4px 0 0;
+  margin: var(--spacing-4) 0 0;
   font-size: 13px;
 }
 
@@ -73,7 +114,7 @@
 .history-row-actions {
   display: flex;
   flex-wrap: nowrap;
-  gap: 4px;
+  gap: var(--spacing-4);
   justify-content: flex-end;
   align-items: center;
 }
@@ -123,7 +164,7 @@
 .confirm-dialog-body {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--element-gap);
 }
 
 .confirm-dialog-body p {

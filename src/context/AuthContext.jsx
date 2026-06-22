@@ -1,5 +1,5 @@
 import { createContext, useEffect, useMemo, useState } from 'react'
-import * as authApi from '../api/auth'
+import * as authApi from '@/api/auth'
 
 export const AUTH_STORAGE_KEY = 'eda_auth'
 

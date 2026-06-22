@@ -1,22 +1,25 @@
 import PropTypes from 'prop-types'
+import { useEffect, useMemo } from 'react'
 import { Box, Chip, Stack, Typography } from '@mui/material'
 import {
   Button,
   FileUploadZone,
   FormSelect,
+  LoadingPanel,
   SourceFileCard,
   TextField,
   UploadProgressBar,
-} from '../../ui'
+} from '@/ui'
 import {
   ALL_SOURCE_ACCEPT,
-  PROJECT_STRATEGY_OPTIONS,
+  availableSourceTypeOptions,
+  availableStrategyOptions,
   detectedFileFormat,
-  sourceTypeLabel,
-} from '../../utils/projectLabels'
-import { SOURCE_TYPE_SELECTION_OPTIONS } from './constants'
+  strategyDescription,
+} from '@/utils/projectLabels'
 import { PrepareFormSection } from './PrepareFormSection'
-import { buildSourceChips, buildSourceDetail, resolveSourceTypeSelection, sourceStatusLabel } from './helpers'
+import { AUTO_SOURCE_TYPE } from './constants'
+import { buildSourceChips, buildSourceDetail, isTabularSource, sourceStatusLabel } from './helpers'
 
 export function PrepareProjectSection({
   loading,
@@ -41,18 +44,48 @@ export function PrepareProjectSection({
 }) {
   const selectedFileCount = newSourceFiles.length
   const sourceCount = (project?.sources ?? []).length
+  const tabularSourceCount = useMemo(
+    () => (project?.sources ?? []).filter((source) => isTabularSource(source)).length,
+    [project],
+  )
+  const strategyOptions = useMemo(
+    () =>
+      availableStrategyOptions(tabularSourceCount).map(({ value, label }) => ({
+        value,
+        label,
+      })),
+    [tabularSourceCount],
+  )
+  const sourceTypeOptions = useMemo(
+    () => availableSourceTypeOptions(project?.sources ?? []),
+    [project],
+  )
+  useEffect(() => {
+    if (!sourceTypeOptions.some((option) => option.value === newSourceType)) {
+      onNewSourceTypeChange(AUTO_SOURCE_TYPE)
+    }
+  }, [sourceTypeOptions, newSourceType, onNewSourceTypeChange])
+  const uploadingNewSource = uploadingType === 'new-source'
+
+  if (loading) {
+    return (
+      <div className="prepare-data-loading prepare-data-loading--panel">
+        <LoadingPanel
+          bare
+          compact
+          spinnerSize={56}
+          title="Cargando escenario…"
+          description="Recuperando fuentes y datasets guardados…"
+        />
+      </div>
+    )
+  }
 
   return (
     <Stack spacing={3} className="prepare-data-panel">
       <Typography className="prepare-data-panel__title" component="h3">
         Fuentes del escenario
       </Typography>
-
-      {loading ? (
-        <Typography variant="body2" color="text.secondary">
-          Cargando escenario…
-        </Typography>
-      ) : null}
 
       <PrepareFormSection
         title="Escenario"
@@ -72,9 +105,19 @@ export function PrepareProjectSection({
             id="project-strategy"
             value={strategy}
             onChange={(e) => onStrategyChange(e.target.value)}
-            options={PROJECT_STRATEGY_OPTIONS.map(({ value, label }) => ({ value, label }))}
+            options={strategyOptions}
           />
         </Box>
+        {strategyDescription(strategy) ? (
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            {strategyDescription(strategy)}
+          </Typography>
+        ) : null}
+        {strategy === 'merged' && tabularSourceCount < 2 ? (
+          <Typography variant="body2" color="warning.main" sx={{ mt: 1 }}>
+            Añade al menos dos fuentes tabulares para usar el modo unificado multifuente.
+          </Typography>
+        ) : null}
         <TextField
           label="Descripción (opcional)"
           value={description}
@@ -89,72 +132,83 @@ export function PrepareProjectSection({
         title="Agregar fuente"
         description="Selecciona archivos y pulsa añadir para incorporarlos al escenario."
       >
-        <Box className="prepare-data-upload-panel">
-          <Box className="prepare-data-form-grid">
-            <TextField
-              label="Nombre de la fuente"
-              id="new-source-name"
-              value={newSourceName}
-              onChange={(e) => onNewSourceNameChange(e.target.value)}
-              disabled={selectedFileCount > 1}
-              placeholder="Incidencias 2023"
-              helperText={
-                selectedFileCount > 1
-                  ? 'Con varios archivos se usa el nombre de cada fichero.'
-                  : undefined
+        {uploadingNewSource ? (
+          <div className="prepare-data-loading prepare-data-loading--inline">
+            <LoadingPanel
+              bare
+              compact
+              spinnerSize={56}
+              title="Cargando dataset…"
+              description={
+                uploadProgress
+                  ? `Procesando ${uploadProgress.filename} (${uploadProgress.current} de ${uploadProgress.total})`
+                  : 'Subiendo y analizando el archivo…'
               }
             />
-            <FormSelect
-              label="Tipo de información"
-              id="new-source-type"
-              value={newSourceType}
-              onChange={(e) => onNewSourceTypeChange(e.target.value)}
-              options={SOURCE_TYPE_SELECTION_OPTIONS}
-            />
-          </Box>
-          <FileUploadZone
-            accept={ALL_SOURCE_ACCEPT}
-            multiple
-            disabled={uploadingType === 'new-source'}
-            inputKey={sourceFileInputKey}
-            helperText="CSV, Excel, JSON, Parquet, TXT, Word, PDF o audio"
-            onFilesSelected={onNewSourceFileChange}
-          />
-          {selectedFileCount ? (
-            <Box className="prepare-data-selection-chips">
-              {newSourceFiles.map((file) => (
-                <Chip
-                  key={`${file.name}-${file.size}-${file.lastModified}`}
-                  label={`${file.name} · ${detectedFileFormat(file)}`}
-                  size="small"
-                  variant="outlined"
-                />
-              ))}
+            {uploadProgress && uploadProgress.total > 1 ? (
+              <UploadProgressBar
+                current={uploadProgress.current}
+                total={uploadProgress.total}
+                filename={uploadProgress.filename}
+              />
+            ) : null}
+          </div>
+        ) : (
+          <Box className="prepare-data-upload-panel">
+            <Box className="prepare-data-form-grid">
+              <TextField
+                label="Nombre de la fuente"
+                id="new-source-name"
+                value={newSourceName}
+                onChange={(e) => onNewSourceNameChange(e.target.value)}
+                disabled={selectedFileCount > 1}
+                placeholder="Incidencias 2023"
+                helperText={
+                  selectedFileCount > 1
+                    ? 'Con varios archivos se usa el nombre de cada fichero.'
+                    : undefined
+                }
+              />
+              <FormSelect
+                label="Tipo de información"
+                id="new-source-type"
+                value={newSourceType}
+                onChange={(e) => onNewSourceTypeChange(e.target.value)}
+                options={sourceTypeOptions}
+              />
             </Box>
-          ) : null}
-          {uploadingType === 'new-source' && uploadProgress ? (
-            <UploadProgressBar
-              current={uploadProgress.current}
-              total={uploadProgress.total}
-              filename={uploadProgress.filename}
+            <FileUploadZone
+              accept={ALL_SOURCE_ACCEPT}
+              multiple
+              inputKey={sourceFileInputKey}
+              helperText="CSV, Excel, JSON, Parquet, TXT, Word, PDF o audio"
+              onFilesSelected={onNewSourceFileChange}
             />
-          ) : null}
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <Button
-              type="button"
-              variant="primary"
-              startIcon="Add"
-              onClick={onAddSource}
-              disabled={uploadingType === 'new-source' || !selectedFileCount}
-            >
-              {uploadingType === 'new-source'
-                ? 'Procesando…'
-                : selectedFileCount > 1
-                  ? 'Añadir fuentes'
-                  : 'Añadir fuente'}
-            </Button>
+            {selectedFileCount ? (
+              <Box className="prepare-data-selection-chips">
+                {newSourceFiles.map((file) => (
+                  <Chip
+                    key={`${file.name}-${file.size}-${file.lastModified}`}
+                    label={`${file.name} · ${detectedFileFormat(file)}`}
+                    size="small"
+                    variant="outlined"
+                  />
+                ))}
+              </Box>
+            ) : null}
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <Button
+                type="button"
+                variant="primary"
+                startIcon="Add"
+                onClick={onAddSource}
+                disabled={!selectedFileCount}
+              >
+                {selectedFileCount > 1 ? 'Añadir fuentes' : 'Añadir fuente'}
+              </Button>
+            </Box>
           </Box>
-        </Box>
+        )}
       </PrepareFormSection>
 
       <PrepareFormSection

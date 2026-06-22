@@ -5,6 +5,7 @@ Interfaz React + Vite para el prototipo TFM. Incluye login, ejecucion del pipeli
 ## Requisitos
 
 - Node.js 18 o superior. Recomendado: Node.js LTS.
+- pnpm 10 o superior (`corepack enable` y `corepack prepare pnpm@latest --activate`).
 - Backend FastAPI levantado.
 - Acceso a las credenciales demo creadas en el backend.
 
@@ -12,7 +13,7 @@ Interfaz React + Vite para el prototipo TFM. Incluye login, ejecucion del pipeli
 
 ```powershell
 cd "C:\Users\Marisol Altamiranda\eda-platform-frontend-TFM"
-npm install
+pnpm install
 Copy-Item .env.example .env
 ```
 
@@ -31,7 +32,7 @@ Si el backend corre en otro puerto, ajustar `VITE_API_BASE` con ese mismo puerto
 ## Ejecutar frontend
 
 ```powershell
-npm run dev
+pnpm dev
 ```
 
 Abrir la URL que muestre Vite, por ejemplo:
@@ -157,13 +158,13 @@ El dashboard generado incluye tarjetas de SLA por categoria, riesgo por servicio
 ## Build
 
 ```powershell
-npm run build
+pnpm build
 ```
 
 Vista previa local:
 
 ```powershell
-npm run preview
+pnpm preview
 ```
 
 ## Verificacion rapida
@@ -202,7 +203,7 @@ En produccion, compilar el frontend con `VITE_API_BASE` apuntando a la API publi
 
 ```powershell
 $env:VITE_API_BASE="https://tu-api.onrender.com"
-npm run build
+pnpm build
 ```
 
 El backend debe tener `CORS_ORIGINS` configurado con la URL publica del frontend.

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { askRunQuestion, fetchRunSuggestedQuestions, selectRunInsight } from '../../api/conversation'
+import { askRunQuestion, fetchRunSuggestedQuestions, selectRunInsight } from '@/api/conversation'
 import { ChatBot } from './ChatBot'
 
 const DEFAULT_SUGGESTIONS = [
@@ -109,7 +109,9 @@ export function ExplorationChatBot({
     try {
       await selectRunInsight(runId, insight)
       setSelectedIds((current) => new Set([...current, insight.id]))
-      pushAssistantNote(`Anotado: «${insight.title}». Quedó guardado para tu informe o dashboard.`)
+      pushAssistantNote(
+        `Anotado: «${insight.title}». Paso 3: revísalo en el dashboard conversacional. Cuando tengas varios hallazgos, usa Metabase BI (paso 4) para gráficos de SLA y riesgo.`,
+      )
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar el insight')
     }
@@ -121,7 +123,12 @@ export function ExplorationChatBot({
       subtitle={run?.id ? 'Exploración del análisis activo' : null}
       active={Boolean(run?.id)}
       llmReady={llmReady}
-      headerAction={<ChatBot.DashboardLink />}
+      headerAction={
+        <>
+          <ChatBot.DashboardLink>Paso 3 · Hallazgos</ChatBot.DashboardLink>
+          <ChatBot.DashboardLink to="/metabase">Paso 4 · Metabase</ChatBot.DashboardLink>
+        </>
+      }
       onClose={onClose}
       variant={variant}
       expanded={expanded}
