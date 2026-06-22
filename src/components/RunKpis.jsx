@@ -229,6 +229,22 @@ export function RunKpis({ result, runMeta, className = '', advancedMode = false 
             icon={KPI_ICONS.ari}
             hint={METRIC_HINTS.nmi}
           />
+          <MetricCard
+            label="Trustworthiness"
+            value={metricValue(result, runMeta, 'trustworthiness')}
+            icon={KPI_ICONS.silhouette}
+            hint="Proporción de vecinos en la proyección 2D que también eran vecinos en el espacio original. Rango [0, 1] — valores más altos indican mejor preservación de la estructura local."
+          />
+          <MetricCard
+            label="Varianza PCA (%)"
+            value={
+              (result?.metrics?.pca_variance_explained ?? runMeta?.metrics?.pca_variance_explained) != null
+                ? `${Number(result?.metrics?.pca_variance_explained ?? runMeta?.metrics?.pca_variance_explained).toFixed(1)}%`
+                : '—'
+            }
+            icon={KPI_ICONS.calinski}
+            hint="Porcentaje de varianza total del dataset capturada por los dos primeros componentes principales de PCA. Solo aplica cuando la reducción seleccionada es PCA."
+          />
         </div>
         <ClusteringCompareTable
           title={`Comparativa con ${baselineAlgorithm} (baseline)`}
