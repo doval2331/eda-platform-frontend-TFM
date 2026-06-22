@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded'
 import { Link, useLocation } from 'react-router-dom'
 import { createMetabaseDashboard, fetchMetabaseStatus, syncBiTables } from '@/api/metabase'
 import { AnalysisFlowStrip, MetabaseFlowCTA } from '@/components/bi'
@@ -130,7 +131,9 @@ export function MetabasePage() {
       if (result.status === 'ok' && result.dashboard_url) {
         setStatus((previous) => ({
           ...(previous || {}),
+          dashboard_id: result.dashboard_id,
           dashboard_url: result.dashboard_url,
+          embed_url: result.embed_url,
         }))
       }
     } catch (err) {
@@ -147,6 +150,7 @@ export function MetabasePage() {
   const metabaseTarget = status?.dashboard_url || status?.metabase_url
   const biReady = status?.enabled && status?.postgres_status === 'ok'
   const dashboardUrl = dashboardResult?.dashboard_url || status?.dashboard_url
+  const embedUrl = dashboardResult?.embed_url || status?.embed_url
   const canCreateDashboard = biReady && !syncing && !creatingDashboard
   const dashboardButtonLabel = dashboardUrl
     ? 'Actualizar dashboard en Metabase'
@@ -177,7 +181,7 @@ export function MetabasePage() {
         breadcrumbParent="Plataforma"
         breadcrumbCurrent="Metabase BI"
         title="Paso 4 · Informes con Metabase"
-        description="Publica datos analíticos en PostgreSQL y explora SLA, riesgo y clusters en un dashboard externo."
+        description="Publica datos analíticos y revisa SLA, riesgo y clusters en el dashboard integrado."
         rightSlot={
           <Button type="button" variant="secondary" onClick={loadStatus}>
             Actualizar
@@ -195,6 +199,47 @@ export function MetabasePage() {
           message={`Llegaste desde una ejecución con hallazgos. Tras publicar tablas BI, el dashboard usará la última ejecución sincronizada (referencia: ${fromRunId.slice(0, 8)}…).`}
         />
       ) : null}
+
+      <section className="metabase-embed-section" aria-labelledby="metabase-embed-title">
+        <div className="metabase-embed-head">
+          <div>
+            <span className="metabase-embed-kicker">Visualizaci&oacute;n BI</span>
+            <h2 id="metabase-embed-title">Dashboard IT · Evidencias conversacionales</h2>
+          </div>
+          <div className="metabase-embed-actions">
+            <StatusBadge value={embedUrl ? 'ok' : dashboardUrl ? 'loading' : 'unknown'} />
+            {dashboardUrl ? (
+              <a className="decision-link" href={dashboardUrl} target="_blank" rel="noreferrer">
+                <OpenInNewRoundedIcon fontSize="small" aria-hidden="true" />
+                Abrir en Metabase
+              </a>
+            ) : null}
+          </div>
+        </div>
+
+        {embedUrl ? (
+          <iframe
+            className="metabase-embed-frame"
+            src={`${embedUrl}#bordered=false&titled=false`}
+            title="Dashboard IT de evidencias conversacionales"
+            loading="lazy"
+            allowFullScreen
+          />
+        ) : (
+          <div className="metabase-embed-empty">
+            <strong>Dashboard integrado pendiente</strong>
+            <span>Publica las tablas y crea o actualiza el dashboard para mostrar los gr&aacute;ficos.</span>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={createDashboard}
+              disabled={!canCreateDashboard}
+            >
+              {creatingDashboard ? 'Preparando dashboard...' : dashboardButtonLabel}
+            </Button>
+          </div>
+        )}
+      </section>
 
       <div className="metabase-grid">
         <Card className="metabase-panel">
