@@ -1,4 +1,4 @@
-import { SOURCE_TYPE_OPTIONS } from '../../utils/projectLabels'
+import { SOURCE_TYPE_OPTIONS } from '@/utils/projectLabels'
 
 export const PREPARE_TAB = {
   origin: 'origin',

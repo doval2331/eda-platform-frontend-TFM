@@ -1,9 +1,9 @@
-import { TABULAR_SOURCE_TYPES, suggestSourceType, sourceKindLabel, sourceTypeLabel } from '../../utils/projectLabels'
+import { TABULAR_SOURCE_TYPES, suggestSourceType, sourceKindLabel, sourceTypeLabel } from '@/utils/projectLabels'
 import {
   detectSourceFileKind,
   formatLabelForKind,
   formatToneForKind,
-} from '../../utils/sourceFileVisual'
+} from '@/utils/sourceFileVisual'
 import { AUTO_SOURCE_TYPE } from './constants'
 
 export function isTabularSource(source) {

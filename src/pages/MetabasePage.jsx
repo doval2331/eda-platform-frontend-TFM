@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { createMetabaseDashboard, fetchMetabaseStatus, syncBiTables } from '../api/metabase'
-import { Button, Card, Feedback, PageNavbar } from '../ui'
+import { Link, useLocation } from 'react-router-dom'
+import { createMetabaseDashboard, fetchMetabaseStatus, syncBiTables } from '@/api/metabase'
+import { AnalysisFlowStrip, MetabaseFlowCTA } from '@/components/bi'
+import { Button, Card, Feedback, PageNavbar } from '@/ui'
 
 const BI_GUIDE_QUESTIONS = [
   'Ya publique las tablas, que reviso primero?',
@@ -75,6 +76,8 @@ function StatusBadge({ value }) {
 }
 
 export function MetabasePage() {
+  const location = useLocation()
+  const fromRunId = location.state?.fromRunId
   const [status, setStatus] = useState(null)
   const [syncResult, setSyncResult] = useState(null)
   const [dashboardResult, setDashboardResult] = useState(null)
@@ -173,8 +176,8 @@ export function MetabasePage() {
       <PageNavbar
         breadcrumbParent="Plataforma"
         breadcrumbCurrent="Metabase BI"
-        title="Dashboards sobre PostgreSQL BI"
-        description="DuckDB sigue siendo la base principal; PostgreSQL publica tablas curadas para Metabase."
+        title="Paso 4 · Informes con Metabase"
+        description="Publica datos analíticos en PostgreSQL y explora SLA, riesgo y clusters en un dashboard externo."
         rightSlot={
           <Button type="button" variant="secondary" onClick={loadStatus}>
             Actualizar
@@ -183,6 +186,15 @@ export function MetabasePage() {
       />
 
       {error ? <Feedback variant="danger" message={error} /> : null}
+
+      <AnalysisFlowStrip currentStepId="report" />
+      <MetabaseFlowCTA variant="metabase" runId={fromRunId} />
+      {fromRunId ? (
+        <Feedback
+          variant="info"
+          message={`Llegaste desde una ejecución con hallazgos. Tras publicar tablas BI, el dashboard usará la última ejecución sincronizada (referencia: ${fromRunId.slice(0, 8)}…).`}
+        />
+      ) : null}
 
       <div className="metabase-grid">
         <Card className="metabase-panel">

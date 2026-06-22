@@ -1,4 +1,4 @@
-import { Button, Dialog } from '../ui'
+import { Button, Dialog } from '@/ui'
 
 export function ConfirmDialog({
   open,

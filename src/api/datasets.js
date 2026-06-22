@@ -1,5 +1,5 @@
 import { apiRequest } from './apiClient'
-import { validateCsvUploadFile } from '../utils/csvUpload'
+import { validateCsvUploadFile } from '@/utils/csvUpload'
 
 /**
  * Sube una fuente tabular y devuelve el perfil de columnas inferido.

@@ -1,10 +1,9 @@
-import { AppTabs, Dialog, Feedback, TabPanel } from '../../ui'
-import '../../ui/prepare-data.css'
+import { AppTabs, Dialog, Feedback, TabPanel } from '@/ui'
+import '@/ui/prepare-data.css'
 import { PREPARE_TAB } from './constants'
 import { PrepareDialogFooter } from './PrepareDialogFooter'
-import { PrepareOriginTab } from './PrepareOriginTab'
 import { PrepareParamsTab } from './PrepareParamsTab'
-import { PrepareProjectRunsPicker } from './PrepareProjectRunsPicker'
+import { PrepareOriginTab } from './PrepareOriginTab'
 import { PrepareProjectSection } from './PrepareProjectSection'
 import { PrepareTabularSection } from './PrepareTabularSection'
 import { useProjectPrepareDialog } from './useProjectPrepareDialog'
@@ -29,9 +28,6 @@ export function ProjectPrepareDialog({
   error,
   apiOnline,
   onAnalyze,
-  projectRuns = [],
-  selectedRunIndex = 0,
-  onSelectProjectRun,
   scenarioName = '',
   onScenarioNameChange,
   scenarioDescription = '',
@@ -157,12 +153,6 @@ export function ProjectPrepareDialog({
             apiOnline={apiOnline}
           />
         </TabPanel>
-
-        <PrepareProjectRunsPicker
-          projectRuns={projectRuns}
-          selectedRunIndex={selectedRunIndex}
-          onSelectProjectRun={onSelectProjectRun}
-        />
         </div>
       </div>
       <Feedback

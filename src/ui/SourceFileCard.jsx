@@ -16,7 +16,7 @@ import {
   formatToneForKind,
   getSourceChipTone,
   getSourceFileKindStyle,
-} from '../utils/sourceFileVisual'
+} from '@/utils/sourceFileVisual'
 import { Button } from './Button'
 
 function SourceChip({ label, tone = 'neutral' }) {

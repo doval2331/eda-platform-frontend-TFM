@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { ExplorationChatBot } from './ExplorationChatBot'
-import { SparkleIcon } from '../LlmVisual'
-import '../../styles/chatbot.css'
-import '../../styles/llm-visual.css'
+import { SparkleIcon } from '@/components/LlmVisual'
+import '@/styles/chatbot.css'
+import '@/styles/llm-visual.css'
 
 function ChatIcon() {
   return (

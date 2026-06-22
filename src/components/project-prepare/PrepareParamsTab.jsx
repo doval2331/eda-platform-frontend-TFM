@@ -1,6 +1,6 @@
 import PropTypes from 'prop-types'
 import { Collapse, Stack, Typography } from '@mui/material'
-import { Button, Feedback, FormSelect, TextField } from '../../ui'
+import { Button, Feedback, FormSelect, TextField } from '@/ui'
 import { PrepareFormSection } from './PrepareFormSection'
 
 export function PrepareParamsTab({

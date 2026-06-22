@@ -3,10 +3,10 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { CircularProgress, IconButton, Tooltip } from '@mui/material'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
-import '../styles/history.css'
-import '../styles/app.css'
-import { clearAllRuns, deleteRun, listRuns } from '../api/pipeline'
-import { ConfirmDialog } from '../components/ConfirmDialog'
+import '@/styles/history.css'
+import '@/styles/app.css'
+import { clearAllRuns, deleteRun, listRuns } from '@/api/pipeline'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import {
   Button,
   Card,
@@ -17,9 +17,10 @@ import {
   DataTableScroll,
   DataTableTable,
   LoadingPanel,
-} from '../ui'
-import { formatModality } from '../utils/runMetrics'
-import { sourceTypeLabel } from '../utils/projectLabels'
+  LoadingSlot,
+} from '@/ui'
+import { formatModality } from '@/utils/runMetrics'
+import { sourceTypeLabel } from '@/utils/projectLabels'
 
 function formatDate(iso) {
   if (!iso) return '—'
@@ -128,7 +129,7 @@ export function HistoryPage() {
   }
 
   return (
-    <div className="history-page">
+    <div className={`history-page${loading ? ' history-page--loading' : ''}`}>
       <PageNavbar
         breadcrumbParent="Plataforma"
         breadcrumbCurrent="Historial"
@@ -153,12 +154,16 @@ export function HistoryPage() {
       <Card className="history-table-card">
         <h2 className="history-section-title">Ejecuciones recientes</h2>
         {loading ? (
-          <LoadingPanel compact title="Cargando historial…" />
+          <LoadingSlot variant="card">
+            <LoadingPanel bare compact title="Cargando historial…" />
+          </LoadingSlot>
         ) : runs.length === 0 ? (
-          <DataTableEmpty>
+          <LoadingSlot variant="card">
+            <DataTableEmpty>
             Aún no hay ejecuciones. Ve al{' '}
             <Link to="/">análisis exploratorio</Link> y pulsa Ejecutar pipeline.
-          </DataTableEmpty>
+            </DataTableEmpty>
+          </LoadingSlot>
         ) : (
           <DataTableRoot variant="embedded">
             <DataTableScroll>

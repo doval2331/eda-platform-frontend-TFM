@@ -1,24 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import '../styles/app.css'
-import { Scatter2D } from '../Scatter2D'
-import { uploadDataset } from '../api/datasets'
-import { executeProjectRuns, fetchProject } from '../api/projects'
-import { executePipeline, checkApiHealth } from '../api/pipeline'
-import { validateCsvUploadFile } from '../utils/csvUpload'
-import { AgentAnalysisPanel } from '../components/AgentAnalysisPanel'
-import { ClusterInterpretationPanel } from '../components/ClusterInterpretationPanel'
-import { FloatingChatWidget } from '../components/chat'
-import { ProjectPrepareDialog } from '../components/ProjectPrepareDialog'
-import { RunKpis } from '../components/RunKpis'
-import { PageNavbar, Button, Card, Feedback, LoadingPanel, ResultsTabs } from '../ui'
-import { buildAnalysisStatusMessage } from '../utils/analysisStatus'
+import '@/styles/app.css'
+import { Scatter2D } from '@/Scatter2D'
+import { uploadDataset } from '@/api/datasets'
+import { executeProjectRuns, fetchProject } from '@/api/projects'
+import { executePipeline, checkApiHealth } from '@/api/pipeline'
+import { validateCsvUploadFile } from '@/utils/csvUpload'
+import { AgentAnalysisPanel } from '@/components/AgentAnalysisPanel'
+import { AnalysisFlowStrip, MetabaseFlowCTA } from '@/components/bi'
+import { ClusterInterpretationPanel } from '@/components/ClusterInterpretationPanel'
+import { FloatingChatWidget } from '@/components/chat'
+import { ProjectPrepareDialog } from '@/components/ProjectPrepareDialog'
+import { RunKpis } from '@/components/RunKpis'
+import { PageNavbar, Button, Card, Feedback, LoadingPanel, LoadingSlot, ResultsTabs } from '@/ui'
+import { buildAnalysisStatusMessage } from '@/utils/analysisStatus'
 import {
   ACTIVE_PROJECT_KEY,
   loadTabularScenario,
   saveTabularScenario,
   sourceTypeLabel,
-} from '../utils/projectLabels'
+} from '@/utils/projectLabels'
 
 const ONBOARDING_KEY = 'eda-dashboard-onboarding-dismissed'
 
@@ -37,6 +38,7 @@ export function DashboardPage() {
   )
   const [idColumn, setIdColumn] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [loadingProject, setLoadingProject] = useState(false)
   const [uploadError, setUploadError] = useState(null)
   const [prepareDialogOpen, setPrepareDialogOpen] = useState(false)
   const [projectRuns, setProjectRuns] = useState([])
@@ -70,6 +72,7 @@ export function DashboardPage() {
       setActiveProject(null)
       return
     }
+    setLoadingProject(true)
     try {
       const detail = await fetchProject(projectId)
       setActiveProject(detail)
@@ -77,6 +80,8 @@ export function DashboardPage() {
     } catch {
       localStorage.removeItem(ACTIVE_PROJECT_KEY)
       setActiveProject(null)
+    } finally {
+      setLoadingProject(false)
     }
   }, [])
 
@@ -294,7 +299,7 @@ export function DashboardPage() {
   }
 
   return (
-    <div className="dashboard-page">
+    <div className={`dashboard-page${ejecutando ? ' dashboard-page--executing' : ''}`}>
       <PageNavbar
         breadcrumbParent="Plataforma"
         breadcrumbCurrent="Incidencias IT"
@@ -306,9 +311,10 @@ export function DashboardPage() {
           <div className="onboarding-banner-body">
             <h2>¿Qué hace esta herramienta?</h2>
             <ol className="onboarding-steps">
-              <li>Pulsa «Preparar datos» para configurar el escenario y las fuentes.</li>
-              <li>Agrupa automáticamente las incidencias que se comportan de forma similar.</li>
-              <li>Revisa grupos críticos, agentes asistidos y chat en lenguaje de negocio.</li>
+              <li>Pulsa «Preparar datos» y ejecuta el análisis (paso 1).</li>
+              <li>Explora con chat y agentes; guarda hallazgos con «Seleccionar» (paso 2).</li>
+              <li>Consolida en el dashboard conversacional (paso 3).</li>
+              <li>Publica en Metabase BI para informes y gráficos de SLA/riesgo (paso 4).</li>
             </ol>
           </div>
           <button type="button" className="onboarding-dismiss" onClick={dismissOnboarding}>
@@ -317,10 +323,30 @@ export function DashboardPage() {
         </div>
       ) : null}
 
+      {loadingProject && !prepareDialogOpen ? (
+        <div className="conv-reload-toast" role="status" aria-live="polite">
+          <LoadingPanel
+            bare
+            compact
+            spinnerSize={56}
+            title="Cargando escenario guardado…"
+            description="Recuperando datasets del proyecto…"
+          />
+        </div>
+      ) : null}
+
       <RunKpis result={resultado} runMeta={lastRun} advancedMode={advancedMode} />
 
+      <AnalysisFlowStrip
+        currentStepId={lastRun?.id && resultado ? 'explore' : 'analyze'}
+        compact={!lastRun?.id}
+      />
+      {lastRun?.id && resultado ? (
+        <MetabaseFlowCTA variant="explore" runId={lastRun.id} />
+      ) : null}
+
       <div className="app-main app-main--results-only" ref={resultsPanelRef}>
-        <Card className="panel-results">
+        <Card className={`panel-results${ejecutando ? ' panel-results--loading' : ''}`}>
           <div className="panel-results-head">
             <div className="panel-results-head-main">
               <h2>Resultados</h2>
@@ -373,47 +399,43 @@ export function DashboardPage() {
           />
 
           {ejecutando ? (
-            <LoadingPanel
-              title="Analizando incidencias…"
-              description={analysisStatusMessage}
-            />
-          ) : null}
+            <LoadingSlot variant="chart">
+              <LoadingPanel bare compact title="Analizando incidencias…" />
+            </LoadingSlot>
+          ) : (
+            <>
+              {!resultado ? (
+                <Feedback
+                  variant="info"
+                  message="Pulsa «Preparar datos» para configurar el escenario y ejecutar el análisis."
+                />
+              ) : null}
 
-          {!resultado && !ejecutando ? (
-            <Feedback
-              variant="info"
-              message="Pulsa «Preparar datos» para configurar el escenario y ejecutar el análisis."
-            />
-          ) : null}
+              <div hidden={resultView !== 'interpretation'} className="results-tab-panel">
+                <ClusterInterpretationPanel result={resultado} run={lastRun} />
+              </div>
 
-          <div hidden={resultView !== 'interpretation' || ejecutando} className="results-tab-panel">
-            <ClusterInterpretationPanel
-              result={resultado}
-              run={lastRun}
-              loading={ejecutando}
-            />
-          </div>
+              <div hidden={resultView !== 'visualization'} className="results-tab-panel">
+                <Scatter2D
+                  X_2d={resultado?.X_2d}
+                  clusterLabels={resultado?.cluster_labels}
+                  metadata={resultado?.metadata}
+                />
+                <p className="legend-note note">
+                  Cada color representa un grupo de incidencias parecidas. Los marcados en gris son
+                  casos atípicos. Pasa el cursor sobre un punto para ver el detalle.
+                </p>
+              </div>
 
-          <div hidden={resultView !== 'visualization'} className="results-tab-panel">
-            <Scatter2D
-              X_2d={resultado?.X_2d}
-              clusterLabels={resultado?.cluster_labels}
-              metadata={resultado?.metadata}
-              loading={ejecutando}
-            />
-            <p className="legend-note note">
-              Cada color representa un grupo de incidencias parecidas. Los marcados en gris son
-              casos atípicos. Pasa el cursor sobre un punto para ver el detalle.
-            </p>
-          </div>
-
-          <div hidden={resultView !== 'agents'} className="results-tab-panel">
-            <AgentAnalysisPanel
-              run={lastRun}
-              projectId={activeProject?.id}
-              onOpenChatWithPrompt={handleOpenChatWithPrompt}
-            />
-          </div>
+              <div hidden={resultView !== 'agents'} className="results-tab-panel">
+                <AgentAnalysisPanel
+                  run={lastRun}
+                  projectId={activeProject?.id}
+                  onOpenChatWithPrompt={handleOpenChatWithPrompt}
+                />
+              </div>
+            </>
+          )}
         </Card>
       </div>
 
@@ -452,9 +474,6 @@ export function DashboardPage() {
         error={error}
         apiOnline={apiOnline}
         onAnalyze={ejecutarPipeline}
-        projectRuns={projectRuns}
-        selectedRunIndex={selectedRunIndex}
-        onSelectProjectRun={handleSelectProjectRun}
       />
 
       <FloatingChatWidget

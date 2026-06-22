@@ -1,4 +1,4 @@
-import '../styles/llm-visual.css'
+import '@/styles/llm-visual.css'
 
 export function SparkleIcon({ size = 16 }) {
   return (
