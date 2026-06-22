@@ -1,5 +1,5 @@
 import PropTypes from 'prop-types'
-import { PriorityChip } from './PriorityChip'
+import { PriorityChip } from '../shared/PriorityChip'
 
 export function InsightStepRow({
   step,

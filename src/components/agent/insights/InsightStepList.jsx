@@ -2,7 +2,7 @@ import PropTypes from 'prop-types'
 import { useMemo, useState } from 'react'
 import { buildInsightRowModel } from '@/utils/insightPresentation'
 import { InsightDetailDialog } from './InsightDetailDialog'
-import { InsightListPagination, INSIGHT_PAGE_SIZE } from './InsightListPagination'
+import { InsightListPagination, INSIGHT_PAGE_SIZE } from '../shared/InsightListPagination'
 import { InsightsPhaseFooter } from './InsightsPhaseFooter'
 import { InsightStepRow } from './InsightStepRow'
 

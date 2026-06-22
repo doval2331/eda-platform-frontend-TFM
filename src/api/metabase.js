@@ -12,3 +12,8 @@ export async function syncBiTables(runId) {
 export async function createMetabaseDashboard() {
   return apiRequest('/api/metabase/dashboard', { method: 'POST', auth: true })
 }
+
+export async function fetchMetabaseEmbedToken(runId) {
+  const query = runId ? `?run_id=${encodeURIComponent(runId)}` : ''
+  return apiRequest(`/api/metabase/embed-token${query}`, { auth: true })
+}
