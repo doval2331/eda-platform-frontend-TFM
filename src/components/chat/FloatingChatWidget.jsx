@@ -58,23 +58,27 @@ export function FloatingChatWidget({
         expanded ? ' chat-widget--expanded' : ''
       }`}
     >
-      {open ? (
-        <div className="chat-widget-panel" role="dialog" aria-label="Asistente de incidencias">
-          <ExplorationChatBot
-            run={run}
-            onClose={() => {
-              setExpanded(false)
-              setOpen(false)
-            }}
-            variant="float"
-            llmReady={llmReady}
-            expanded={expanded}
-            onToggleExpand={() => setExpanded((current) => !current)}
-            externalPrompt={externalPrompt}
-            onExternalPromptConsumed={onExternalPromptConsumed}
-          />
-        </div>
-      ) : null}
+      <div
+        className={`chat-widget-panel${open ? '' : ' chat-widget-panel--hidden'}`}
+        role="dialog"
+        aria-label="Asistente de incidencias"
+        aria-hidden={!open}
+        hidden={!open}
+      >
+        <ExplorationChatBot
+          run={run}
+          onClose={() => {
+            setExpanded(false)
+            setOpen(false)
+          }}
+          variant="float"
+          llmReady={llmReady}
+          expanded={expanded}
+          onToggleExpand={() => setExpanded((current) => !current)}
+          externalPrompt={externalPrompt}
+          onExternalPromptConsumed={onExternalPromptConsumed}
+        />
+      </div>
 
       <button
         type="button"

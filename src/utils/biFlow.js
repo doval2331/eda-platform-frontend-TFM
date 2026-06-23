@@ -47,3 +47,18 @@ export function metabaseLinkState({ runId, fromStep } = {}) {
     fromStep: fromStep || undefined,
   }
 }
+
+export const METABASE_PUBLISH_HINT =
+  'Para incluirlo en Metabase, ve a Informes y pulsa «Actualizar informe» (publica las tablas BI).'
+
+export function insightSavedMessage(title) {
+  return (
+    `Hallazgo guardado: «${title}». Revísalo en el dashboard conversacional. ${METABASE_PUBLISH_HINT}`
+  )
+}
+
+export function insightsSavedMessage(count) {
+  const headline =
+    count === 1 ? 'Hallazgo guardado en el dashboard conversacional.' : `${count} hallazgos guardados en el dashboard conversacional.`
+  return `${headline} ${METABASE_PUBLISH_HINT}`
+}

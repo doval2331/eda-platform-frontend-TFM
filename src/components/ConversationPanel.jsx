@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { askRunQuestion, fetchRunSuggestedQuestions, selectRunInsight } from '@/api/conversation'
+import { insightSavedMessage } from '@/utils/biFlow'
 import { Button, Feedback } from '@/ui'
 
 const DEFAULT_SUGGESTIONS = [
@@ -131,7 +132,7 @@ export function ConversationPanel({ run }) {
         ...current,
         {
           role: 'assistant',
-          text: `Insight seleccionado: ${insight.title}. Quedo guardado en DuckDB para filtrar o documentar el dashboard.`,
+          text: insightSavedMessage(insight.title),
         },
       ])
     } catch (err) {

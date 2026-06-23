@@ -18,13 +18,12 @@ const COPY = {
   },
   consolidate: {
     title: 'Paso 4: informes con Metabase BI',
-    body: 'Aquí ya tienes la historia de tus hallazgos. Publica las tablas BI y abre el dashboard en Metabase para profundizar con filtros (run, cluster, servicio, SLA). Ideal para informes y defensa del TFM.',
     primary: { to: '/metabase', label: 'Publicar y abrir Metabase' },
     secondary: { to: '/', label: 'Volver a analizar' },
   },
   metabase: {
     title: 'Estás en el paso de informes',
-    body: 'Metabase consume las tablas publicadas desde DuckDB. Si acabas de guardar hallazgos en el chat, pulsa «Publicar tablas BI» y crea o actualiza el dashboard antes de presentar resultados.',
+    body: 'Metabase consume las tablas publicadas desde DuckDB. Si acabas de guardar hallazgos, pulsa «Actualizar informe» arriba para publicar las tablas BI antes de presentar resultados.',
     primary: null,
     secondary: { to: '/dashboard-conversacional', label: 'Revisar hallazgos guardados' },
   },

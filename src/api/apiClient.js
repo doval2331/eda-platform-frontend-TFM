@@ -11,7 +11,7 @@ export class ApiHttpError extends Error {
 
 export function getStoredToken() {
   try {
-    const raw = localStorage.getItem(AUTH_STORAGE_KEY)
+    const raw = sessionStorage.getItem(AUTH_STORAGE_KEY)
     if (!raw) return ''
     const parsed = JSON.parse(raw)
     return parsed?.token || ''
