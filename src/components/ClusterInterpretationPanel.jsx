@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Box, IconButton, Stack, Tooltip, Typography } from '@mui/material'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import { selectRunInsight } from '@/api/conversation'
+import { insightSavedMessage } from '@/utils/biFlow'
 import {
   AlertBanner,
   ClusterInsightCard,
@@ -583,7 +584,7 @@ export function ClusterInterpretationPanel({ result, run, loading = false }) {
     try {
       await selectRunInsight(run.id, insight)
       setSelectedIds((current) => new Set([...current, insight.id]))
-      setMessage(`${summary.shortTitle} agregado al dashboard conversacional.`)
+      setMessage(insightSavedMessage(summary.shortTitle))
       setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar el cluster')
