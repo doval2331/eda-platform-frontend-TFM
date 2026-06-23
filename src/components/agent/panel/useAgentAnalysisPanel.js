@@ -5,7 +5,8 @@ import {
   runAgentInterpretation,
   runAgentStrategy,
 } from '@/api/agents'
-import { selectRunInsight } from '@/api/conversation'
+import { selectRunInsight, selectRunInsights } from '@/api/conversation'
+import { insightSavedMessage, insightsSavedMessage } from '@/utils/biFlow'
 import { isLlmEnrichedInsight } from '@/components/LlmVisual'
 import {
   buildInsightsOverview,
@@ -267,7 +268,7 @@ export function useAgentAnalysisPanel(runId, onOpenChatWithPrompt) {
           next.delete(insight.id)
           return next
         })
-        setMessage(`«${insight.title}» agregado al dashboard conversacional.`)
+        setMessage(insightSavedMessage(insight.title))
         setError(null)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'No se pudo guardar el insight')
@@ -301,19 +302,17 @@ export function useAgentAnalysisPanel(runId, onOpenChatWithPrompt) {
     setBulkDashboardLoading(true)
     setError(null)
     try {
-      const savedIds = []
-      for (const item of pending) {
-        const insight = insightFromAgent(runId, item)
-        await selectRunInsight(runId, insight)
-        savedIds.push(insight.id)
-      }
+      const insights = pending.map((item) => insightFromAgent(runId, item))
+      const response = await selectRunInsights(runId, insights)
+      const savedIds = insights.map((insight) => insight.id)
       setSelectedIds((current) => new Set([...current, ...savedIds]))
       setSelectedInsightIds((current) => {
         const next = new Set(current)
         savedIds.forEach((id) => next.delete(id))
         return next
       })
-      setMessage(`${savedIds.length} hallazgos agregados al dashboard conversacional.`)
+      const savedCount = response?.saved ?? savedIds.length
+      setMessage(insightsSavedMessage(savedCount))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudieron guardar los hallazgos seleccionados')
     } finally {

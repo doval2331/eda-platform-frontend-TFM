@@ -13,7 +13,7 @@ export const AuthContext = createContext({
 
 function readStoredAuth() {
   try {
-    const raw = localStorage.getItem(AUTH_STORAGE_KEY)
+    const raw = sessionStorage.getItem(AUTH_STORAGE_KEY)
     if (!raw) return null
     const parsed = JSON.parse(raw)
     if (!parsed?.token || !parsed?.user) return null
@@ -28,6 +28,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
 
   useEffect(() => {
+    localStorage.removeItem(AUTH_STORAGE_KEY)
     const stored = readStoredAuth()
     if (stored) {
       setToken(stored.token)
@@ -36,7 +37,7 @@ export function AuthProvider({ children }) {
   }, [])
 
   const persist = (nextToken, nextUser) => {
-    localStorage.setItem(
+    sessionStorage.setItem(
       AUTH_STORAGE_KEY,
       JSON.stringify({ token: nextToken, user: nextUser }),
     )
@@ -45,6 +46,7 @@ export function AuthProvider({ children }) {
   }
 
   const logout = () => {
+    sessionStorage.removeItem(AUTH_STORAGE_KEY)
     localStorage.removeItem(AUTH_STORAGE_KEY)
     setToken('')
     setUser(null)

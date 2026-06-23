@@ -1,14 +1,8 @@
-import { useEffect, useState } from 'react'
-import { askRunQuestion, fetchRunSuggestedQuestions, selectRunInsight } from '@/api/conversation'
+import { useEffect } from 'react'
+import { selectRunInsight } from '@/api/conversation'
+import { insightSavedMessage } from '@/utils/biFlow'
 import { ChatBot } from './ChatBot'
-
-const DEFAULT_SUGGESTIONS = [
-  '¿Qué grupos incumplen más el SLA?',
-  '¿Qué servicios concentran más incidencias?',
-  '¿Cuáles son los casos más críticos?',
-  '¿Qué grupos tardan más en resolverse?',
-  '¿Cuántos casos atípicos hay?',
-]
+import { useRunChatHistory } from './useRunChatHistory'
 
 export function ExplorationChatBot({
   run,
@@ -20,113 +14,56 @@ export function ExplorationChatBot({
   externalPrompt = null,
   onExternalPromptConsumed,
 }) {
-  const [question, setQuestion] = useState('')
-  const [messages, setMessages] = useState([])
-  const [suggestions, setSuggestions] = useState(DEFAULT_SUGGESTIONS)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
-  const [selectedIds, setSelectedIds] = useState(new Set())
-
-  useEffect(() => {
-    setError(null)
-    setQuestion('')
-    setSelectedIds(new Set())
-    if (run?.id) {
-      setMessages([
-        {
-          role: 'assistant',
-          text: 'Hola. Puedo ayudarte a entender los grupos de incidencias: SLA, tiempos de resolución, servicios afectados y casos atípicos. Pregúntame en lenguaje natural.',
-        },
-      ])
-      setSuggestions(DEFAULT_SUGGESTIONS)
-      void fetchRunSuggestedQuestions(run.id)
-        .then((response) => {
-          if (response.suggested_questions?.length) {
-            setSuggestions(response.suggested_questions)
-          }
-        })
-        .catch(() => {
-          setSuggestions(DEFAULT_SUGGESTIONS)
-        })
-    } else {
-      setMessages([])
-      setSuggestions(DEFAULT_SUGGESTIONS)
-    }
-  }, [run?.id])
+  const {
+    question,
+    setQuestion,
+    messages,
+    suggestions,
+    historyLoading,
+    loading,
+    error,
+    setError,
+    selectedIds,
+    sendQuestion,
+    appendLocalAssistantNote,
+    markInsightSelected,
+  } = useRunChatHistory(run?.id)
 
   useEffect(() => {
     if (!externalPrompt?.text || !run?.id) return
-    setMessages((current) => [
-      ...current,
-      {
-        role: 'assistant',
-        text: 'Te traigo un resumen desde el análisis asistido. Voy a consultar Azure OpenAI con tu pregunta…',
-      },
-      { role: 'user', text: externalPrompt.text },
-    ])
+    setQuestion('')
     void sendQuestion(externalPrompt.text, { fromBridge: true })
     onExternalPromptConsumed?.()
-  }, [externalPrompt?.at, externalPrompt?.text, run?.id])
-
-  async function sendQuestion(text, options = {}) {
-    const clean = text.trim()
-    if (!run?.id || !clean) return
-    setLoading(true)
-    setError(null)
-    setQuestion('')
-    if (!options.fromBridge) {
-      setMessages((current) => [...current, { role: 'user', text: clean }])
-    }
-
-    try {
-      const response = await askRunQuestion(run.id, clean, messages)
-      setMessages((current) => [
-        ...current,
-        {
-          role: 'assistant',
-          text: response.answer,
-          insights: response.insights ?? [],
-          llmUsed: Boolean(response.llm_used),
-          llmDetail: response.llm_detail,
-        },
-      ])
-      if (response.suggested_questions?.length) {
-        setSuggestions(response.suggested_questions)
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo consultar el chat')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  function pushAssistantNote(text) {
-    setMessages((current) => [...current, { role: 'assistant', text }])
-  }
+  }, [externalPrompt?.at, externalPrompt?.text, run?.id, onExternalPromptConsumed, sendQuestion, setQuestion])
 
   async function onInsightSelected(runId, insight) {
     if (!runId || selectedIds.has(insight.id)) return
     try {
       await selectRunInsight(runId, insight)
-      setSelectedIds((current) => new Set([...current, insight.id]))
-      pushAssistantNote(
-        `Anotado: «${insight.title}». Paso 3: revísalo en el dashboard conversacional. Cuando tengas varios hallazgos, usa Metabase BI (paso 4) para gráficos de SLA y riesgo.`,
-      )
+      markInsightSelected(insight.id)
+      appendLocalAssistantNote(insightSavedMessage(insight.title))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar el insight')
     }
   }
 
+  const hasRun = Boolean(run?.id)
+  const showStarterEmpty = hasRun && !historyLoading && messages.length === 0
+
   return (
     <ChatBot
       title="Asistente de incidencias"
-      subtitle={run?.id ? 'Exploración del análisis activo' : null}
-      active={Boolean(run?.id)}
+      subtitle={hasRun ? 'Exploración del análisis activo' : null}
+      active={hasRun}
       llmReady={llmReady}
       headerAction={
         <>
-          <ChatBot.DashboardLink>Paso 3 · Hallazgos</ChatBot.DashboardLink>
-          <ChatBot.DashboardLink to="/metabase">Paso 4 · Metabase</ChatBot.DashboardLink>
+          <ChatBot.DashboardLink title="Ir al dashboard conversacional (paso 3)">
+            Hallazgos
+          </ChatBot.DashboardLink>
+          <ChatBot.DashboardLink to="/metabase" title="Ir a informes Metabase (paso 4)">
+            Informes
+          </ChatBot.DashboardLink>
         </>
       }
       onClose={onClose}
@@ -135,8 +72,8 @@ export function ExplorationChatBot({
       onToggleExpand={onToggleExpand}
       messages={messages}
       suggestions={suggestions}
-      loading={loading}
-      disabled={!run?.id}
+      loading={historyLoading || loading}
+      disabled={!hasRun || historyLoading}
       error={error}
       inputValue={question}
       onInputChange={setQuestion}
@@ -145,8 +82,12 @@ export function ExplorationChatBot({
       onInsightSelect={onInsightSelected}
       runId={run?.id}
       placeholder="Ej.: ¿Qué grupo tiene peor SLA?"
-      emptyTitle="Sin análisis activo"
-      emptyDescription="Ejecuta «Analizar incidencias» primero. Cuando termine, podrás hacer preguntas sobre los grupos detectados."
+      emptyTitle={showStarterEmpty ? 'Empieza tu exploración' : 'Sin análisis activo'}
+      emptyDescription={
+        showStarterEmpty
+          ? 'Haz tu primera pregunta sobre SLA, clusters, servicios o casos atípicos.'
+          : 'Ejecuta «Analizar incidencias» primero. Cuando termine, podrás hacer preguntas sobre los grupos detectados.'
+      }
     />
   )
 }

@@ -14,13 +14,21 @@ export function MetabasePage() {
     message,
     setMessage,
     setError,
-    lastUpdatedAt,
+    loading,
     refreshing,
+    syncing,
     refresh,
   } = useMetabaseReportsPage(fromRunId)
 
+  const showInitialLoading = loading && !embedUrl
+  const isBusy = loading || refreshing || syncing
+
   return (
-    <div className="metabase-page metabase-page--reports">
+    <div
+      className={`metabase-page metabase-page--reports${
+        showInitialLoading ? ' metabase-page--loading' : ''
+      }${syncing ? ' metabase-page--refreshing' : ''}`}
+    >
       <PageNavbar
         breadcrumbParent="Plataforma"
         breadcrumbCurrent="Informes"
@@ -30,8 +38,8 @@ export function MetabasePage() {
           <Button
             type="button"
             variant="secondary"
-            disabled={refreshing || phase === 'loading'}
-            onClick={() => void refresh()}
+            disabled={isBusy}
+            onClick={() => void refresh({ soft: true })}
           >
             {refreshing ? 'Actualizando…' : 'Actualizar informe'}
           </Button>
@@ -57,8 +65,7 @@ export function MetabasePage() {
         phase={phase}
         embedUrl={embedUrl}
         error={error}
-        lastUpdatedAt={lastUpdatedAt}
-        refreshing={refreshing}
+        loading={loading}
         onRetry={() => void refresh()}
       />
 
