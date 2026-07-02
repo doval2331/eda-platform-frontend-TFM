@@ -1,10 +1,11 @@
+import PropTypes from 'prop-types'
 import { useLocation } from 'react-router-dom'
 import { Button, Feedback, PageNavbar } from '@/ui'
 import { MetabaseReportsFooter } from './MetabaseReportsFooter'
 import { MetabaseReportsHero } from './MetabaseReportsHero'
 import { useMetabaseReportsPage } from './useMetabaseReportsPage'
 
-export function MetabasePage() {
+export function MetabasePage({ embedded = false }) {
   const location = useLocation()
   const fromRunId = location.state?.fromRunId
   const {
@@ -29,12 +30,25 @@ export function MetabasePage() {
         showInitialLoading ? ' metabase-page--loading' : ''
       }${syncing ? ' metabase-page--refreshing' : ''}`}
     >
-      <PageNavbar
-        breadcrumbParent="Plataforma"
-        breadcrumbCurrent="Informes"
-        title="Informes de incidencias"
-        description="Gráficos de SLA, riesgo y clusters con tus hallazgos guardados."
-        rightSlot={
+      {!embedded ? (
+        <PageNavbar
+          breadcrumbParent="Plataforma"
+          breadcrumbCurrent="Informes"
+          title="Informes de incidencias"
+          description="Gráficos de SLA, riesgo y clusters con tus hallazgos guardados."
+          rightSlot={
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={isBusy}
+              onClick={() => void refresh({ soft: true })}
+            >
+              {refreshing ? 'Actualizando…' : 'Actualizar informe'}
+            </Button>
+          }
+        />
+      ) : (
+        <div className="metabase-toolbar metabase-toolbar--embedded">
           <Button
             type="button"
             variant="secondary"
@@ -43,8 +57,8 @@ export function MetabasePage() {
           >
             {refreshing ? 'Actualizando…' : 'Actualizar informe'}
           </Button>
-        }
-      />
+        </div>
+      )}
 
       <Feedback
         open={Boolean(message)}
@@ -72,4 +86,8 @@ export function MetabasePage() {
       <MetabaseReportsFooter />
     </div>
   )
+}
+
+MetabasePage.propTypes = {
+  embedded: PropTypes.bool,
 }

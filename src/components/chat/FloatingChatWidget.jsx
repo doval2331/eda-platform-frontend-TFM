@@ -39,18 +39,26 @@ export function FloatingChatWidget({
 }) {
   const [open, setOpen] = useState(false)
   const [expanded, setExpanded] = useState(false)
+  const [hasOpenedOnce, setHasOpenedOnce] = useState(false)
   const isReady = Boolean(run?.id)
 
   useEffect(() => {
-    if (forceOpen) setOpen(true)
+    if (forceOpen) {
+      setOpen(true)
+      setHasOpenedOnce(true)
+    }
   }, [forceOpen])
 
   function toggleOpen() {
     setOpen((current) => {
-      if (current) setExpanded(false)
-      return !current
+      const next = !current
+      if (next) setHasOpenedOnce(true)
+      if (!next) setExpanded(false)
+      return next
     })
   }
+
+  const shouldMountChat = open || hasOpenedOnce
 
   return (
     <div
@@ -65,19 +73,22 @@ export function FloatingChatWidget({
         aria-hidden={!open}
         hidden={!open}
       >
-        <ExplorationChatBot
-          run={run}
-          onClose={() => {
-            setExpanded(false)
-            setOpen(false)
-          }}
-          variant="float"
-          llmReady={llmReady}
-          expanded={expanded}
-          onToggleExpand={() => setExpanded((current) => !current)}
-          externalPrompt={externalPrompt}
-          onExternalPromptConsumed={onExternalPromptConsumed}
-        />
+        {shouldMountChat ? (
+          <ExplorationChatBot
+            run={run}
+            onClose={() => {
+              setExpanded(false)
+              setOpen(false)
+            }}
+            variant="float"
+            llmReady={llmReady}
+            expanded={expanded}
+            onToggleExpand={() => setExpanded((current) => !current)}
+            externalPrompt={externalPrompt}
+            onExternalPromptConsumed={onExternalPromptConsumed}
+            enabled={open}
+          />
+        ) : null}
       </div>
 
       <button
