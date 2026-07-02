@@ -30,7 +30,7 @@ import { INSIGHT_PAGE_SIZE } from '../shared/InsightListPagination'
 import { resolveAgentPhase } from '../shared/AgentPhaseSteps'
 import { insightFromAgent } from './insightFromAgent'
 
-export function useAgentAnalysisPanel(runId, onOpenChatWithPrompt) {
+export function useAgentAnalysisPanel(runId, onOpenChatWithPrompt, { enabled = true } = {}) {
   const [recommendations, setRecommendations] = useState([])
   const [insights, setInsights] = useState([])
   const [selectedIds, setSelectedIds] = useState(new Set())
@@ -49,7 +49,7 @@ export function useAgentAnalysisPanel(runId, onOpenChatWithPrompt) {
   const [strategyConfirmed, setStrategyConfirmed] = useState(false)
 
   const loadResults = useCallback(async () => {
-    if (!runId) return
+    if (!runId || !enabled) return
     setInitialLoading(true)
     setError(null)
     try {
@@ -68,7 +68,7 @@ export function useAgentAnalysisPanel(runId, onOpenChatWithPrompt) {
     } finally {
       setInitialLoading(false)
     }
-  }, [runId])
+  }, [runId, enabled])
 
   useEffect(() => {
     setRecommendations([])
@@ -82,8 +82,8 @@ export function useAgentAnalysisPanel(runId, onOpenChatWithPrompt) {
     setSelectedStrategyVariables({})
     setStrategyConfirmed(false)
     setError(null)
-    if (runId) void loadResults()
-  }, [runId, loadResults])
+    if (runId && enabled) void loadResults()
+  }, [runId, loadResults, enabled])
 
   const llmInsightCount = useMemo(
     () => insights.filter((item) => isLlmEnrichedInsight(item)).length,
