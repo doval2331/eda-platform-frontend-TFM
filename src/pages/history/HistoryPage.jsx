@@ -1,12 +1,14 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { CircularProgress, IconButton, Tooltip } from '@mui/material'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import '@/styles/history.css'
 import '@/styles/app.css'
-import { clearAllRuns, deleteRun, listRuns } from '@/api/pipeline'
+import { clearAllRuns, deleteRun } from '@/api/pipeline'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { runsListQueryKey, useRunsList } from '@/hooks/queries'
 import {
   Button,
   Card,
@@ -41,30 +43,13 @@ function runLabel(run) {
 export function HistoryPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const [runs, setRuns] = useState([])
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
+  const { data: runs = [], isLoading: loading, refetch } = useRunsList(50)
   const [error, setError] = useState(null)
   const [message, setMessage] = useState(null)
   const [clearing, setClearing] = useState(false)
   const [deletingRunId, setDeletingRunId] = useState(null)
   const [confirmState, setConfirmState] = useState(null)
-
-  const loadList = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const data = await listRuns(50)
-      setRuns(data)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo cargar el historial')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    loadList()
-  }, [loadList])
 
   useEffect(() => {
     const deletedMessage = location.state?.deletedMessage
@@ -102,7 +87,7 @@ export function HistoryPage() {
     setMessage(null)
     try {
       const result = await deleteRun(run.id)
-      setRuns((current) => current.filter((item) => item.id !== run.id))
+      await queryClient.invalidateQueries({ queryKey: runsListQueryKey(50) })
       setMessage(result.message ?? 'Ejecución eliminada.')
       setConfirmState(null)
     } catch (err) {
@@ -118,7 +103,7 @@ export function HistoryPage() {
     setMessage(null)
     try {
       const result = await clearAllRuns()
-      setRuns([])
+      await queryClient.invalidateQueries({ queryKey: runsListQueryKey(50) })
       setMessage(result.message ?? `Se eliminaron ${result.deleted_runs} ejecuciones.`)
       setConfirmState(null)
     } catch (err) {
@@ -144,7 +129,7 @@ export function HistoryPage() {
             >
               {clearing ? 'Borrando…' : 'Vaciar historial'}
             </Button>
-            <Button type="button" variant="secondary" onClick={loadList} disabled={loading}>
+            <Button type="button" variant="secondary" onClick={() => void refetch()} disabled={loading}>
               Actualizar
             </Button>
           </div>

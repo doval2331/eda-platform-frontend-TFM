@@ -1,12 +1,10 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { MainLayout } from '@/components/layout/MainLayout'
 import {
-  ConversationDashboardPage,
-  DashboardPage,
   HistoryPage,
   HistoryRunDetailPage,
   LoginPage,
-  MetabasePage,
+  WorkspacePage,
 } from '@/pages'
 import { ProtectedRoute } from '@/routes/ProtectedRoute'
 import { useAuth } from '@/hooks/useAuth'
@@ -16,15 +14,22 @@ function RootRedirect() {
   return <Navigate to={isAuthenticated ? '/' : '/login'} replace />
 }
 
+function LegacyFlowRedirect({ step }) {
+  return <Navigate to={step ? `/?step=${step}` : '/'} replace />
+}
+
 export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route element={<ProtectedRoute />}>
         <Route element={<MainLayout />}>
-          <Route index element={<DashboardPage />} />
-          <Route path="dashboard-conversacional" element={<ConversationDashboardPage />} />
-          <Route path="metabase" element={<MetabasePage />} />
+          <Route index element={<WorkspacePage />} />
+          <Route
+            path="dashboard-conversacional"
+            element={<LegacyFlowRedirect step="consolidate" />}
+          />
+          <Route path="metabase" element={<LegacyFlowRedirect step="report" />} />
           <Route path="historial" element={<HistoryPage />} />
           <Route path="historial/:runId" element={<HistoryRunDetailPage />} />
         </Route>

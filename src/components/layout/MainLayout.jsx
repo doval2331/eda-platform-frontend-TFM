@@ -1,10 +1,12 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { IconDashboard, IconHistory, IconInsights, IconLogout } from './SidebarIcons'
 import '@/styles/sidebar.css'
 
 export function MainLayout() {
   const { user, logout } = useAuth()
+  const [searchParams] = useSearchParams()
+  const workspaceStep = searchParams.get('step') ?? 'analyze'
   const displayName = user?.nombre?.trim() || user?.email || 'Usuario'
   const subtitle =
     user?.email && user?.nombre?.trim() ? user.email : user?.email || ''
@@ -24,10 +26,15 @@ export function MainLayout() {
         <nav className="sidebar-nav" aria-label="Navegación">
           <NavLink
             to="/"
-            end
-            className={({ isActive }) =>
-              `sidebar-link${isActive ? ' sidebar-link--active' : ''}`
-            }
+            end={false}
+            className={({ isActive }) => {
+              const active =
+                isActive &&
+                (workspaceStep === 'analyze' ||
+                  workspaceStep === 'explore' ||
+                  !searchParams.get('step'))
+              return `sidebar-link${active ? ' sidebar-link--active' : ''}`
+            }}
           >
             <span className="sidebar-link-icon">
               <IconInsights />
@@ -46,10 +53,11 @@ export function MainLayout() {
             <span className="sidebar-link-label">Historial</span>
           </NavLink>
           <NavLink
-            to="/dashboard-conversacional"
-            className={({ isActive }) =>
-              `sidebar-link${isActive ? ' sidebar-link--active' : ''}`
-            }
+            to="/?step=consolidate"
+            className={({ isActive }) => {
+              const active = isActive && workspaceStep === 'consolidate'
+              return `sidebar-link${active ? ' sidebar-link--active' : ''}`
+            }}
           >
             <span className="sidebar-link-icon">
               <IconDashboard />
@@ -57,10 +65,11 @@ export function MainLayout() {
             <span className="sidebar-link-label">Dashboard conversacional</span>
           </NavLink>
           <NavLink
-            to="/metabase"
-            className={({ isActive }) =>
-              `sidebar-link${isActive ? ' sidebar-link--active' : ''}`
-            }
+            to="/?step=report"
+            className={({ isActive }) => {
+              const active = isActive && workspaceStep === 'report'
+              return `sidebar-link${active ? ' sidebar-link--active' : ''}`
+            }}
           >
             <span className="sidebar-link-icon">
               <IconDashboard />
