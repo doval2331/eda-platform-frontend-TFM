@@ -36,7 +36,7 @@ function mapAssistantResponse(response) {
   }
 }
 
-export function useRunChatHistory(runId) {
+export function useRunChatHistory(runId, { enabled = true } = {}) {
   const [question, setQuestion] = useState('')
   const [messages, setMessages] = useState([])
   const [suggestions, setSuggestions] = useState(DEFAULT_SUGGESTIONS)
@@ -113,9 +113,10 @@ export function useRunChatHistory(runId) {
   }, [loadSelectedInsights, loadSuggestions])
 
   useEffect(() => {
+    if (!enabled) return
     setQuestion('')
     void loadHistory(runId)
-  }, [runId, loadHistory])
+  }, [runId, loadHistory, enabled])
 
   const sendQuestion = useCallback(
     async (text, options = {}) => {

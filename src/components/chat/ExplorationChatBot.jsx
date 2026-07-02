@@ -13,6 +13,7 @@ export function ExplorationChatBot({
   onToggleExpand,
   externalPrompt = null,
   onExternalPromptConsumed,
+  enabled = true,
 }) {
   const {
     question,
@@ -27,7 +28,7 @@ export function ExplorationChatBot({
     sendQuestion,
     appendLocalAssistantNote,
     markInsightSelected,
-  } = useRunChatHistory(run?.id)
+  } = useRunChatHistory(run?.id, { enabled })
 
   useEffect(() => {
     if (!externalPrompt?.text || !run?.id) return
