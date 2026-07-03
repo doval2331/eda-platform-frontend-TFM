@@ -152,6 +152,7 @@ export function PrepareProjectSection({
                 current={uploadProgress.current}
                 total={uploadProgress.total}
                 filename={uploadProgress.filename}
+                phase={uploadProgress.phase}
                 percent={uploadProgress.percent}
                 loadedBytes={uploadProgress.loadedBytes}
                 totalBytes={uploadProgress.totalBytes}
