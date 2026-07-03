@@ -443,6 +443,96 @@
   padding: 12px 0;
 }
 
+.analysis-progress-panel {
+  width: min(100%, 640px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: stretch;
+}
+
+.analysis-progress-panel .loading-panel--bare {
+  align-self: center;
+}
+
+.analysis-progress-panel__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--color-slate-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.analysis-progress-panel__summary strong {
+  color: var(--color-brand-500);
+  font-size: 18px;
+}
+
+.analysis-progress-panel__bar {
+  width: 100%;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-brand-500) 12%, #ffffff);
+}
+
+.analysis-progress-panel__bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-brand-500);
+  transition: width 0.35s ease;
+}
+
+.analysis-progress-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.analysis-progress-steps__item {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 8px;
+  border: 1px solid var(--color-fog-border);
+  border-radius: 8px;
+  color: var(--color-slate-ink);
+  background: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.analysis-progress-steps__item--completed {
+  border-color: color-mix(in srgb, var(--color-brand-500) 36%, var(--color-fog-border));
+  color: var(--color-brand-500);
+  background: color-mix(in srgb, var(--color-brand-light) 45%, #ffffff);
+}
+
+.analysis-progress-steps__item--current {
+  border-color: var(--color-brand-500);
+  color: var(--color-brand-500);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-brand-500) 12%, transparent);
+}
+
+@media (max-width: 720px) {
+  .analysis-progress-panel__summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .analysis-progress-steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .loading-panel--bare {
   width: auto;
   max-width: 420px;

@@ -13,6 +13,128 @@ import {
 
 const ONBOARDING_KEY = 'eda-dashboard-onboarding-dismissed'
 
+const ANALYSIS_STAGES = [
+  {
+    id: 'prepare',
+    start: 0,
+    doneAt: 18,
+    label: 'Preparando datos',
+    detail: 'Validando fuentes, columnas y parametros del escenario.',
+  },
+  {
+    id: 'features',
+    start: 18,
+    doneAt: 36,
+    label: 'Construyendo variables',
+    detail: 'Normalizando columnas y preparando atributos para el modelo.',
+  },
+  {
+    id: 'reduction',
+    start: 36,
+    doneAt: 58,
+    label: 'Reduciendo dimensiones',
+    detail: 'Proyectando incidencias para generar el mapa visual.',
+  },
+  {
+    id: 'clustering',
+    start: 58,
+    doneAt: 76,
+    label: 'Agrupando incidencias',
+    detail: 'Buscando patrones similares y casos atipicos.',
+  },
+  {
+    id: 'metrics',
+    start: 76,
+    doneAt: 88,
+    label: 'Calculando metricas',
+    detail: 'Evaluando calidad de grupos y resumiendo perfiles.',
+  },
+  {
+    id: 'persist',
+    start: 88,
+    doneAt: 100,
+    label: 'Guardando resultados',
+    detail: 'Persistiendo la ejecucion y preparando la visualizacion.',
+  },
+]
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value))
+}
+
+function parsePositiveInteger(value, fallback = 0) {
+  const parsed = Number.parseInt(value, 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
+}
+
+function activeStageForPercent(percent) {
+  return (
+    [...ANALYSIS_STAGES]
+      .reverse()
+      .find((stage) => percent >= stage.start) ?? ANALYSIS_STAGES[0]
+  )
+}
+
+function buildAnalysisProgressContext({
+  modalidad,
+  datasetProfile,
+  activeProject,
+  metodoReduccion,
+  nSamples,
+  nSamplesParam,
+}) {
+  const projectSourceCount =
+    activeProject?.csv_source_count ||
+    activeProject?.source_count ||
+    activeProject?.sources?.length ||
+    0
+  const sourceCount = modalidad === 'project' ? projectSourceCount : 1
+  const rowCount =
+    nSamplesParam ||
+    (modalidad === 'project'
+      ? activeProject?.total_rows
+      : modalidad === 'tabular'
+        ? datasetProfile?.n_rows
+        : parsePositiveInteger(nSamples, 2000)) ||
+    0
+  const rowBlocks = rowCount ? Math.ceil(rowCount / 10000) : 1
+  const methodCostMs = metodoReduccion === 'UMAP' ? 12000 : 7000
+  const estimatedMs = clamp(18000 + sourceCount * 6000 + rowBlocks * 5000 + methodCostMs, 35000, 240000)
+
+  return {
+    sourceCount,
+    rowCount,
+    metodoReduccion,
+    estimatedMs,
+  }
+}
+
+function buildAnalysisProgressSnapshot(context, elapsedMs) {
+  const rawPercent = 7 + (elapsedMs / context.estimatedMs) * 86
+  const percent = Math.round(clamp(rawPercent, 7, 94))
+  const currentStage = activeStageForPercent(percent)
+
+  return {
+    ...context,
+    percent,
+    label: currentStage.label,
+    detail:
+      currentStage.id === 'reduction'
+        ? `Aplicando ${context.metodoReduccion} y preparando coordenadas visuales.`
+        : currentStage.detail,
+    stages: ANALYSIS_STAGES.map((stage) => ({
+      id: stage.id,
+      label: stage.label,
+      status:
+        percent >= stage.doneAt
+          ? 'completed'
+          : stage.id === currentStage.id
+            ? 'current'
+            : 'pending',
+    })),
+  }
+}
+
 export function useDashboardPage() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -34,6 +156,7 @@ export function useDashboardPage() {
   const [projectRuns, setProjectRuns] = useState([])
   const [selectedRunIndex, setSelectedRunIndex] = useState(0)
   const [ejecutando, setEjecutando] = useState(false)
+  const [analysisProgress, setAnalysisProgress] = useState(null)
   const [resultado, setResultado] = useState(null)
   const [lastRun, setLastRun] = useState(null)
   const [error, setError] = useState(null)
@@ -46,6 +169,7 @@ export function useDashboardPage() {
   const [chatForceOpen, setChatForceOpen] = useState(false)
   const [chatExternalPrompt, setChatExternalPrompt] = useState(null)
   const resultsPanelRef = useRef(null)
+  const analysisProgressTimerRef = useRef(null)
 
   const analysisStatusMessage = useMemo(
     () =>
@@ -56,6 +180,11 @@ export function useDashboardPage() {
       }),
     [modalidad, datasetProfile, activeProject],
   )
+
+  const analysisFeedbackMessage = useMemo(() => {
+    if (!analysisProgress) return analysisStatusMessage
+    return `${analysisProgress.percent}% estimado - ${analysisProgress.label}. ${analysisStatusMessage}`
+  }, [analysisProgress, analysisStatusMessage])
 
   const loadActiveProject = useCallback(async (projectId) => {
     if (!projectId) {
@@ -220,6 +349,29 @@ export function useDashboardPage() {
     setShowOnboarding(false)
   }, [])
 
+  const clearAnalysisProgressTimer = useCallback(() => {
+    if (analysisProgressTimerRef.current) {
+      window.clearInterval(analysisProgressTimerRef.current)
+      analysisProgressTimerRef.current = null
+    }
+  }, [])
+
+  const stopAnalysisProgress = useCallback(() => {
+    clearAnalysisProgressTimer()
+    setAnalysisProgress(null)
+  }, [clearAnalysisProgressTimer])
+
+  const startAnalysisProgress = useCallback((context) => {
+    clearAnalysisProgressTimer()
+    const startedAt = Date.now()
+    setAnalysisProgress(buildAnalysisProgressSnapshot(context, 0))
+    analysisProgressTimerRef.current = window.setInterval(() => {
+      setAnalysisProgress(buildAnalysisProgressSnapshot(context, Date.now() - startedAt))
+    }, 1000)
+  }, [clearAnalysisProgressTimer])
+
+  useEffect(() => () => clearAnalysisProgressTimer(), [clearAnalysisProgressTimer])
+
   const ejecutarPipeline = useCallback(async () => {
     setPrepareDialogOpen(false)
     setEjecutando(true)
@@ -243,6 +395,16 @@ export function useDashboardPage() {
       }
       nSamplesParam = nSamplesNum
     }
+    startAnalysisProgress(
+      buildAnalysisProgressContext({
+        modalidad,
+        datasetProfile,
+        activeProject,
+        metodoReduccion,
+        nSamples,
+        nSamplesParam,
+      }),
+    )
 
     try {
       if (modalidad === 'project') {
@@ -286,6 +448,7 @@ export function useDashboardPage() {
       throw err
     } finally {
       setEjecutando(false)
+      stopAnalysisProgress()
     }
   }, [
     activeProject,
@@ -298,6 +461,8 @@ export function useDashboardPage() {
     scenarioDescription,
     scenarioName,
     seed,
+    startAnalysisProgress,
+    stopAnalysisProgress,
   ])
 
   const clearDataset = useCallback(() => {
@@ -349,6 +514,8 @@ export function useDashboardPage() {
     chatExternalPrompt,
     resultsPanelRef,
     analysisStatusMessage,
+    analysisFeedbackMessage,
+    analysisProgress,
     handleModalidadChange,
     handleProjectSaved,
     onFileChange,
