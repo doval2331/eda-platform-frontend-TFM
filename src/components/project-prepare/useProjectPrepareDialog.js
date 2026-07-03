@@ -5,6 +5,7 @@ import {
   removeProjectSource,
   updateProject,
   uploadProjectSource,
+  waitForProjectSourceUploadJob,
 } from '@/api/projects'
 import { REDUCTION_OPTIONS } from '@/utils/businessLabels'
 import {
@@ -48,7 +49,6 @@ export function useProjectPrepareDialog({
   const [uploadProgress, setUploadProgress] = useState(null)
   const wasOpenRef = useRef(false)
   const uploadingTypeRef = useRef(null)
-  uploadingTypeRef.current = uploadingType
 
   const csvCount = useMemo(
     () => (project?.sources ?? []).filter((s) => isTabularSource(s)).length,
@@ -123,6 +123,10 @@ export function useProjectPrepareDialog({
       setLoading(false)
     }
   }, [])
+
+  useEffect(() => {
+    uploadingTypeRef.current = uploadingType
+  }, [uploadingType])
 
   useEffect(() => {
     if (!open) {
@@ -232,7 +236,59 @@ export function useProjectPrepareDialog({
         const sourceType = resolveSourceTypeSelection(newSourceType, file)
         const sourceName =
           total === 1 ? newSourceName || defaultSourceName(file) : defaultSourceName(file)
-        latestDetail = await uploadProjectSource(current.id, sourceType, file, sourceName)
+        const baseProgress = {
+          current: index + 1,
+          total,
+          filename: file.name,
+          phase: 'uploading',
+          message: 'Subiendo archivo...',
+          loadedBytes: 0,
+          totalBytes: file.size || null,
+        }
+        setUploadProgress(baseProgress)
+        const uploadJob = await uploadProjectSource(current.id, sourceType, file, sourceName, {
+          onUploadProgress: (progress) => {
+            setUploadProgress({
+              ...baseProgress,
+              loadedBytes: progress.loaded,
+              totalBytes: progress.total || file.size || null,
+              percent: progress.percent,
+              message:
+                progress.percent != null
+                  ? `Subiendo archivo (${progress.percent}%)`
+                  : 'Subiendo archivo...',
+            })
+          },
+        })
+        setUploadProgress({
+          ...baseProgress,
+          phase: uploadJob.status,
+          jobId: uploadJob.job_id,
+          loadedBytes: file.size || null,
+          totalBytes: file.size || null,
+          percent: 100,
+          message: uploadJob.message || 'Archivo recibido. Procesando...',
+        })
+        const completedJob =
+          uploadJob.status === 'completed'
+            ? uploadJob
+            : await waitForProjectSourceUploadJob(current.id, uploadJob.job_id, {
+                onUpdate: (job) => {
+                  setUploadProgress({
+                    ...baseProgress,
+                    phase: job.status,
+                    jobId: job.job_id,
+                    loadedBytes: file.size || null,
+                    totalBytes: file.size || null,
+                    percent: 100,
+                    message: job.message || 'Procesando archivo...',
+                  })
+                },
+              })
+        latestDetail = completedJob.project
+        if (!latestDetail) {
+          latestDetail = await fetchProject(current.id)
+        }
         pendingFiles = pendingFiles.slice(1)
         setNewSourceFiles(pendingFiles)
         setProject(latestDetail)

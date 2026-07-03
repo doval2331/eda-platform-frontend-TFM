@@ -1,5 +1,62 @@
-import { apiRequest } from './apiClient'
+import { ApiHttpError, apiRequest, getStoredToken } from './apiClient'
 import { validateProjectSourceFile } from '@/utils/csvUpload'
+
+const API_BASE = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_BASE ?? '')
+
+function delay(ms) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms)
+  })
+}
+
+function parseJsonResponse(text) {
+  if (!text) return null
+  try {
+    return JSON.parse(text)
+  } catch {
+    return { detail: text }
+  }
+}
+
+function uploadFormData(path, form, { onUploadProgress } = {}) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', `${API_BASE}${path}`)
+    const token = getStoredToken()
+    if (token) {
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+    }
+    xhr.upload.onprogress = (event) => {
+      if (!onUploadProgress) return
+      onUploadProgress({
+        loaded: event.loaded,
+        total: event.lengthComputable ? event.total : null,
+        percent:
+          event.lengthComputable && event.total
+            ? Math.round((event.loaded / event.total) * 100)
+            : null,
+      })
+    }
+    xhr.onload = () => {
+      const data = parseJsonResponse(xhr.responseText)
+      if (xhr.status < 200 || xhr.status >= 300) {
+        const detail = data?.detail
+        const message =
+          typeof detail === 'string'
+            ? detail
+            : Array.isArray(detail)
+              ? detail.map((e) => e.msg ?? JSON.stringify(e)).join('; ')
+              : `Error del servidor (${xhr.status})`
+        reject(new ApiHttpError(xhr.status, message, data))
+        return
+      }
+      resolve(data)
+    }
+    xhr.onerror = () => reject(new Error('No se pudo subir el archivo'))
+    xhr.onabort = () => reject(new Error('Carga cancelada'))
+    xhr.send(form)
+  })
+}
 
 export async function createProject({ name, description = '', strategy = 'per_source' }) {
   return apiRequest('/api/projects', {
@@ -25,7 +82,13 @@ export async function updateProject(projectId, patch) {
   })
 }
 
-export async function uploadProjectSource(projectId, sourceType, file, sourceName = '') {
+export async function uploadProjectSource(
+  projectId,
+  sourceType,
+  file,
+  sourceName = '',
+  options = {},
+) {
   const validation = validateProjectSourceFile(file, sourceType)
   if (!validation.ok) {
     throw new Error(validation.message)
@@ -37,11 +100,29 @@ export async function uploadProjectSource(projectId, sourceType, file, sourceNam
     form.append('source_name', sourceName.trim())
   }
   const query = new URLSearchParams({ source_type: sourceType })
-  return apiRequest(`/api/projects/${projectId}/sources?${query}`, {
-    method: 'POST',
-    body: form,
-    auth: true,
-  })
+  return uploadFormData(`/api/projects/${projectId}/sources?${query}`, form, options)
+}
+
+export async function fetchProjectSourceUploadJob(projectId, jobId) {
+  return apiRequest(`/api/projects/${projectId}/sources/jobs/${jobId}`, { auth: true })
+}
+
+export async function waitForProjectSourceUploadJob(
+  projectId,
+  jobId,
+  { intervalMs = 1500, timeoutMs = 20 * 60 * 1000, onUpdate } = {},
+) {
+  const startedAt = Date.now()
+  while (Date.now() - startedAt < timeoutMs) {
+    const job = await fetchProjectSourceUploadJob(projectId, jobId)
+    onUpdate?.(job)
+    if (job.status === 'completed') return job
+    if (job.status === 'failed') {
+      throw new Error(job.error || job.message || 'No se pudo procesar la fuente')
+    }
+    await delay(intervalMs)
+  }
+  throw new Error('La carga sigue procesando luego del tiempo máximo de espera.')
 }
 
 export async function removeProjectSource(projectId, sourceId) {
