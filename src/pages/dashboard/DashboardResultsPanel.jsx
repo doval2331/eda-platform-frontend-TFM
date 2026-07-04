@@ -1,6 +1,7 @@
 import PropTypes from 'prop-types'
 import { Link } from 'react-router-dom'
 import { Scatter2D } from '@/Scatter2D'
+import { useLazyTabs } from '@/hooks/useLazyTabs'
 import { AgentAnalysisPanel } from '@/components/agent'
 import { ClusterInterpretationPanel } from '@/components/ClusterInterpretationPanel'
 import { Button, Card, Feedback, LoadingSlot, ResultsTabs } from '@/ui'
