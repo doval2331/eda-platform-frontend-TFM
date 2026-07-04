@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Checkbox, CircularProgress, IconButton, LinearProgress, Tooltip } from '@mui/material'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
@@ -52,27 +53,6 @@ export function HistoryPage() {
   const [batchDeleteProgress, setBatchDeleteProgress] = useState(null)
   const [selectedRunIds, setSelectedRunIds] = useState(() => new Set())
   const [confirmState, setConfirmState] = useState(null)
-
-  const loadList = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const data = await listRuns(50)
-      setRuns(data)
-      setSelectedRunIds(new Set())
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo cargar el historial')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      loadList()
-    }, 0)
-    return () => window.clearTimeout(timer)
-  }, [loadList])
 
   useEffect(() => {
     const deletedMessage = location.state?.deletedMessage
@@ -151,7 +131,9 @@ export function HistoryPage() {
     setMessage(null)
     try {
       const result = await deleteRun(run.id)
-      setRuns((current) => current.filter((item) => item.id !== run.id))
+      queryClient.setQueryData(runsListQueryKey(50), (current) =>
+        (current ?? []).filter((item) => item.id !== run.id),
+      )
       setSelectedRunIds((current) => {
         const next = new Set(current)
         next.delete(run.id)
@@ -186,7 +168,9 @@ export function HistoryPage() {
         await deleteRun(runId)
         deletedCount += 1
         deletedIds.add(runId)
-        setRuns((current) => current.filter((item) => item.id !== runId))
+        queryClient.setQueryData(runsListQueryKey(50), (current) =>
+          (current ?? []).filter((item) => item.id !== runId),
+        )
         setSelectedRunIds((current) => {
           const next = new Set(current)
           next.delete(runId)
@@ -226,7 +210,7 @@ export function HistoryPage() {
     setMessage(null)
     try {
       const result = await clearAllRuns()
-      setRuns([])
+      queryClient.setQueryData(runsListQueryKey(50), [])
       setSelectedRunIds(new Set())
       setMessage(result.message ?? `Se eliminaron ${result.deleted_runs} ejecuciones.`)
       setConfirmState(null)
