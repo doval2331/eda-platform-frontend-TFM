@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
-import { CircularProgress, IconButton, Tooltip } from '@mui/material'
+import { Checkbox, CircularProgress, IconButton, LinearProgress, Tooltip } from '@mui/material'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import '@/styles/history.css'
@@ -49,17 +48,57 @@ export function HistoryPage() {
   const [message, setMessage] = useState(null)
   const [clearing, setClearing] = useState(false)
   const [deletingRunId, setDeletingRunId] = useState(null)
+  const [batchDeleting, setBatchDeleting] = useState(false)
+  const [batchDeleteProgress, setBatchDeleteProgress] = useState(null)
+  const [selectedRunIds, setSelectedRunIds] = useState(() => new Set())
   const [confirmState, setConfirmState] = useState(null)
+
+  const loadList = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const data = await listRuns(50)
+      setRuns(data)
+      setSelectedRunIds(new Set())
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo cargar el historial')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      loadList()
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [loadList])
 
   useEffect(() => {
     const deletedMessage = location.state?.deletedMessage
     if (!deletedMessage) return
-    setMessage(deletedMessage)
-    navigate(location.pathname, { replace: true, state: null })
+    const timer = window.setTimeout(() => {
+      setMessage(deletedMessage)
+      navigate(location.pathname, { replace: true, state: null })
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [location.pathname, location.state, navigate])
 
-  const confirmBusy = Boolean(clearing || deletingRunId)
+  const selectedRuns = runs.filter((run) => selectedRunIds.has(run.id))
+  const selectedCount = selectedRuns.length
+  const allVisibleSelected = runs.length > 0 && selectedCount === runs.length
+  const someVisibleSelected = selectedCount > 0 && selectedCount < runs.length
+  const confirmBusy = Boolean(clearing || deletingRunId || batchDeleting)
   const pendingRun = confirmState?.type === 'single' ? confirmState.run : null
+  const pendingSelectedCount = confirmState?.type === 'selected' ? confirmState.runIds.length : 0
+  const batchDeletePercent =
+    batchDeleteProgress?.total > 0
+      ? Math.round((batchDeleteProgress.completed / batchDeleteProgress.total) * 100)
+      : 0
+  const batchDeleteLabel =
+    batchDeleting && batchDeleteProgress
+      ? `Eliminando ${batchDeleteProgress.completed}/${batchDeleteProgress.total}...`
+      : `Eliminar seleccionadas (${selectedCount})`
 
   function openRun(runId) {
     navigate(`/historial/${runId}`)
@@ -74,8 +113,33 @@ export function HistoryPage() {
     setConfirmState({ type: 'single', run })
   }
 
+  function requestDeleteSelectedRuns() {
+    if (!selectedCount) return
+    setConfirmState({ type: 'selected', runIds: selectedRuns.map((run) => run.id) })
+  }
+
   function requestClearHistory() {
     setConfirmState({ type: 'all' })
+  }
+
+  function toggleRunSelection(runId) {
+    setSelectedRunIds((current) => {
+      const next = new Set(current)
+      if (next.has(runId)) {
+        next.delete(runId)
+      } else {
+        next.add(runId)
+      }
+      return next
+    })
+  }
+
+  function toggleAllVisible() {
+    setSelectedRunIds((current) => {
+      if (runs.length === 0) return new Set()
+      const allSelected = runs.every((run) => current.has(run.id))
+      return allSelected ? new Set() : new Set(runs.map((run) => run.id))
+    })
   }
 
   async function confirmDeleteRun() {
@@ -87,7 +151,12 @@ export function HistoryPage() {
     setMessage(null)
     try {
       const result = await deleteRun(run.id)
-      await queryClient.invalidateQueries({ queryKey: runsListQueryKey(50) })
+      setRuns((current) => current.filter((item) => item.id !== run.id))
+      setSelectedRunIds((current) => {
+        const next = new Set(current)
+        next.delete(run.id)
+        return next
+      })
       setMessage(result.message ?? 'Ejecución eliminada.')
       setConfirmState(null)
     } catch (err) {
@@ -97,13 +166,68 @@ export function HistoryPage() {
     }
   }
 
+  async function confirmDeleteSelectedRuns() {
+    const runIds = confirmState?.type === 'selected' ? confirmState.runIds : []
+    if (!runIds.length) return
+
+    setBatchDeleting(true)
+    setBatchDeleteProgress({ completed: 0, total: runIds.length, current: 1 })
+    setError(null)
+    setMessage(null)
+    const deletedIds = new Set()
+    let deletedCount = 0
+    try {
+      for (const [index, runId] of runIds.entries()) {
+        setBatchDeleteProgress({
+          completed: deletedCount,
+          total: runIds.length,
+          current: index + 1,
+        })
+        await deleteRun(runId)
+        deletedCount += 1
+        deletedIds.add(runId)
+        setRuns((current) => current.filter((item) => item.id !== runId))
+        setSelectedRunIds((current) => {
+          const next = new Set(current)
+          next.delete(runId)
+          return next
+        })
+        setBatchDeleteProgress({
+          completed: deletedCount,
+          total: runIds.length,
+          current: Math.min(index + 2, runIds.length),
+        })
+      }
+      setSelectedRunIds(new Set())
+      setMessage(`Se eliminaron ${deletedCount} ejecuciones del historial.`)
+      setConfirmState(null)
+    } catch (err) {
+      if (deletedCount > 0) {
+        setConfirmState((current) =>
+          current?.type === 'selected'
+            ? { ...current, runIds: current.runIds.filter((runId) => !deletedIds.has(runId)) }
+            : current,
+        )
+      }
+      const fallbackMessage =
+        deletedCount > 0
+          ? `Se eliminaron ${deletedCount} de ${runIds.length} ejecuciones, pero hubo un error en el resto.`
+          : 'No se pudieron eliminar las ejecuciones'
+      setError(err instanceof Error ? `${fallbackMessage} ${err.message}` : fallbackMessage)
+    } finally {
+      setBatchDeleting(false)
+      setBatchDeleteProgress(null)
+    }
+  }
+
   async function confirmClearHistory() {
     setClearing(true)
     setError(null)
     setMessage(null)
     try {
       const result = await clearAllRuns()
-      await queryClient.invalidateQueries({ queryKey: runsListQueryKey(50) })
+      setRuns([])
+      setSelectedRunIds(new Set())
       setMessage(result.message ?? `Se eliminaron ${result.deleted_runs} ejecuciones.`)
       setConfirmState(null)
     } catch (err) {
@@ -121,6 +245,15 @@ export function HistoryPage() {
         title="Historial de ejecuciones"
         rightSlot={
           <div className="history-page-actions">
+            <Button
+              type="button"
+              variant="secondary"
+              className="btn-danger"
+              onClick={requestDeleteSelectedRuns}
+              disabled={loading || confirmBusy || selectedCount === 0}
+            >
+              {batchDeleteLabel}
+            </Button>
             <Button
               type="button"
               variant="secondary"
@@ -155,6 +288,16 @@ export function HistoryPage() {
               <DataTableTable>
                 <thead>
                   <tr>
+                    <th className="history-select-cell">
+                      <Checkbox
+                        size="small"
+                        checked={allVisibleSelected}
+                        indeterminate={someVisibleSelected}
+                        onChange={toggleAllVisible}
+                        inputProps={{ 'aria-label': 'Seleccionar todas las ejecuciones visibles' }}
+                        disabled={confirmBusy}
+                      />
+                    </th>
                     <th>Fecha</th>
                     <th>Escenario</th>
                     <th>Fuente</th>
@@ -163,12 +306,43 @@ export function HistoryPage() {
                     <th>Clusters</th>
                     <th>Silhouette</th>
                     <th>Outliers</th>
-                    <th aria-label="Acciones" />
+                    <th className="history-actions-head" aria-label="Acciones">
+                      <Tooltip title="Eliminar seleccionadas">
+                        <span>
+                          <IconButton
+                            type="button"
+                            size="small"
+                            className="history-row-action-btn history-row-action-btn--danger"
+                            onClick={requestDeleteSelectedRuns}
+                            disabled={confirmBusy || selectedCount === 0}
+                            aria-label="Eliminar ejecuciones seleccionadas"
+                          >
+                            {batchDeleting ? (
+                              <CircularProgress size={18} color="inherit" />
+                            ) : (
+                              <DeleteOutlineIcon fontSize="small" />
+                            )}
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {runs.map((run) => (
-                    <tr key={run.id}>
+                    <tr
+                      key={run.id}
+                      className={selectedRunIds.has(run.id) ? 'history-row--selected' : ''}
+                    >
+                      <td className="history-select-cell">
+                        <Checkbox
+                          size="small"
+                          checked={selectedRunIds.has(run.id)}
+                          onChange={() => toggleRunSelection(run.id)}
+                          inputProps={{ 'aria-label': `Seleccionar ejecucion ${run.id}` }}
+                          disabled={confirmBusy}
+                        />
+                      </td>
                       <td>{formatDate(run.created_at)}</td>
                       <td>{runLabel(run)}</td>
                       <td>
@@ -244,6 +418,41 @@ export function HistoryPage() {
               Se borrarán resultados, evidencias, agentes e insights asociados.
             </p>
           </>
+        ) : null}
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={confirmState?.type === 'selected'}
+        onClose={closeConfirm}
+        title="Eliminar ejecuciones seleccionadas"
+        description="Esta accion no se puede deshacer."
+        confirmLabel="Eliminar seleccionadas"
+        cancelLabel="Cancelar"
+        danger
+        busy={confirmBusy}
+        onConfirm={confirmDeleteSelectedRuns}
+      >
+        <p>{`Seguro que quieres eliminar ${pendingSelectedCount} ejecuciones del historial?`}</p>
+        <p className="note">
+          Se borraran resultados, evidencias, agentes e insights asociados a cada ejecucion.
+        </p>
+        {batchDeleting && batchDeleteProgress ? (
+          <div className="history-delete-progress" role="status" aria-live="polite">
+            <div className="history-delete-progress__header">
+              <span>Eliminando ejecuciones...</span>
+              <strong>{`${batchDeleteProgress.completed} de ${batchDeleteProgress.total}`}</strong>
+            </div>
+            <LinearProgress
+              variant="determinate"
+              value={batchDeletePercent}
+              className="history-delete-progress__bar"
+            />
+            <p className="note">
+              {batchDeleteProgress.completed === batchDeleteProgress.total
+                ? 'Finalizando borrado y actualizando el historial.'
+                : `Procesando ejecucion ${batchDeleteProgress.current} de ${batchDeleteProgress.total}.`}
+            </p>
+          </div>
         ) : null}
       </ConfirmDialog>
 

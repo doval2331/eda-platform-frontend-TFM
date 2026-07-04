@@ -119,6 +119,20 @@
   align-items: center;
 }
 
+.history-actions-head {
+  text-align: right;
+}
+
+.history-row--selected {
+  background: color-mix(in srgb, var(--color-electric-violet, #533afd) 8%, #fff 92%);
+}
+
+.history-select-cell {
+  width: 48px;
+  min-width: 48px;
+  text-align: center;
+}
+
 .history-row-action-btn {
   border: 1px solid #e2e8f0;
   border-radius: 8px;
@@ -135,6 +149,39 @@
   background: #fef2f2;
   border-color: #fecaca;
   color: #b91c1c;
+}
+
+.history-delete-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border-subtle, #dbe3f0);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-ice-veil, #e0f6ff) 30%, #fff 70%);
+}
+
+.history-delete-progress__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+  color: var(--color-midnight-navy, #1b2540);
+}
+
+.history-delete-progress__header strong {
+  white-space: nowrap;
+  color: var(--color-deep-violet, #533afd);
+}
+
+.history-delete-progress__bar {
+  height: 7px;
+  border-radius: 999px;
+}
+
+.history-delete-progress__bar .MuiLinearProgress-bar {
+  border-radius: 999px;
 }
 
 .btn-danger {

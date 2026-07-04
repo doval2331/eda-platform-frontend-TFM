@@ -3,9 +3,9 @@ import { Link } from 'react-router-dom'
 import { Scatter2D } from '@/Scatter2D'
 import { AgentAnalysisPanel } from '@/components/agent'
 import { ClusterInterpretationPanel } from '@/components/ClusterInterpretationPanel'
-import { useLazyTabs } from '@/hooks/useLazyTabs'
-import { Button, Card, Feedback, LoadingPanel, LoadingSlot, ResultsTabs } from '@/ui'
+import { Button, Card, Feedback, LoadingSlot, ResultsTabs } from '@/ui'
 import { sourceTypeLabel } from '@/utils/projectLabels'
+import { AnalysisProgressPanel } from './AnalysisProgressPanel'
 
 export function DashboardResultsPanel({
   resultsPanelRef,
@@ -14,6 +14,8 @@ export function DashboardResultsPanel({
   resultado,
   projectRuns,
   selectedRunIndex,
+  analysisProgress,
+  analysisStatusMessage,
   resultView,
   activeProjectId,
   onResultViewChange,
@@ -72,7 +74,10 @@ export function DashboardResultsPanel({
 
         {ejecutando ? (
           <LoadingSlot variant="chart">
-            <LoadingPanel bare compact title="Analizando incidencias…" />
+            <AnalysisProgressPanel
+              progress={analysisProgress}
+              statusMessage={analysisStatusMessage}
+            />
           </LoadingSlot>
         ) : (
           <>
@@ -127,6 +132,8 @@ DashboardResultsPanel.propTypes = {
   resultado: PropTypes.object,
   projectRuns: PropTypes.array,
   selectedRunIndex: PropTypes.number,
+  analysisProgress: PropTypes.object,
+  analysisStatusMessage: PropTypes.string,
   resultView: PropTypes.string,
   activeProjectId: PropTypes.string,
   onResultViewChange: PropTypes.func.isRequired,

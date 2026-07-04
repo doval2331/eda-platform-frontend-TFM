@@ -141,15 +141,21 @@ export function PrepareProjectSection({
               title="Cargando dataset…"
               description={
                 uploadProgress
-                  ? `Procesando ${uploadProgress.filename} (${uploadProgress.current} de ${uploadProgress.total})`
+                  ? `${uploadProgress.message || 'Procesando archivo…'} ${
+                      uploadProgress.filename ? `(${uploadProgress.filename})` : ''
+                    }`
                   : 'Subiendo y analizando el archivo…'
               }
             />
-            {uploadProgress && uploadProgress.total > 1 ? (
+            {uploadProgress ? (
               <UploadProgressBar
                 current={uploadProgress.current}
                 total={uploadProgress.total}
                 filename={uploadProgress.filename}
+                phase={uploadProgress.phase}
+                percent={uploadProgress.percent}
+                loadedBytes={uploadProgress.loadedBytes}
+                totalBytes={uploadProgress.totalBytes}
               />
             ) : null}
           </div>

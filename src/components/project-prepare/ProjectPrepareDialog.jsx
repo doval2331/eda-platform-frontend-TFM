@@ -21,6 +21,8 @@ export function ProjectPrepareDialog({
   onSeedChange,
   nSamples,
   onNSamplesChange,
+  pipelineTuning,
+  onPipelineTuningChange,
   advancedMode,
   onAdvancedModeChange,
   canExecute,
@@ -149,6 +151,8 @@ export function ProjectPrepareDialog({
             onSeedChange={onSeedChange}
             nSamples={nSamples}
             onNSamplesChange={onNSamplesChange}
+            pipelineTuning={pipelineTuning}
+            onPipelineTuningChange={onPipelineTuningChange}
             rowCountHint={state.rowCountHint}
             apiOnline={apiOnline}
           />

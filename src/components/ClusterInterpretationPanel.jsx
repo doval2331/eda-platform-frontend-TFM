@@ -1,10 +1,13 @@
 import { useMemo, useState } from 'react'
-import { Box, IconButton, Stack, Tooltip, Typography } from '@mui/material'
+import { IconButton, Stack, Tooltip, Typography } from '@mui/material'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
-import { selectRunInsight } from '@/api/conversation'
-import { insightSavedMessage } from '@/utils/biFlow'
+import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined'
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
+import { selectRunInsight, selectRunInsights } from '@/api/conversation'
+import { insightSavedMessage, insightsSavedMessage } from '@/utils/biFlow'
 import {
   AlertBanner,
+  Button,
   ClusterInsightCard,
   ClusterInsightDetailDialog,
   Feedback,
@@ -519,9 +522,14 @@ function fullDetailMetrics(summary, activeCriterion) {
   return metrics
 }
 
+function summaryInsightId(runId, summary) {
+  if (!runId || !summary) return ''
+  return `cluster-${runId}-${summary.clusterLabel}`
+}
+
 function insightFromSummary(runId, summary) {
   return {
-    id: `cluster-${runId}-${summary.clusterLabel}`,
+    id: summaryInsightId(runId, summary),
     title: summary.name ?? summary.shortTitle,
     description: summary.recommendation,
     metric_label: summary.activeCriterion?.shortLabel ?? 'cluster_score',
@@ -533,13 +541,17 @@ function insightFromSummary(runId, summary) {
 }
 
 export function ClusterInterpretationPanel({ result, run, loading = false }) {
+  const runId = run?.id ?? ''
   const [filter, setFilter] = useState('auto')
   const [selectedIds, setSelectedIds] = useState(new Set())
+  const [checkedIds, setCheckedIds] = useState(new Set())
   const [detailSummary, setDetailSummary] = useState(null)
   const [message, setMessage] = useState(null)
   const [error, setError] = useState(null)
+  const [profilesVisible, setProfilesVisible] = useState(true)
+  const [bulkSaving, setBulkSaving] = useState(false)
 
-  const metadata = result?.metadata ?? []
+  const metadata = useMemo(() => result?.metadata ?? [], [result])
   const catalog = useMemo(() => collectFieldCatalog(metadata), [metadata])
   const summaries = useMemo(() => buildSummaries(result, catalog), [result, catalog])
   const criteria = useMemo(() => buildCriteria(summaries, catalog), [summaries, catalog])
@@ -574,20 +586,111 @@ export function ClusterInterpretationPanel({ result, run, loading = false }) {
   }, [activeCriterion, criteria, summaries])
 
   const top = ranked[0]
+  const visibleSummaries = ranked.slice(0, 5)
+  const availableVisibleIds = runId
+    ? visibleSummaries
+        .map((summary) => summaryInsightId(runId, summary))
+        .filter((id) => id && !selectedIds.has(id))
+    : []
+  const checkedCurrentIds = runId
+    ? ranked
+        .map((summary) => summaryInsightId(runId, summary))
+        .filter((id) => id && checkedIds.has(id) && !selectedIds.has(id))
+    : []
+  const checkedCount = checkedCurrentIds.length
+  const allVisibleChecked =
+    availableVisibleIds.length > 0 && availableVisibleIds.every((id) => checkedIds.has(id))
+
+  function handleFilterChange(nextFilter) {
+    setFilter(nextFilter)
+    setCheckedIds(new Set())
+  }
+
+  function toggleClusterSelection(summary) {
+    if (!runId) {
+      setError('Ejecuta y guarda una corrida antes de seleccionar grupos.')
+      return
+    }
+    const id = summaryInsightId(runId, summary)
+    if (!id || selectedIds.has(id)) return
+    setCheckedIds((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleVisibleSelection() {
+    if (!runId) {
+      setError('Ejecuta y guarda una corrida antes de seleccionar grupos.')
+      return
+    }
+    if (!availableVisibleIds.length) return
+    setCheckedIds((current) => {
+      const next = new Set(current)
+      if (availableVisibleIds.every((id) => next.has(id))) {
+        availableVisibleIds.forEach((id) => next.delete(id))
+      } else {
+        availableVisibleIds.forEach((id) => next.add(id))
+      }
+      return next
+    })
+  }
 
   async function addCluster(summary) {
-    if (!run?.id) {
+    if (!runId) {
       setError('Ejecuta y guarda una corrida antes de agregar clusters al dashboard.')
       return
     }
-    const insight = insightFromSummary(run.id, summary)
+    const insight = insightFromSummary(runId, summary)
     try {
-      await selectRunInsight(run.id, insight)
+      await selectRunInsight(runId, insight)
       setSelectedIds((current) => new Set([...current, insight.id]))
+      setCheckedIds((current) => {
+        const next = new Set(current)
+        next.delete(insight.id)
+        return next
+      })
       setMessage(insightSavedMessage(summary.shortTitle))
       setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar el cluster')
+    }
+  }
+
+  async function addSelectedClusters() {
+    if (!runId) {
+      setError('Ejecuta y guarda una corrida antes de agregar grupos al dashboard.')
+      return
+    }
+    const pending = ranked.filter((summary) => {
+      const id = summaryInsightId(runId, summary)
+      return id && checkedIds.has(id) && !selectedIds.has(id)
+    })
+    if (!pending.length) {
+      setMessage('Los grupos seleccionados ya estaban agregados al dashboard.')
+      setCheckedIds(new Set())
+      return
+    }
+
+    setBulkSaving(true)
+    setError(null)
+    try {
+      const insights = pending.map((summary) => insightFromSummary(runId, summary))
+      const response = await selectRunInsights(runId, insights)
+      const savedIds = insights.map((insight) => insight.id)
+      setSelectedIds((current) => new Set([...current, ...savedIds]))
+      setCheckedIds((current) => {
+        const next = new Set(current)
+        savedIds.forEach((id) => next.delete(id))
+        return next
+      })
+      setMessage(insightsSavedMessage(response?.saved ?? savedIds.length))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudieron guardar los grupos seleccionados')
+    } finally {
+      setBulkSaving(false)
     }
   }
 
@@ -625,8 +728,29 @@ export function ClusterInterpretationPanel({ result, run, loading = false }) {
             </IconButton>
           </Tooltip>
         </Stack>
+        <Tooltip
+          title={profilesVisible ? 'Ocultar lectura de grupos' : 'Mostrar lectura de grupos'}
+          arrow
+        >
+          <IconButton
+            size="small"
+            aria-label={profilesVisible ? 'Ocultar lectura de grupos' : 'Mostrar lectura de grupos'}
+            onClick={() => {
+              setProfilesVisible((visible) => !visible)
+              setDetailSummary(null)
+            }}
+          >
+            {profilesVisible ? (
+              <VisibilityOffOutlinedIcon fontSize="small" />
+            ) : (
+              <VisibilityOutlinedIcon fontSize="small" />
+            )}
+          </IconButton>
+        </Tooltip>
       </div>
 
+      {profilesVisible ? (
+        <>
       <Feedback
         open={Boolean(message)}
         variant="success"
@@ -657,14 +781,49 @@ export function ClusterInterpretationPanel({ result, run, loading = false }) {
           label: criterion.label,
         }))}
         value={activeFilter}
-        onChange={setFilter}
+        onChange={handleFilterChange}
         ariaLabel="Criterios dinámicos de grupos"
       />
 
+      <div className="cluster-insights-premium__bulk" role="group" aria-label="Seleccion multiple de grupos">
+        <div>
+          <strong>
+            {checkedCount > 0
+              ? `${checkedCount} grupo${checkedCount === 1 ? '' : 's'} seleccionado${checkedCount === 1 ? '' : 's'}`
+              : 'Seleccion multiple'}
+          </strong>
+          <span>
+            {checkedCount > 0
+              ? 'Agrega los grupos marcados al dashboard conversacional.'
+              : 'Marca algunos grupos o selecciona todos los visibles del criterio actual.'}
+          </span>
+        </div>
+        <div className="cluster-insights-premium__bulk-actions">
+          <Button
+            type="button"
+            variant="secondary"
+            size="small"
+            disabled={!runId || bulkSaving || availableVisibleIds.length === 0}
+            onClick={toggleVisibleSelection}
+          >
+            {allVisibleChecked ? 'Quitar visibles' : `Seleccionar visibles (${availableVisibleIds.length})`}
+          </Button>
+          <Button
+            type="button"
+            size="small"
+            disabled={!runId || bulkSaving || checkedCount === 0}
+            onClick={addSelectedClusters}
+          >
+            {bulkSaving ? 'Agregando...' : `Agregar seleccionados (${checkedCount})`}
+          </Button>
+        </div>
+      </div>
+
       <div className="cluster-insights-premium__list">
-        {ranked.slice(0, 5).map((summary) => {
-          const insightId = run?.id ? `cluster-${run.id}-${summary.clusterLabel}` : ''
+        {visibleSummaries.map((summary) => {
+          const insightId = summaryInsightId(runId, summary)
           const selected = selectedIds.has(insightId)
+          const checked = checkedIds.has(insightId)
           return (
             <ClusterInsightCard
               key={summary.clusterLabel}
@@ -673,9 +832,13 @@ export function ClusterInterpretationPanel({ result, run, loading = false }) {
               priority={summary.priority}
               score={summary.activeScore}
               metricChips={summary.metricChips}
+              selectable
+              selected={checked}
+              selectionDisabled={!runId || selected || bulkSaving}
+              onSelectChange={() => toggleClusterSelection(summary)}
               onViewDetail={() => setDetailSummary(summary)}
               actionLabel={selected ? 'Agregado' : 'Agregar al dashboard'}
-              actionDisabled={selected}
+              actionDisabled={selected || bulkSaving}
               onAction={() => addCluster(summary)}
             />
           )
@@ -695,7 +858,7 @@ export function ClusterInterpretationPanel({ result, run, loading = false }) {
         recommendation={detailSummary?.recommendation}
         metrics={detailSummary?.detailMetrics ?? []}
         onAddToDashboard={
-          detailSummary && run?.id
+          detailSummary && runId
             ? () => {
                 void addCluster(detailSummary)
                 setDetailSummary(null)
@@ -703,16 +866,18 @@ export function ClusterInterpretationPanel({ result, run, loading = false }) {
             : undefined
         }
         addDisabled={
-          detailSummary && run?.id
-            ? selectedIds.has(`cluster-${run.id}-${detailSummary.clusterLabel}`)
+          detailSummary && runId
+            ? selectedIds.has(summaryInsightId(runId, detailSummary))
             : false
         }
         addLabel={
-          detailSummary && run?.id && selectedIds.has(`cluster-${run.id}-${detailSummary.clusterLabel}`)
+          detailSummary && runId && selectedIds.has(summaryInsightId(runId, detailSummary))
             ? 'Agregado'
             : 'Agregar al dashboard'
         }
       />
+        </>
+      ) : null}
     </section>
   )
 }
