@@ -4,3 +4,4 @@ export { ConversationDashboardPage } from './conversation/ConversationDashboardP
 export { HistoryPage } from './history/HistoryPage'
 export { HistoryRunDetailPage } from './history/HistoryRunDetailPage'
 export { MetabasePage } from './metabase/MetabasePage'
+export { WorkspacePage } from './workspace'

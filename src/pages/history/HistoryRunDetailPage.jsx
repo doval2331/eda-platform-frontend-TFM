@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import '@/styles/app.css'
 import '@/styles/history.css'
-import { deleteRun, fetchRun } from '@/api/pipeline'
+import { deleteRun } from '@/api/pipeline'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { AnalysisFlowStrip, MetabaseFlowCTA, MetabaseFlowNextLink } from '@/components/bi'
 import { AgentAnalysisPanel } from '@/components/agent'
@@ -10,6 +11,8 @@ import { ClusterInterpretationPanel } from '@/components/ClusterInterpretationPa
 import { FloatingChatWidget } from '@/components/chat'
 import { RunKpis } from '@/components/RunKpis'
 import { Scatter2D } from '@/Scatter2D'
+import { useLazyTabs } from '@/hooks/useLazyTabs'
+import { runQueryKey, useRun } from '@/hooks/queries'
 import {
   Button,
   Card,
@@ -39,15 +42,25 @@ export function HistoryRunDetailPage() {
   const { runId } = useParams()
   const location = useLocation()
   const navigate = useNavigate()
-  const [run, setRun] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const queryClient = useQueryClient()
+  const { data: run, isLoading: loading, error: queryError } = useRun(runId)
+  const [actionError, setActionError] = useState(null)
   const [deleting, setDeleting] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [resultView, setResultView] = useState('interpretation')
   const [chatForceOpen, setChatForceOpen] = useState(false)
   const [chatExternalPrompt, setChatExternalPrompt] = useState(null)
   const consumedNavigationPromptRef = useRef('')
+
+  const { isVisited } = useLazyTabs(run ? resultView : null, run ? ['interpretation'] : [])
+
+  const error =
+    actionError ??
+    (queryError instanceof Error
+      ? queryError.message
+      : queryError
+        ? 'No se pudo cargar la ejecución'
+        : null)
 
   function handleOpenChatWithPrompt(prompt) {
     setChatExternalPrompt({ text: prompt, at: Date.now() })
@@ -112,9 +125,10 @@ export function HistoryRunDetailPage() {
   async function confirmDeleteRun() {
     if (!runId || !run) return
     setDeleting(true)
-    setError(null)
+    setActionError(null)
     try {
       const result = await deleteRun(runId)
+      queryClient.removeQueries({ queryKey: runQueryKey(runId) })
       navigate('/historial', {
         replace: true,
         state: {
@@ -123,7 +137,7 @@ export function HistoryRunDetailPage() {
         },
       })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo eliminar la ejecución')
+      setActionError(err instanceof Error ? err.message : 'No se pudo eliminar la ejecución')
     } finally {
       setDeleting(false)
       setDeleteConfirmOpen(false)
@@ -177,7 +191,7 @@ export function HistoryRunDetailPage() {
         open={Boolean(error)}
         variant="danger"
         message={error ?? ''}
-        onClose={() => setError(null)}
+        onClose={() => setActionError(null)}
         position="bottom-right"
       />
 
@@ -215,24 +229,34 @@ export function HistoryRunDetailPage() {
 
             <ResultsTabs value={resultView} onChange={setResultView} />
 
-            <div hidden={resultView !== 'interpretation'} className="results-tab-panel">
-              <ClusterInterpretationPanel result={run.result} run={run} />
-            </div>
+            {isVisited('interpretation') ? (
+              <div hidden={resultView !== 'interpretation'} className="results-tab-panel">
+                <ClusterInterpretationPanel result={run.result} run={run} />
+              </div>
+            ) : null}
 
-            <div hidden={resultView !== 'visualization'} className="results-tab-panel">
-              <Scatter2D
-                X_2d={run.result?.X_2d}
-                clusterLabels={run.result?.cluster_labels}
-                metadata={run.result?.metadata}
-              />
-              <p className="legend-note note">
-                Color = cluster HDBSCAN; gris = outlier (-1). Datos recuperados del historial.
-              </p>
-            </div>
+            {isVisited('visualization') ? (
+              <div hidden={resultView !== 'visualization'} className="results-tab-panel">
+                <Scatter2D
+                  X_2d={run.result?.X_2d}
+                  clusterLabels={run.result?.cluster_labels}
+                  metadata={run.result?.metadata}
+                />
+                <p className="legend-note note">
+                  Color = cluster HDBSCAN; gris = outlier (-1). Datos recuperados del historial.
+                </p>
+              </div>
+            ) : null}
 
-            <div hidden={resultView !== 'agents'} className="results-tab-panel">
-              <AgentAnalysisPanel run={run} onOpenChatWithPrompt={handleOpenChatWithPrompt} />
-            </div>
+            {isVisited('agents') ? (
+              <div hidden={resultView !== 'agents'} className="results-tab-panel">
+                <AgentAnalysisPanel
+                  run={run}
+                  enabled={resultView === 'agents'}
+                  onOpenChatWithPrompt={handleOpenChatWithPrompt}
+                />
+              </div>
+            ) : null}
           </Card>
 
           <p className="history-detail-back">

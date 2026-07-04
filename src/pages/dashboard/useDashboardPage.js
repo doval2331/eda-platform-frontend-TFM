@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { uploadDataset } from '@/api/datasets'
 import { executeProjectRuns, fetchProject } from '@/api/projects'
@@ -199,9 +200,10 @@ function buildAnalysisProgressSnapshot(context, elapsedMs) {
   }
 }
 
-export function useDashboardPage() {
+export function useDashboardPage({ onRunStateChange } = {}) {
   const location = useLocation()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [modalidad, setModalidad] = useState('it_ops')
   const [metodoReduccion, setMetodoReduccion] = useState('UMAP')
   const [seed, setSeed] = useState('42')
@@ -351,6 +353,14 @@ export function useDashboardPage() {
     setChatExternalPrompt(null)
     setChatForceOpen(false)
   }, [])
+
+  useEffect(() => {
+    onRunStateChange?.({
+      hasResults: Boolean(resultado && lastRun?.id),
+      runId: lastRun?.id,
+      isNewRun: false,
+    })
+  }, [resultado, lastRun?.id, onRunStateChange])
 
   const handleModalidadChange = useCallback((value) => {
     setModalidad(value)
@@ -540,6 +550,12 @@ export function useDashboardPage() {
         setResultado(selected?.result ?? primary?.result ?? null)
         setLastRun(selected?.result ? selected : primary)
         setResultView('interpretation')
+        onRunStateChange?.({
+          hasResults: true,
+          runId: primary.id,
+          isNewRun: true,
+        })
+        void queryClient.invalidateQueries({ queryKey: runsListQueryKey(50) })
       } else {
         if (modalidad === 'tabular') {
           saveTabularScenario({ name: scenarioName, description: scenarioDescription })
@@ -559,6 +575,12 @@ export function useDashboardPage() {
         setResultado(result)
         setLastRun(run)
         setResultView('interpretation')
+        onRunStateChange?.({
+          hasResults: true,
+          runId: run.id,
+          isNewRun: true,
+        })
+        void queryClient.invalidateQueries({ queryKey: runsListQueryKey(50) })
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al analizar las incidencias')

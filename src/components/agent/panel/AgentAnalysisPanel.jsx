@@ -12,9 +12,9 @@ import { AgentNextStepHint } from './AgentNextStepHint'
 import { useAgentAnalysisPanel } from './useAgentAnalysisPanel'
 import '@/styles/llm-visual.css'
 
-export function AgentAnalysisPanel({ run, onOpenChatWithPrompt }) {
+export function AgentAnalysisPanel({ run, onOpenChatWithPrompt, enabled = true }) {
   const runId = run?.id
-  const panel = useAgentAnalysisPanel(runId, onOpenChatWithPrompt)
+  const panel = useAgentAnalysisPanel(runId, onOpenChatWithPrompt, { enabled })
 
   if (!runId) {
     return (
@@ -246,4 +246,5 @@ AgentAnalysisPanel.propTypes = {
     id: PropTypes.string,
   }),
   onOpenChatWithPrompt: PropTypes.func,
+  enabled: PropTypes.bool,
 }

@@ -23,6 +23,11 @@ export function DashboardResultsPanel({
   onOpenPrepare,
   onOpenChatWithPrompt,
 }) {
+  const { isVisited } = useLazyTabs(
+    resultado ? resultView : null,
+    resultado ? ['interpretation'] : [],
+  )
+
   return (
     <div className="app-main app-main--results-only" ref={resultsPanelRef}>
       <Card className={`panel-results${ejecutando ? ' panel-results--loading' : ''}`}>
@@ -83,29 +88,36 @@ export function DashboardResultsPanel({
               />
             ) : null}
 
-            <div hidden={resultView !== 'interpretation'} className="results-tab-panel">
-              <ClusterInterpretationPanel result={resultado} run={lastRun} />
-            </div>
+            {isVisited('interpretation') ? (
+              <div hidden={resultView !== 'interpretation'} className="results-tab-panel">
+                <ClusterInterpretationPanel result={resultado} run={lastRun} />
+              </div>
+            ) : null}
 
-            <div hidden={resultView !== 'visualization'} className="results-tab-panel">
-              <Scatter2D
-                X_2d={resultado?.X_2d}
-                clusterLabels={resultado?.cluster_labels}
-                metadata={resultado?.metadata}
-              />
-              <p className="legend-note note">
-                Cada color representa un grupo de incidencias parecidas. Los marcados en gris son casos
-                atípicos. Pasa el cursor sobre un punto para ver el detalle.
-              </p>
-            </div>
+            {isVisited('visualization') ? (
+              <div hidden={resultView !== 'visualization'} className="results-tab-panel">
+                <Scatter2D
+                  X_2d={resultado?.X_2d}
+                  clusterLabels={resultado?.cluster_labels}
+                  metadata={resultado?.metadata}
+                />
+                <p className="legend-note note">
+                  Cada color representa un grupo de incidencias parecidas. Los marcados en gris son casos
+                  atípicos. Pasa el cursor sobre un punto para ver el detalle.
+                </p>
+              </div>
+            ) : null}
 
-            <div hidden={resultView !== 'agents'} className="results-tab-panel">
-              <AgentAnalysisPanel
-                run={lastRun}
-                projectId={activeProjectId}
-                onOpenChatWithPrompt={onOpenChatWithPrompt}
-              />
-            </div>
+            {isVisited('agents') ? (
+              <div hidden={resultView !== 'agents'} className="results-tab-panel">
+                <AgentAnalysisPanel
+                  run={lastRun}
+                  projectId={activeProjectId}
+                  enabled={resultView === 'agents'}
+                  onOpenChatWithPrompt={onOpenChatWithPrompt}
+                />
+              </div>
+            ) : null}
           </>
         )}
       </Card>

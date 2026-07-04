@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import PropTypes from 'prop-types'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { fetchConversationDashboard } from '@/api/conversation'
-import { listRuns } from '@/api/pipeline'
 import { AnalysisFlowStrip, MetabaseFlowCTA, MetabaseFlowNextLink } from '@/components/bi'
 import {
   ConversationDashboardFooter,
@@ -13,6 +12,7 @@ import {
   ConversationScatterChart,
 } from '@/components/conversation'
 import { InsightListPagination } from '@/components/agent'
+import { useConversationDashboard, useRunsList } from '@/hooks/queries'
 import { Button, Card, Feedback, LoadingPanel, LoadingSlot, PageNavbar } from '@/ui'
 import {
   buildDecisionReading,
@@ -28,47 +28,46 @@ import {
 } from '@/utils/conversationDashboard'
 import '@/styles/llm-visual.css'
 
-export function ConversationDashboardPage() {
+export function ConversationDashboardPage({ embedded = false }) {
   const location = useLocation()
   const [selectedRunId, setSelectedRunId] = useState('')
   const [metricFilter, setMetricFilter] = useState('all')
   const [activeInsightKey, setActiveInsightKey] = useState('')
   const [selectedKeys, setSelectedKeys] = useState(() => new Set())
   const [listPage, setListPage] = useState(0)
-  const [runs, setRuns] = useState([])
-  const [dashboard, setDashboard] = useState({ total: 0, insights: [] })
-  const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState(null)
 
-  const loadDashboard = useCallback(async (runId = '', { soft = false } = {}) => {
-    if (soft) setRefreshing(true)
-    else setLoading(true)
-    setError(null)
-    try {
-      const [dashboardData, runsData] = await Promise.all([
-        fetchConversationDashboard(runId || undefined),
-        listRuns(50),
-      ])
-      setDashboard(dashboardData ?? { total: 0, insights: [] })
-      setRuns(runsData)
-      setActiveInsightKey('')
-      setSelectedKeys(new Set())
-      setListPage(0)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo cargar el dashboard')
-      setDashboard({ total: 0, insights: [] })
-    } finally {
-      setLoading(false)
-      setRefreshing(false)
-    }
-  }, [])
+  const {
+    data: dashboard = { total: 0, insights: [] },
+    isLoading: dashboardLoading,
+    error: dashboardError,
+    refetch: refetchDashboard,
+    isFetching: dashboardFetching,
+  } = useConversationDashboard(selectedRunId)
+
+  const {
+    data: runs = [],
+    isLoading: runsLoading,
+    refetch: refetchRuns,
+    isFetching: runsFetching,
+  } = useRunsList(50)
+
+  const loading = dashboardLoading || runsLoading
+  const isSoftLoading = refreshing || dashboardFetching || runsFetching
+  const queryErrorMessage =
+    dashboardError instanceof Error
+      ? dashboardError.message
+      : dashboardError
+        ? 'No se pudo cargar el dashboard'
+        : null
+  const displayError = error ?? queryErrorMessage
 
   useEffect(() => {
+    if (embedded) return
     setSelectedRunId('')
     setMetricFilter('all')
-    void loadDashboard('')
-  }, [location.pathname, location.key, loadDashboard])
+  }, [embedded, location.pathname])
 
   const insights = useMemo(() => dashboard.insights ?? [], [dashboard.insights])
   const runsForFilter = useMemo(() => buildRunsForFilter(runs, insights), [runs, insights])
@@ -107,7 +106,9 @@ export function ConversationDashboardPage() {
     const nextRunId = event.target.value
     setSelectedRunId(nextRunId)
     setMetricFilter('all')
-    void loadDashboard(nextRunId, { soft: true })
+    setActiveInsightKey('')
+    setSelectedKeys(new Set())
+    setListPage(0)
   }
 
   function onMetricFilterChange(kind) {
@@ -141,48 +142,81 @@ export function ConversationDashboardPage() {
     })
   }
 
+  async function handleRefresh() {
+    setRefreshing(true)
+    setError(null)
+    try {
+      await Promise.all([refetchDashboard(), refetchRuns()])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo actualizar el dashboard')
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
   return (
     <div
       className={`conversation-dashboard-page${
         loading && insights.length === 0 ? ' conversation-dashboard-page--loading' : ''
-      }${refreshing ? ' conversation-dashboard-page--refreshing' : ''}`}
+      }${isSoftLoading ? ' conversation-dashboard-page--refreshing' : ''}`}
     >
-      <PageNavbar
-        breadcrumbParent="Plataforma"
-        breadcrumbCurrent="Dashboard conversacional"
-        title="Tus hallazgos guardados"
-        rightSlot={
-          <div className="conv-dashboard-toolbar">
-            <Link to="/" className="decision-link">
-              Volver a explorar
-            </Link>
-            <MetabaseFlowNextLink
-              currentStepId="consolidate"
+      {!embedded ? (
+        <PageNavbar
+          breadcrumbParent="Plataforma"
+          breadcrumbCurrent="Dashboard conversacional"
+          title="Tus hallazgos guardados"
+          rightSlot={
+            <div className="conv-dashboard-toolbar">
+              <Link to="/" className="decision-link">
+                Volver a explorar
+              </Link>
+              <MetabaseFlowNextLink
+                currentStepId="consolidate"
+                runId={selectedRunId || activeInsight?.run_id}
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={loading || isSoftLoading}
+                onClick={() => void handleRefresh()}
+              >
+                {isSoftLoading ? 'Actualizando…' : 'Actualizar'}
+              </Button>
+            </div>
+          }
+        />
+      ) : (
+        <div className="conv-dashboard-toolbar conv-dashboard-toolbar--embedded">
+          <MetabaseFlowNextLink
+            currentStepId="consolidate"
+            runId={selectedRunId || activeInsight?.run_id}
+          />
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={loading || isSoftLoading}
+            onClick={() => void handleRefresh()}
+          >
+            {isSoftLoading ? 'Actualizando…' : 'Actualizar'}
+          </Button>
+        </div>
+      )}
+
+      {displayError ? <Feedback variant="danger" message={displayError} /> : null}
+
+      {!embedded ? (
+        <>
+          <AnalysisFlowStrip currentStepId="consolidate" compact />
+          {insights.length > 0 ? (
+            <MetabaseFlowCTA
+              variant="consolidate"
               runId={selectedRunId || activeInsight?.run_id}
             />
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={loading || refreshing}
-              onClick={() => loadDashboard(selectedRunId, { soft: true })}
-            >
-              {refreshing ? 'Actualizando…' : 'Actualizar'}
-            </Button>
-          </div>
-        }
-      />
-
-      {error ? <Feedback variant="danger" message={error} /> : null}
-
-      <AnalysisFlowStrip currentStepId="consolidate" compact />
-      {insights.length > 0 ? (
-        <MetabaseFlowCTA
-          variant="consolidate"
-          runId={selectedRunId || activeInsight?.run_id}
-        />
+          ) : null}
+        </>
       ) : null}
 
-      {refreshing ? (
+      {isSoftLoading && insights.length > 0 ? (
         <div className="conv-reload-toast" role="status" aria-live="polite">
           <LoadingPanel
             bare
@@ -257,7 +291,7 @@ export function ConversationDashboardPage() {
                 allItems={filteredInsights}
                 activeKey={activeChartKey}
                 selectedKeys={selectedKeys}
-                refreshing={refreshing}
+                refreshing={isSoftLoading}
                 onSelect={(next) => setActiveInsightKey(insightKey(next))}
                 onToggleCheck={toggleInsightSelection}
                 onToggleSelectAll={toggleSelectAllOnPage}
@@ -302,4 +336,8 @@ export function ConversationDashboardPage() {
       )}
     </div>
   )
+}
+
+ConversationDashboardPage.propTypes = {
+  embedded: PropTypes.bool,
 }

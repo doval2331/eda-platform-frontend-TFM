@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types'
 import '@/styles/app.css'
 import { AnalysisFlowStrip, MetabaseFlowCTA } from '@/components/bi'
 import { FloatingChatWidget } from '@/components/chat'
@@ -8,16 +9,24 @@ import { DashboardOnboardingBanner } from './DashboardOnboardingBanner'
 import { DashboardResultsPanel } from './DashboardResultsPanel'
 import { useDashboardPage } from './useDashboardPage'
 
-export function DashboardPage() {
-  const page = useDashboardPage()
+export function DashboardPage({
+  embedded = false,
+  flowStepId,
+  onRunStateChange,
+}) {
+  const page = useDashboardPage({ onRunStateChange })
+  const currentFlowStep =
+    flowStepId ?? (page.lastRun?.id && page.resultado ? 'explore' : 'analyze')
 
   return (
     <div className={`dashboard-page${page.ejecutando ? ' dashboard-page--executing' : ''}`}>
-      <PageNavbar
-        breadcrumbParent="Plataforma"
-        breadcrumbCurrent="Incidencias IT"
-        title="Análisis de incidencias IT"
-      />
+      {!embedded ? (
+        <PageNavbar
+          breadcrumbParent="Plataforma"
+          breadcrumbCurrent="Incidencias IT"
+          title="Análisis de incidencias IT"
+        />
+      ) : null}
 
       {page.showOnboarding ? <DashboardOnboardingBanner onDismiss={page.dismissOnboarding} /> : null}
 
@@ -35,12 +44,16 @@ export function DashboardPage() {
 
       <RunKpis result={page.resultado} runMeta={page.lastRun} advancedMode={page.advancedMode} />
 
-      <AnalysisFlowStrip
-        currentStepId={page.lastRun?.id && page.resultado ? 'explore' : 'analyze'}
-        compact={!page.lastRun?.id}
-      />
-      {page.lastRun?.id && page.resultado ? (
-        <MetabaseFlowCTA variant="explore" runId={page.lastRun.id} />
+      {!embedded ? (
+        <>
+          <AnalysisFlowStrip
+            currentStepId={currentFlowStep}
+            compact={!page.lastRun?.id}
+          />
+          {page.lastRun?.id && page.resultado ? (
+            <MetabaseFlowCTA variant="explore" runId={page.lastRun.id} />
+          ) : null}
+        </>
       ) : null}
 
       <DashboardResultsPanel
@@ -123,4 +136,10 @@ export function DashboardPage() {
       />
     </div>
   )
+}
+
+DashboardPage.propTypes = {
+  embedded: PropTypes.bool,
+  flowStepId: PropTypes.oneOf(['analyze', 'explore']),
+  onRunStateChange: PropTypes.func,
 }

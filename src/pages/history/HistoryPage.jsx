@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Checkbox, CircularProgress, IconButton, LinearProgress, Tooltip } from '@mui/material'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import '@/styles/history.css'
 import '@/styles/app.css'
-import { clearAllRuns, deleteRun, listRuns } from '@/api/pipeline'
+import { clearAllRuns, deleteRun } from '@/api/pipeline'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { runsListQueryKey, useRunsList } from '@/hooks/queries'
 import {
   Button,
   Card,
@@ -41,8 +42,8 @@ function runLabel(run) {
 export function HistoryPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const [runs, setRuns] = useState([])
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
+  const { data: runs = [], isLoading: loading, refetch } = useRunsList(50)
   const [error, setError] = useState(null)
   const [message, setMessage] = useState(null)
   const [clearing, setClearing] = useState(false)
@@ -261,7 +262,7 @@ export function HistoryPage() {
             >
               {clearing ? 'Borrando…' : 'Vaciar historial'}
             </Button>
-            <Button type="button" variant="secondary" onClick={loadList} disabled={loading}>
+            <Button type="button" variant="secondary" onClick={() => void refetch()} disabled={loading}>
               Actualizar
             </Button>
           </div>

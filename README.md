@@ -4,7 +4,7 @@ Interfaz React + Vite para el prototipo TFM. Incluye login, ejecucion del pipeli
 
 ## Requisitos
 
-- Node.js 18 o superior. Recomendado: Node.js LTS.
+- Node.js 20.19+ o 22 LTS (requerido por Vite 8).
 - pnpm 10 o superior (`corepack enable` y `corepack prepare pnpm@latest --activate`).
 - Backend FastAPI levantado.
 - Acceso a las credenciales demo creadas en el backend.
@@ -205,5 +205,7 @@ En produccion, compilar el frontend con `VITE_API_BASE` apuntando a la API publi
 $env:VITE_API_BASE="https://tu-api.onrender.com"
 pnpm build
 ```
+
+En Dokploy (Nixpacks), el proyecto usa Node 22 via `.nvmrc` y `nixpacks.toml`. Define `VITE_API_BASE` como variable de entorno de la aplicacion antes del build; Vite la incrusta en el bundle en tiempo de compilacion.
 
 El backend debe tener `CORS_ORIGINS` configurado con la URL publica del frontend.
