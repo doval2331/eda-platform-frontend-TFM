@@ -14,6 +14,8 @@ export function PrepareParamsTab({
   onSeedChange,
   nSamples,
   onNSamplesChange,
+  pipelineTuning = {},
+  onPipelineTuningChange,
   rowCountHint,
   apiOnline,
 }) {
@@ -77,8 +79,56 @@ export function PrepareParamsTab({
                 type="number"
                 value={nSamples}
                 onChange={(e) => onNSamplesChange(e.target.value)}
+                placeholder="Todas"
                 inputProps={{ min: 30, max: 10000 }}
-                helperText="Máx. 10 000. Sin avanzadas se usan todas."
+                helperText="Vacio analiza todas. Si defines un limite, maximo 10 000."
+              />
+            </div>
+            <div className="prepare-data-form-grid">
+              <TextField
+                label="Vecinos UMAP"
+                id="umap-neighbors-dialog"
+                type="number"
+                value={pipelineTuning.umapNNeighbors ?? ''}
+                onChange={(e) => onPipelineTuningChange?.('umapNNeighbors', e.target.value)}
+                inputProps={{ min: 2, max: 200, step: 1 }}
+                helperText="Rango 2-200. Controla el entorno local."
+              />
+              <TextField
+                label="Distancia minima UMAP"
+                id="umap-min-dist-dialog"
+                type="number"
+                value={pipelineTuning.umapMinDist ?? ''}
+                onChange={(e) => onPipelineTuningChange?.('umapMinDist', e.target.value)}
+                inputProps={{ min: 0, max: 0.99, step: 0.01 }}
+                helperText="Rango 0-0.99. Menor valor separa mas los grupos."
+              />
+              <TextField
+                label="Tamano minimo cluster"
+                id="hdbscan-min-cluster-size-dialog"
+                type="number"
+                value={pipelineTuning.hdbscanMinClusterSize ?? ''}
+                onChange={(e) => onPipelineTuningChange?.('hdbscanMinClusterSize', e.target.value)}
+                inputProps={{ min: 2, max: 5000, step: 1 }}
+                helperText="HDBSCAN. Vacio usa el valor automatico."
+              />
+              <TextField
+                label="Muestras minimas HDBSCAN"
+                id="hdbscan-min-samples-dialog"
+                type="number"
+                value={pipelineTuning.hdbscanMinSamples ?? ''}
+                onChange={(e) => onPipelineTuningChange?.('hdbscanMinSamples', e.target.value)}
+                inputProps={{ min: 1, max: 1000, step: 1 }}
+                helperText="Aumentarlo hace el clustering mas conservador."
+              />
+              <TextField
+                label="Eps DBSCAN"
+                id="dbscan-eps-dialog"
+                type="number"
+                value={pipelineTuning.dbscanEps ?? ''}
+                onChange={(e) => onPipelineTuningChange?.('dbscanEps', e.target.value)}
+                inputProps={{ min: 0.001, max: 10, step: 0.001 }}
+                helperText="Solo afecta a la metrica baseline DBSCAN."
               />
             </div>
           </Stack>
@@ -103,6 +153,14 @@ PrepareParamsTab.propTypes = {
   onSeedChange: PropTypes.func.isRequired,
   nSamples: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
   onNSamplesChange: PropTypes.func.isRequired,
+  pipelineTuning: PropTypes.shape({
+    umapNNeighbors: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    umapMinDist: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    hdbscanMinClusterSize: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    hdbscanMinSamples: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    dbscanEps: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  }),
+  onPipelineTuningChange: PropTypes.func,
   rowCountHint: PropTypes.string.isRequired,
   apiOnline: PropTypes.bool,
 }

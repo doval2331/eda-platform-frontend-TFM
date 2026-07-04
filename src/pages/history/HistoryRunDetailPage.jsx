@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import '@/styles/app.css'
@@ -50,6 +50,7 @@ export function HistoryRunDetailPage() {
   const [resultView, setResultView] = useState('interpretation')
   const [chatForceOpen, setChatForceOpen] = useState(false)
   const [chatExternalPrompt, setChatExternalPrompt] = useState(null)
+  const consumedNavigationPromptRef = useRef('')
 
   const { isVisited } = useLazyTabs(run ? resultView : null, run ? ['interpretation'] : [])
 
@@ -83,15 +84,43 @@ export function HistoryRunDetailPage() {
     })
   }
 
+  const loadRun = useCallback(async () => {
+    if (!runId) return
+    setLoading(true)
+    setError(null)
+    try {
+      const detail = await fetchRun(runId)
+      setRun(detail)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo cargar la ejecución')
+      setRun(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [runId])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadRun()
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [loadRun])
+
   useEffect(() => {
     const state = location.state ?? {}
     if (!state.openChat) return
-    if (state.chatPrompt) {
-      setChatExternalPrompt({ text: state.chatPrompt, at: Date.now() })
-    }
-    setChatForceOpen(true)
-    navigate(location.pathname, { replace: true, state: null })
-  }, [location.pathname, location.state, navigate])
+    const promptKey = `${location.key}:${state.chatPrompt ?? ''}`
+    if (consumedNavigationPromptRef.current === promptKey) return
+    consumedNavigationPromptRef.current = promptKey
+    const timer = window.setTimeout(() => {
+      if (state.chatPrompt) {
+        setChatExternalPrompt({ text: state.chatPrompt, at: Date.now() })
+      }
+      setChatForceOpen(true)
+      navigate(location.pathname, { replace: true, state: null })
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [location.key, location.pathname, location.state, navigate])
 
   async function confirmDeleteRun() {
     if (!runId || !run) return

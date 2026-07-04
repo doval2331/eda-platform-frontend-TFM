@@ -63,6 +63,8 @@ export function DashboardPage({
         resultado={page.resultado}
         projectRuns={page.projectRuns}
         selectedRunIndex={page.selectedRunIndex}
+        analysisProgress={page.analysisProgress}
+        analysisStatusMessage={page.analysisStatusMessage}
         resultView={page.resultView}
         activeProjectId={page.activeProject?.id}
         onResultViewChange={page.setResultView}
@@ -73,8 +75,8 @@ export function DashboardPage({
 
       <ProjectPrepareDialog
         open={page.prepareDialogOpen}
-        onClose={() => page.setPrepareDialogOpen(false)}
-        projectId={page.activeProject?.id}
+        onClose={page.closePrepareDialog}
+        projectId={page.prepareProjectId}
         onProjectSaved={page.handleProjectSaved}
         modalidad={page.modalidad}
         onModalidadChange={page.handleModalidadChange}
@@ -95,6 +97,8 @@ export function DashboardPage({
         onSeedChange={page.setSeed}
         nSamples={page.nSamples}
         onNSamplesChange={page.setNSamples}
+        pipelineTuning={page.pipelineTuning}
+        onPipelineTuningChange={page.handlePipelineTuningChange}
         advancedMode={page.advancedMode}
         onAdvancedModeChange={page.setAdvancedMode}
         canExecute={page.canExecute}
@@ -115,7 +119,7 @@ export function DashboardPage({
         open={page.ejecutando}
         variant="info"
         title="Analizando incidencias"
-        message={page.analysisStatusMessage}
+        message={page.analysisFeedbackMessage}
         position="top-center"
         onClose={() => {}}
         autoHideDuration={null}

@@ -5,6 +5,7 @@ import {
   removeProjectSource,
   updateProject,
   uploadProjectSource,
+  waitForProjectSourceUploadJob,
 } from '@/api/projects'
 import { REDUCTION_OPTIONS } from '@/utils/businessLabels'
 import {
@@ -48,7 +49,6 @@ export function useProjectPrepareDialog({
   const [uploadProgress, setUploadProgress] = useState(null)
   const wasOpenRef = useRef(false)
   const uploadingTypeRef = useRef(null)
-  uploadingTypeRef.current = uploadingType
 
   const csvCount = useMemo(
     () => (project?.sources ?? []).filter((s) => isTabularSource(s)).length,
@@ -125,6 +125,10 @@ export function useProjectPrepareDialog({
   }, [])
 
   useEffect(() => {
+    uploadingTypeRef.current = uploadingType
+  }, [uploadingType])
+
+  useEffect(() => {
     if (!open) {
       wasOpenRef.current = false
       return
@@ -133,19 +137,22 @@ export function useProjectPrepareDialog({
     wasOpenRef.current = true
     if (!justOpened) return
 
-    setActiveTab(projectId ? PREPARE_TAB.data : PREPARE_TAB.origin)
-    setLocalError(null)
-    setNewSourceName('')
-    setNewSourceType(AUTO_SOURCE_TYPE)
-    setNewSourceFiles([])
-    setUploadProgress(null)
-    setSourceFileInputKey((current) => current + 1)
-    if (!projectId) {
-      setProject(null)
-      setName('')
-      setDescription('')
-      setStrategy('per_source')
-    }
+    const timer = window.setTimeout(() => {
+      setActiveTab(projectId ? PREPARE_TAB.data : PREPARE_TAB.origin)
+      setLocalError(null)
+      setNewSourceName('')
+      setNewSourceType(AUTO_SOURCE_TYPE)
+      setNewSourceFiles([])
+      setUploadProgress(null)
+      setSourceFileInputKey((current) => current + 1)
+      if (!projectId) {
+        setProject(null)
+        setName('')
+        setDescription('')
+        setStrategy('per_source')
+      }
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [open, projectId])
 
   useEffect(() => {
@@ -154,15 +161,19 @@ export function useProjectPrepareDialog({
   }, [open, projectId, loadProject])
 
   useEffect(() => {
-    if (modalidad === 'it_ops' && activeTab === PREPARE_TAB.data) {
+    if (modalidad !== 'it_ops' || activeTab !== PREPARE_TAB.data) return
+    const timer = window.setTimeout(() => {
       setActiveTab(PREPARE_TAB.params)
-    }
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [modalidad, activeTab])
 
   useEffect(() => {
-    if (strategy === 'merged' && csvCount < 2) {
+    if (strategy !== 'merged' || csvCount >= 2) return
+    const timer = window.setTimeout(() => {
       setStrategy('per_source')
-    }
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [strategy, csvCount])
 
   const ensureProject = useCallback(async () => {
@@ -232,7 +243,59 @@ export function useProjectPrepareDialog({
         const sourceType = resolveSourceTypeSelection(newSourceType, file)
         const sourceName =
           total === 1 ? newSourceName || defaultSourceName(file) : defaultSourceName(file)
-        latestDetail = await uploadProjectSource(current.id, sourceType, file, sourceName)
+        const baseProgress = {
+          current: index + 1,
+          total,
+          filename: file.name,
+          phase: 'uploading',
+          message: 'Subiendo archivo...',
+          loadedBytes: 0,
+          totalBytes: file.size || null,
+        }
+        setUploadProgress(baseProgress)
+        const uploadJob = await uploadProjectSource(current.id, sourceType, file, sourceName, {
+          onUploadProgress: (progress) => {
+            setUploadProgress({
+              ...baseProgress,
+              loadedBytes: progress.loaded,
+              totalBytes: progress.total || file.size || null,
+              percent: progress.percent,
+              message:
+                progress.percent != null
+                  ? `Subiendo archivo (${progress.percent}%)`
+                  : 'Subiendo archivo...',
+            })
+          },
+        })
+        setUploadProgress({
+          ...baseProgress,
+          phase: uploadJob.status,
+          jobId: uploadJob.job_id,
+          loadedBytes: file.size || null,
+          totalBytes: file.size || null,
+          percent: 100,
+          message: uploadJob.message || 'Archivo recibido. Procesando...',
+        })
+        const completedJob =
+          uploadJob.status === 'completed'
+            ? uploadJob
+            : await waitForProjectSourceUploadJob(current.id, uploadJob.job_id, {
+                onUpdate: (job) => {
+                  setUploadProgress({
+                    ...baseProgress,
+                    phase: job.status,
+                    jobId: job.job_id,
+                    loadedBytes: file.size || null,
+                    totalBytes: file.size || null,
+                    percent: 100,
+                    message: job.message || 'Procesando archivo...',
+                  })
+                },
+              })
+        latestDetail = completedJob.project
+        if (!latestDetail) {
+          latestDetail = await fetchProject(current.id)
+        }
         pendingFiles = pendingFiles.slice(1)
         setNewSourceFiles(pendingFiles)
         setProject(latestDetail)
@@ -321,7 +384,6 @@ export function useProjectPrepareDialog({
         setActiveTab(PREPARE_TAB.params)
         return
       }
-      if (!validateTab(PREPARE_TAB.data)) return
       setActiveTab(PREPARE_TAB.data)
       return
     }
@@ -350,11 +412,14 @@ export function useProjectPrepareDialog({
     }
     setSaving(true)
     try {
+      let projectForAnalysis = null
       if (modalidad === 'project') {
-        await ensureProject()
+        projectForAnalysis = await ensureProject()
       }
       onClose?.()
-      await onAnalyze?.()
+      window.setTimeout(() => {
+        Promise.resolve(onAnalyze?.({ project: projectForAnalysis })).catch(() => {})
+      }, 0)
     } catch (err) {
       setLocalError(err instanceof Error ? err.message : 'Error al analizar')
     } finally {
