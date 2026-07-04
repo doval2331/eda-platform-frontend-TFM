@@ -9,6 +9,19 @@ function delay(ms) {
   })
 }
 
+function appendPipelineTuning(body, pipelineTuning = {}) {
+  const tuning = pipelineTuning ?? {}
+  if (tuning.umapNNeighbors != null) body.umap_n_neighbors = tuning.umapNNeighbors
+  if (tuning.umapMinDist != null) body.umap_min_dist = tuning.umapMinDist
+  if (tuning.hdbscanMinClusterSize != null) {
+    body.hdbscan_min_cluster_size = tuning.hdbscanMinClusterSize
+  }
+  if (tuning.hdbscanMinSamples != null) {
+    body.hdbscan_min_samples = tuning.hdbscanMinSamples
+  }
+  if (tuning.dbscanEps != null) body.dbscan_eps = tuning.dbscanEps
+}
+
 function parseJsonResponse(text) {
   if (!text) return null
   try {
@@ -139,6 +152,7 @@ export async function executeProjectRuns(projectId, options = {}) {
   if (options.seed != null) body.seed = options.seed
   if (options.nSamples != null) body.n_samples = options.nSamples
   if (options.idColumn) body.id_column = options.idColumn
+  appendPipelineTuning(body, options.pipelineTuning)
 
   return apiRequest(`/api/projects/${projectId}/runs`, {
     method: 'POST',

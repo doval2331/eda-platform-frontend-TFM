@@ -62,8 +62,8 @@ export function DashboardPage() {
 
       <ProjectPrepareDialog
         open={page.prepareDialogOpen}
-        onClose={() => page.setPrepareDialogOpen(false)}
-        projectId={page.activeProject?.id}
+        onClose={page.closePrepareDialog}
+        projectId={page.prepareProjectId}
         onProjectSaved={page.handleProjectSaved}
         modalidad={page.modalidad}
         onModalidadChange={page.handleModalidadChange}
@@ -84,6 +84,8 @@ export function DashboardPage() {
         onSeedChange={page.setSeed}
         nSamples={page.nSamples}
         onNSamplesChange={page.setNSamples}
+        pipelineTuning={page.pipelineTuning}
+        onPipelineTuningChange={page.handlePipelineTuningChange}
         advancedMode={page.advancedMode}
         onAdvancedModeChange={page.setAdvancedMode}
         canExecute={page.canExecute}

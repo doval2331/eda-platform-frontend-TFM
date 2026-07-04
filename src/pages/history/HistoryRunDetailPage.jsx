@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import '@/styles/app.css'
 import '@/styles/history.css'
@@ -47,6 +47,7 @@ export function HistoryRunDetailPage() {
   const [resultView, setResultView] = useState('interpretation')
   const [chatForceOpen, setChatForceOpen] = useState(false)
   const [chatExternalPrompt, setChatExternalPrompt] = useState(null)
+  const consumedNavigationPromptRef = useRef('')
 
   function handleOpenChatWithPrompt(prompt) {
     setChatExternalPrompt({ text: prompt, at: Date.now() })
@@ -86,18 +87,27 @@ export function HistoryRunDetailPage() {
   }, [runId])
 
   useEffect(() => {
-    void loadRun()
+    const timer = window.setTimeout(() => {
+      void loadRun()
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [loadRun])
 
   useEffect(() => {
     const state = location.state ?? {}
     if (!state.openChat) return
-    if (state.chatPrompt) {
-      setChatExternalPrompt({ text: state.chatPrompt, at: Date.now() })
-    }
-    setChatForceOpen(true)
-    navigate(location.pathname, { replace: true, state: null })
-  }, [location.pathname, location.state, navigate])
+    const promptKey = `${location.key}:${state.chatPrompt ?? ''}`
+    if (consumedNavigationPromptRef.current === promptKey) return
+    consumedNavigationPromptRef.current = promptKey
+    const timer = window.setTimeout(() => {
+      if (state.chatPrompt) {
+        setChatExternalPrompt({ text: state.chatPrompt, at: Date.now() })
+      }
+      setChatForceOpen(true)
+      navigate(location.pathname, { replace: true, state: null })
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [location.key, location.pathname, location.state, navigate])
 
   async function confirmDeleteRun() {
     if (!runId || !run) return

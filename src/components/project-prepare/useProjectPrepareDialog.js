@@ -137,19 +137,22 @@ export function useProjectPrepareDialog({
     wasOpenRef.current = true
     if (!justOpened) return
 
-    setActiveTab(projectId ? PREPARE_TAB.data : PREPARE_TAB.origin)
-    setLocalError(null)
-    setNewSourceName('')
-    setNewSourceType(AUTO_SOURCE_TYPE)
-    setNewSourceFiles([])
-    setUploadProgress(null)
-    setSourceFileInputKey((current) => current + 1)
-    if (!projectId) {
-      setProject(null)
-      setName('')
-      setDescription('')
-      setStrategy('per_source')
-    }
+    const timer = window.setTimeout(() => {
+      setActiveTab(projectId ? PREPARE_TAB.data : PREPARE_TAB.origin)
+      setLocalError(null)
+      setNewSourceName('')
+      setNewSourceType(AUTO_SOURCE_TYPE)
+      setNewSourceFiles([])
+      setUploadProgress(null)
+      setSourceFileInputKey((current) => current + 1)
+      if (!projectId) {
+        setProject(null)
+        setName('')
+        setDescription('')
+        setStrategy('per_source')
+      }
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [open, projectId])
 
   useEffect(() => {
@@ -158,15 +161,19 @@ export function useProjectPrepareDialog({
   }, [open, projectId, loadProject])
 
   useEffect(() => {
-    if (modalidad === 'it_ops' && activeTab === PREPARE_TAB.data) {
+    if (modalidad !== 'it_ops' || activeTab !== PREPARE_TAB.data) return
+    const timer = window.setTimeout(() => {
       setActiveTab(PREPARE_TAB.params)
-    }
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [modalidad, activeTab])
 
   useEffect(() => {
-    if (strategy === 'merged' && csvCount < 2) {
+    if (strategy !== 'merged' || csvCount >= 2) return
+    const timer = window.setTimeout(() => {
       setStrategy('per_source')
-    }
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [strategy, csvCount])
 
   const ensureProject = useCallback(async () => {
@@ -377,7 +384,6 @@ export function useProjectPrepareDialog({
         setActiveTab(PREPARE_TAB.params)
         return
       }
-      if (!validateTab(PREPARE_TAB.data)) return
       setActiveTab(PREPARE_TAB.data)
       return
     }
@@ -406,11 +412,14 @@ export function useProjectPrepareDialog({
     }
     setSaving(true)
     try {
+      let projectForAnalysis = null
       if (modalidad === 'project') {
-        await ensureProject()
+        projectForAnalysis = await ensureProject()
       }
       onClose?.()
-      await onAnalyze?.()
+      window.setTimeout(() => {
+        Promise.resolve(onAnalyze?.({ project: projectForAnalysis })).catch(() => {})
+      }, 0)
     } catch (err) {
       setLocalError(err instanceof Error ? err.message : 'Error al analizar')
     } finally {

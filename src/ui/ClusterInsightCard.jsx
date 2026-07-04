@@ -19,6 +19,10 @@ export function ClusterInsightCard({
   priority,
   score = 0,
   metricChips = [],
+  selectable = false,
+  selected = false,
+  selectionDisabled = false,
+  onSelectChange,
   onViewDetail,
   actionLabel = 'Agregar al dashboard',
   actionDisabled = false,
@@ -29,9 +33,23 @@ export function ClusterInsightCard({
     clusterLabel === -1 || clusterLabel === 'outliers' ? '!' : String(clusterLabel)
 
   return (
-    <Card className={`cluster-insight-card ${className}`.trim()} sx={{ overflow: 'visible' }}>
+    <Card
+      className={`cluster-insight-card${selected ? ' cluster-insight-card--checked' : ''} ${className}`.trim()}
+      sx={{ overflow: 'visible' }}
+    >
       <CardContent sx={{ pb: 1 }}>
         <Stack direction="row" spacing={1.5} alignItems="flex-start">
+          {selectable ? (
+            <label className="cluster-insight-card__check" onClick={(event) => event.stopPropagation()}>
+              <input
+                type="checkbox"
+                checked={selected}
+                disabled={selectionDisabled}
+                onChange={(event) => onSelectChange?.(event.target.checked)}
+                aria-label={`Seleccionar ${title}`}
+              />
+            </label>
+          ) : null}
           <Avatar
             sx={{
               width: 40,
@@ -117,6 +135,10 @@ ClusterInsightCard.propTypes = {
       value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
     }),
   ),
+  selectable: PropTypes.bool,
+  selected: PropTypes.bool,
+  selectionDisabled: PropTypes.bool,
+  onSelectChange: PropTypes.func,
   onViewDetail: PropTypes.func,
   actionLabel: PropTypes.string,
   actionDisabled: PropTypes.bool,

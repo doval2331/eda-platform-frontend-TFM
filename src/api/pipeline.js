@@ -1,5 +1,17 @@
 import { apiRequest } from './apiClient'
 
+function appendPipelineTuning(body, pipelineTuning = {}) {
+  const tuning = pipelineTuning ?? {}
+  if (tuning.umapNNeighbors != null) body.umap_n_neighbors = tuning.umapNNeighbors
+  if (tuning.umapMinDist != null) body.umap_min_dist = tuning.umapMinDist
+  if (tuning.hdbscanMinClusterSize != null) {
+    body.hdbscan_min_cluster_size = tuning.hdbscanMinClusterSize
+  }
+  if (tuning.hdbscanMinSamples != null) {
+    body.hdbscan_min_samples = tuning.hdbscanMinSamples
+  }
+  if (tuning.dbscanEps != null) body.dbscan_eps = tuning.dbscanEps
+}
 
 export async function executePipeline({
   modality,
@@ -13,6 +25,7 @@ export async function executePipeline({
   excludeColumns,
   numericColumns,
   categoricalColumns,
+  pipelineTuning,
 }) {
   const body = {
     modality,
@@ -27,6 +40,7 @@ export async function executePipeline({
   if (excludeColumns?.length) body.exclude_columns = excludeColumns
   if (numericColumns?.length) body.numeric_columns = numericColumns
   if (categoricalColumns?.length) body.categorical_columns = categoricalColumns
+  appendPipelineTuning(body, pipelineTuning)
 
   const run = await apiRequest('/api/runs', {
     method: 'POST',
