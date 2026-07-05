@@ -21,7 +21,6 @@ export const REDUCTION_OPTIONS = [
 export const MODALITY_OPTIONS = [
   { value: 'tabular', label: 'Una fuente tabular (mis incidencias)' },
   { value: 'project', label: 'Escenario multifuente (proyecto)' },
-  { value: 'it_ops', label: 'Datos de demo (incidencias IT)' },
 ]
 
 export function clusterDisplayName(clusterId) {
@@ -58,4 +57,45 @@ export const METRIC_HINTS = {
   nmi: 'Información compartida con categorías de referencia (solo evaluación).',
   cluster_stability: 'Indica si el patrón se mantiene al repetir el agrupamiento.',
   noise_pct: 'Porcentaje de incidencias que no encajan claramente en ningún grupo.',
+}
+
+export function recommendReductionMethod({
+  nRows = 0,
+  nCols = 0,
+  categoricalCount = 0,
+} = {}) {
+  const rows = Number(nRows) || 0
+  const cols = Number(nCols) || 0
+  const cats = Number(categoricalCount) || 0
+
+  if (rows > 5000) {
+    return {
+      method: 'PCA',
+      message: `Con ${rows.toLocaleString('es-ES')} filas recomendamos Vista rápida (PCA) por rendimiento. Puedes cambiarlo.`,
+      warnTsne: rows > 3000,
+    }
+  }
+  if (rows > 3000) {
+    return {
+      method: 'UMAP',
+      message: `Con ${rows.toLocaleString('es-ES')} filas recomendamos Vista equilibrada (UMAP). Evita t-SNE sin muestrear.`,
+      warnTsne: true,
+    }
+  }
+  if (cols > 20 || cats > 8) {
+    return {
+      method: 'UMAP',
+      message: 'Con muchas columnas categóricas recomendamos UMAP para conservar patrones locales.',
+      warnTsne: false,
+    }
+  }
+  return {
+    method: 'UMAP',
+    message: 'Recomendamos Vista equilibrada (UMAP) para este dataset. Puedes cambiarlo.',
+    warnTsne: false,
+  }
+}
+
+export function reductionOptionLabel(value) {
+  return REDUCTION_OPTIONS.find((item) => item.value === value)?.label ?? value
 }

@@ -1,9 +1,10 @@
 import PropTypes from 'prop-types'
 import { Link } from 'react-router-dom'
-import { Scatter2D } from '@/Scatter2D'
 import { useLazyTabs } from '@/hooks/useLazyTabs'
 import { AgentAnalysisPanel } from '@/components/agent'
 import { ClusterInterpretationPanel } from '@/components/ClusterInterpretationPanel'
+import { AnalysisConfigDrawer } from '@/components/dashboard/AnalysisConfigDrawer'
+import { ExploreVisualizationPanel } from '@/components/dashboard/ExploreVisualizationPanel'
 import { Button, Card, Feedback, LoadingSlot, ResultsTabs } from '@/ui'
 import { sourceTypeLabel } from '@/utils/projectLabels'
 import { AnalysisProgressPanel } from './AnalysisProgressPanel'
@@ -22,12 +23,33 @@ export function DashboardResultsPanel({
   onResultViewChange,
   onSelectProjectRun,
   onOpenPrepare,
+  onOpenAnalysisConfig,
   onOpenChatWithPrompt,
+  analysisConfigOpen,
+  onCloseAnalysisConfig,
+  onRecalculateAnalysis,
+  metodoReduccion,
+  onMetodoReduccionChange,
+  reduccionOptions,
+  descripcionMetodo,
+  advancedMode,
+  isExpert = false,
+  seed,
+  onSeedChange,
+  nSamples,
+  onNSamplesChange,
+  pipelineTuning,
+  onPipelineTuningChange,
+  rowCountHint,
+  reductionRecommendation,
+  apiOnline,
 }) {
   const { isVisited } = useLazyTabs(
     resultado ? resultView : null,
-    resultado ? ['interpretation'] : [],
+    resultado ? ['interpretation', 'visualization'] : [],
   )
+  const nClusters = resultado?.metrics?.n_clusters ?? lastRun?.metrics?.n_clusters ?? 0
+  const datasetId = lastRun?.dataset_id ?? null
 
   return (
     <div className="app-main app-main--results-only" ref={resultsPanelRef}>
@@ -48,9 +70,22 @@ export function DashboardResultsPanel({
               </p>
             ) : null}
           </div>
-          <Button type="button" variant="primary" className="prepare-data-btn" onClick={onOpenPrepare}>
-            Preparar datos
-          </Button>
+          <div className="panel-results-head-actions">
+            {resultado && isExpert ? (
+              <Button
+                type="button"
+                variant="secondary"
+                className="analysis-config-btn"
+                onClick={onOpenAnalysisConfig}
+                disabled={ejecutando}
+              >
+                Configuración del análisis
+              </Button>
+            ) : null}
+            <Button type="button" variant="primary" className="prepare-data-btn" onClick={onOpenPrepare}>
+              Preparar datos
+            </Button>
+          </div>
         </div>
 
         {projectRuns.length > 1 ? (
@@ -97,15 +132,13 @@ export function DashboardResultsPanel({
 
             {isVisited('visualization') ? (
               <div hidden={resultView !== 'visualization'} className="results-tab-panel">
-                <Scatter2D
-                  X_2d={resultado?.X_2d}
-                  clusterLabels={resultado?.cluster_labels}
-                  metadata={resultado?.metadata}
+                <ExploreVisualizationPanel
+                  resultado={resultado}
+                  lastRun={lastRun}
+                  datasetId={datasetId}
+                  nClusters={nClusters}
+                  isExpert={isExpert}
                 />
-                <p className="legend-note note">
-                  Cada color representa un grupo de incidencias parecidas. Los marcados en gris son casos
-                  atípicos. Pasa el cursor sobre un punto para ver el detalle.
-                </p>
               </div>
             ) : null}
 
@@ -122,6 +155,29 @@ export function DashboardResultsPanel({
           </>
         )}
       </Card>
+
+      {isExpert ? (
+        <AnalysisConfigDrawer
+          open={analysisConfigOpen}
+          onClose={onCloseAnalysisConfig}
+          metodoReduccion={metodoReduccion}
+          onMetodoReduccionChange={onMetodoReduccionChange}
+          reduccionOptions={reduccionOptions}
+          descripcionMetodo={descripcionMetodo}
+          advancedMode={advancedMode}
+          seed={seed}
+          onSeedChange={onSeedChange}
+          nSamples={nSamples}
+          onNSamplesChange={onNSamplesChange}
+          pipelineTuning={pipelineTuning}
+          onPipelineTuningChange={onPipelineTuningChange}
+          rowCountHint={rowCountHint}
+          reductionRecommendation={reductionRecommendation}
+          apiOnline={apiOnline}
+          ejecutando={ejecutando}
+          onApply={onRecalculateAnalysis}
+        />
+      ) : null}
     </div>
   )
 }
@@ -140,5 +196,24 @@ DashboardResultsPanel.propTypes = {
   onResultViewChange: PropTypes.func.isRequired,
   onSelectProjectRun: PropTypes.func.isRequired,
   onOpenPrepare: PropTypes.func.isRequired,
+  onOpenAnalysisConfig: PropTypes.func,
   onOpenChatWithPrompt: PropTypes.func.isRequired,
+  analysisConfigOpen: PropTypes.bool,
+  onCloseAnalysisConfig: PropTypes.func,
+  onRecalculateAnalysis: PropTypes.func,
+  metodoReduccion: PropTypes.string,
+  onMetodoReduccionChange: PropTypes.func,
+  reduccionOptions: PropTypes.array,
+  descripcionMetodo: PropTypes.string,
+  advancedMode: PropTypes.bool,
+  isExpert: PropTypes.bool,
+  seed: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  onSeedChange: PropTypes.func,
+  nSamples: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  onNSamplesChange: PropTypes.func,
+  pipelineTuning: PropTypes.object,
+  onPipelineTuningChange: PropTypes.func,
+  rowCountHint: PropTypes.string,
+  reductionRecommendation: PropTypes.object,
+  apiOnline: PropTypes.bool,
 }

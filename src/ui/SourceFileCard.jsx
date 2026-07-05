@@ -48,6 +48,7 @@ export function SourceFileCard({
   subtitle,
   chips = [],
   statusLabel,
+  statusTone = 'success',
   detail,
   onRemove,
   removing = false,
@@ -73,6 +74,14 @@ export function SourceFileCard({
             tone: formatToneForKind(resolvedKind),
           },
         ]
+
+  const statusStyles = {
+    success: { border: '#86efac', color: '#15803d', bg: '#f0fdf4', icon: '#16a34a' },
+    danger: { border: '#fecaca', color: '#b91c1c', bg: '#fef2f2', icon: '#dc2626' },
+    warning: { border: '#fde68a', color: '#b45309', bg: '#fffbeb', icon: '#d97706' },
+    neutral: { border: '#cbd5e1', color: '#475569', bg: '#f8fafc', icon: '#64748b' },
+  }
+  const statusStyle = statusStyles[statusTone] ?? statusStyles.success
 
   return (
     <Box className={`source-file-card ${className}`.trim()}>
@@ -129,10 +138,10 @@ export function SourceFileCard({
             sx={{
               height: 28,
               fontWeight: 600,
-              borderColor: '#86efac',
-              color: '#15803d',
-              bgcolor: '#f0fdf4',
-              '& .MuiChip-icon': { color: '#16a34a' },
+              borderColor: statusStyle.border,
+              color: statusStyle.color,
+              bgcolor: statusStyle.bg,
+              '& .MuiChip-icon': { color: statusStyle.icon },
             }}
           />
         ) : null}
@@ -171,6 +180,7 @@ SourceFileCard.propTypes = {
     ]),
   ),
   statusLabel: PropTypes.string,
+  statusTone: PropTypes.oneOf(['success', 'danger', 'warning', 'neutral']),
   detail: PropTypes.string,
   onRemove: PropTypes.func,
   removing: PropTypes.bool,

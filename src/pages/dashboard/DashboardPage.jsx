@@ -13,8 +13,9 @@ export function DashboardPage({
   embedded = false,
   flowStepId,
   onRunStateChange,
+  isExpert = false,
 }) {
-  const page = useDashboardPage({ onRunStateChange })
+  const page = useDashboardPage({ onRunStateChange, isExpert })
   const currentFlowStep =
     flowStepId ?? (page.lastRun?.id && page.resultado ? 'explore' : 'analyze')
 
@@ -70,7 +71,26 @@ export function DashboardPage({
         onResultViewChange={page.setResultView}
         onSelectProjectRun={page.handleSelectProjectRun}
         onOpenPrepare={page.openPrepareDialog}
+        onOpenAnalysisConfig={page.openAnalysisConfig}
         onOpenChatWithPrompt={page.handleOpenChatWithPrompt}
+        analysisConfigOpen={page.analysisConfigOpen}
+        onCloseAnalysisConfig={() => page.setAnalysisConfigOpen(false)}
+        onRecalculateAnalysis={page.handleRecalculateFromConfig}
+        metodoReduccion={page.metodoReduccion}
+        onMetodoReduccionChange={page.setMetodoReduccion}
+        reduccionOptions={page.reduccionOptions}
+        descripcionMetodo={page.descripcionMetodo}
+        advancedMode={page.advancedMode}
+        isExpert={page.isExpert}
+        seed={page.seed}
+        onSeedChange={page.setSeed}
+        nSamples={page.nSamples}
+        onNSamplesChange={page.setNSamples}
+        pipelineTuning={page.pipelineTuning}
+        onPipelineTuningChange={page.handlePipelineTuningChange}
+        rowCountHint={page.rowCountHint}
+        reductionRecommendation={page.reductionRecommendation}
+        apiOnline={page.apiOnline}
       />
 
       <ProjectPrepareDialog
@@ -100,12 +120,13 @@ export function DashboardPage({
         pipelineTuning={page.pipelineTuning}
         onPipelineTuningChange={page.handlePipelineTuningChange}
         advancedMode={page.advancedMode}
-        onAdvancedModeChange={page.setAdvancedMode}
+        isExpert={page.isExpert}
         canExecute={page.canExecute}
         ejecutando={page.ejecutando}
         error={page.error}
         apiOnline={page.apiOnline}
         onAnalyze={page.ejecutarPipeline}
+        reductionRecommendation={page.reductionRecommendation}
       />
 
       <FloatingChatWidget
@@ -142,4 +163,5 @@ DashboardPage.propTypes = {
   embedded: PropTypes.bool,
   flowStepId: PropTypes.oneOf(['analyze', 'explore']),
   onRunStateChange: PropTypes.func,
+  isExpert: PropTypes.bool,
 }

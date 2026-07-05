@@ -20,8 +20,12 @@ export function ConversationMetricMixChart({ insights }) {
   }, {})
   const kinds = Object.keys(counts)
 
+  if (!kinds.length) return null
+
+  const labels = kinds.map(kindLabel)
+
   return (
-    <Card className="decision-chart-card">
+    <Card className="decision-chart-card conv-metric-mix-card">
       <div className="decision-card-title">
         <div>
           <h2>Agrupaci&oacute;n de intereses</h2>
@@ -32,23 +36,47 @@ export function ConversationMetricMixChart({ insights }) {
         data={[
           {
             type: 'pie',
-            hole: 0.58,
-            labels: kinds.map(kindLabel),
+            hole: kinds.length === 1 ? 0.45 : 0.52,
+            labels,
             values: kinds.map((kind) => counts[kind]),
             marker: { colors: kinds.map((kind) => KIND_COLORS[kind] ?? KIND_COLORS.Metrica) },
-            textinfo: 'label+percent',
-            hovertemplate: '<b>%{label}</b><br>%{value} insights<extra></extra>',
+            textinfo: kinds.length === 1 ? 'none' : 'percent',
+            textposition: 'outside',
+            automargin: true,
+            hovertemplate: '<b>%{label}</b><br>%{value} insights (%{percent})<extra></extra>',
           },
         ]}
         layout={{
           autosize: true,
-          height: 320,
-          margin: { l: 12, r: 12, t: 8, b: 8 },
+          height: kinds.length === 1 ? 280 : 360,
+          margin: { l: 16, r: 16, t: 16, b: 16 },
           paper_bgcolor: 'rgba(0,0,0,0)',
-          showlegend: false,
+          showlegend: true,
+          legend: {
+            orientation: 'h',
+            y: -0.08,
+            x: 0.5,
+            xanchor: 'center',
+            font: { size: 14 },
+          },
+          annotations:
+            kinds.length === 1
+              ? [
+                  {
+                    text: `<b>${labels[0]}</b><br>${counts[kinds[0]]} hallazgo${counts[kinds[0]] === 1 ? '' : 's'}`,
+                    showarrow: false,
+                    font: { size: 16, color: '#334155' },
+                    x: 0.5,
+                    y: 0.5,
+                    xref: 'paper',
+                    yref: 'paper',
+                  },
+                ]
+              : [],
         }}
-        style={{ width: '100%', height: '100%' }}
         config={{ responsive: true, displaylogo: false }}
+        style={{ width: '100%', minHeight: kinds.length === 1 ? 280 : 360 }}
+        useResizeHandler
       />
     </Card>
   )

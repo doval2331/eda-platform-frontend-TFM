@@ -6,6 +6,8 @@ import { executeProjectRuns, fetchProject } from '@/api/projects'
 import { executePipeline, checkApiHealth, fetchRun } from '@/api/pipeline'
 import { validateCsvUploadFile } from '@/utils/csvUpload'
 import { buildAnalysisStatusMessage } from '@/utils/analysisStatus'
+import { REDUCTION_OPTIONS, recommendReductionMethod } from '@/utils/businessLabels'
+import { runsListQueryKey } from '@/hooks/queries'
 import {
   ACTIVE_PROJECT_KEY,
   loadTabularScenario,
@@ -200,11 +202,11 @@ function buildAnalysisProgressSnapshot(context, elapsedMs) {
   }
 }
 
-export function useDashboardPage({ onRunStateChange } = {}) {
+export function useDashboardPage({ onRunStateChange, isExpert = false } = {}) {
   const location = useLocation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [modalidad, setModalidad] = useState('it_ops')
+  const [modalidad, setModalidad] = useState('tabular')
   const [metodoReduccion, setMetodoReduccion] = useState('UMAP')
   const [seed, setSeed] = useState('42')
   const [nSamples, setNSamples] = useState('2000')
@@ -229,15 +231,23 @@ export function useDashboardPage({ onRunStateChange } = {}) {
   const [error, setError] = useState(null)
   const [apiOnline, setApiOnline] = useState(null)
   const [resultView, setResultView] = useState('interpretation')
-  const [advancedMode, setAdvancedMode] = useState(false)
+  const advancedMode = isExpert
   const [pipelineTuning, setPipelineTuning] = useState(DEFAULT_PIPELINE_TUNING)
   const [showOnboarding, setShowOnboarding] = useState(
     () => localStorage.getItem(ONBOARDING_KEY) !== '1',
   )
   const [chatForceOpen, setChatForceOpen] = useState(false)
   const [chatExternalPrompt, setChatExternalPrompt] = useState(null)
+  const [analysisConfigOpen, setAnalysisConfigOpen] = useState(false)
   const resultsPanelRef = useRef(null)
   const analysisProgressTimerRef = useRef(null)
+  const reductionAutoAppliedRef = useRef(false)
+
+  useEffect(() => {
+    if (!isExpert) {
+      setAnalysisConfigOpen(false)
+    }
+  }, [isExpert])
 
   const analysisStatusMessage = useMemo(
     () =>
@@ -253,6 +263,53 @@ export function useDashboardPage({ onRunStateChange } = {}) {
     if (!analysisProgress) return analysisStatusMessage
     return `${analysisProgress.percent}% estimado - ${analysisProgress.label}. ${analysisStatusMessage}`
   }, [analysisProgress, analysisStatusMessage])
+
+  const reductionRecommendation = useMemo(() => {
+    const tabularSource = activeProject?.sources?.find((source) => source?.n_rows != null)
+    const nRows =
+      modalidad === 'tabular'
+        ? datasetProfile?.n_rows ?? 0
+        : activeProject?.total_rows ?? tabularSource?.n_rows ?? 0
+    const nCols = datasetProfile?.n_cols ?? tabularSource?.all_columns?.length ?? 0
+    const categoricalCount =
+      datasetProfile?.categorical_columns?.length ??
+      tabularSource?.categorical_columns?.length ??
+      0
+    return recommendReductionMethod({ nRows, nCols, categoricalCount })
+  }, [modalidad, datasetProfile, activeProject])
+
+  const reduccionOptions = useMemo(
+    () =>
+      REDUCTION_OPTIONS.map(({ value, label }) => ({
+        value,
+        label: advancedMode ? `${label} (${value})` : label,
+      })),
+    [advancedMode],
+  )
+
+  const descripcionMetodo = useMemo(() => {
+    const found = REDUCTION_OPTIONS.find((option) => option.value === metodoReduccion)
+    return found?.helper ?? ''
+  }, [metodoReduccion])
+
+  const rowCountHint = useMemo(() => {
+    if (modalidad === 'tabular' && datasetProfile?.n_rows) {
+      return `las ${datasetProfile.n_rows} incidencias del archivo`
+    }
+    if (modalidad === 'project' && activeProject?.total_rows) {
+      return `las ${activeProject.total_rows} filas del escenario`
+    }
+    return 'todas las incidencias del dataset'
+  }, [modalidad, datasetProfile, activeProject])
+
+  useEffect(() => {
+    if (reductionAutoAppliedRef.current) return
+    const hasDataset =
+      Boolean(datasetProfile?.dataset_id) || Boolean(activeProject?.total_rows || activeProject?.csv_source_count)
+    if (!hasDataset) return
+    setMetodoReduccion(reductionRecommendation.method)
+    reductionAutoAppliedRef.current = true
+  }, [reductionRecommendation, datasetProfile, activeProject])
 
   const loadActiveProject = useCallback(async (projectId) => {
     if (!projectId) {
@@ -373,12 +430,6 @@ export function useDashboardPage({ onRunStateChange } = {}) {
       setUploadError(null)
       setScenarioName('')
       setScenarioDescription('')
-    } else if (value === 'it_ops') {
-      setDatasetProfile(null)
-      setIdColumn('')
-      setUploadError(null)
-      setActiveProject(null)
-      localStorage.removeItem(ACTIVE_PROJECT_KEY)
     }
   }, [])
 
@@ -450,8 +501,7 @@ export function useDashboardPage({ onRunStateChange } = {}) {
   const canExecute =
     apiOnline !== false &&
     !ejecutando &&
-    (modalidad === 'it_ops' ||
-      (modalidad === 'tabular' && datasetProfile?.dataset_id && scenarioName.trim()) ||
+    ((modalidad === 'tabular' && datasetProfile?.dataset_id && scenarioName.trim()) ||
       (modalidad === 'project' && activeProject?.csv_source_count > 0))
 
   const dismissOnboarding = useCallback(() => {
@@ -556,6 +606,14 @@ export function useDashboardPage({ onRunStateChange } = {}) {
           isNewRun: true,
         })
         void queryClient.invalidateQueries({ queryKey: runsListQueryKey(50) })
+        if (selected?.dataset_id) {
+          void queryClient.invalidateQueries({
+            queryKey: ['datasetExploreProfile', selected.dataset_id],
+          })
+        }
+        if (primary?.id) {
+          void queryClient.invalidateQueries({ queryKey: ['clusterProfiles', primary.id] })
+        }
       } else {
         if (modalidad === 'tabular') {
           saveTabularScenario({ name: scenarioName, description: scenarioDescription })
@@ -581,6 +639,14 @@ export function useDashboardPage({ onRunStateChange } = {}) {
           isNewRun: true,
         })
         void queryClient.invalidateQueries({ queryKey: runsListQueryKey(50) })
+        if (run?.dataset_id) {
+          void queryClient.invalidateQueries({
+            queryKey: ['datasetExploreProfile', run.dataset_id],
+          })
+        }
+        if (run?.id) {
+          void queryClient.invalidateQueries({ queryKey: ['clusterProfiles', run.id] })
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al analizar las incidencias')
@@ -630,6 +696,15 @@ export function useDashboardPage({ onRunStateChange } = {}) {
     setPrepareProjectId(null)
   }, [])
 
+  const openAnalysisConfig = useCallback(() => {
+    setAnalysisConfigOpen(true)
+  }, [])
+
+  const handleRecalculateFromConfig = useCallback(async () => {
+    setAnalysisConfigOpen(false)
+    await ejecutarPipeline()
+  }, [ejecutarPipeline])
+
   return {
     modalidad,
     metodoReduccion,
@@ -664,7 +739,7 @@ export function useDashboardPage({ onRunStateChange } = {}) {
     resultView,
     setResultView,
     advancedMode,
-    setAdvancedMode,
+    isExpert,
     pipelineTuning,
     handlePipelineTuningChange,
     showOnboarding,
@@ -685,5 +760,13 @@ export function useDashboardPage({ onRunStateChange } = {}) {
     openPrepareDialog,
     handleOpenChatWithPrompt,
     handleChatPromptConsumed,
+    analysisConfigOpen,
+    setAnalysisConfigOpen,
+    openAnalysisConfig,
+    handleRecalculateFromConfig,
+    reductionRecommendation,
+    reduccionOptions,
+    descripcionMetodo,
+    rowCountHint,
   }
 }

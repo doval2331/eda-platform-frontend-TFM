@@ -27,7 +27,7 @@ const Plot = plotlyFactory(plotlyCore)
 
 const SOURCE_LABELS = {
   tabular: 'CSV de incidencias',
-  it_ops: 'Demo incidencias IT',
+  it_ops: 'Incidencias IT',
   texto: 'Texto',
   imagen: 'Imagen',
   multimodal: 'Multimodal',

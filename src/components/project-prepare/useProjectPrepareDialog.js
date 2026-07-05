@@ -5,6 +5,7 @@ import {
   removeProjectSource,
   updateProject,
   uploadProjectSource,
+  validateProjectSources,
   waitForProjectSourceUploadJob,
 } from '@/api/projects'
 import { REDUCTION_OPTIONS } from '@/utils/businessLabels'
@@ -92,10 +93,10 @@ export function useProjectPrepareDialog({
   const prepareTabs = useMemo(
     () => [
       { value: PREPARE_TAB.origin, label: 'Origen' },
-      { value: PREPARE_TAB.data, label: 'Datos', disabled: modalidad === 'it_ops' },
+      { value: PREPARE_TAB.data, label: 'Datos' },
       { value: PREPARE_TAB.params, label: 'Parámetros' },
     ],
-    [modalidad],
+    [],
   )
 
   const idColumnOptions = useMemo(() => {
@@ -111,7 +112,16 @@ export function useProjectPrepareDialog({
     setLoading(true)
     setLocalError(null)
     try {
-      const detail = await fetchProject(id)
+      let detail = await fetchProject(id)
+      const hasText = (detail.sources ?? []).some((source) => !isTabularSource(source))
+      const hasTabular = (detail.sources ?? []).some((source) => isTabularSource(source))
+      if (hasText && hasTabular) {
+        try {
+          detail = await validateProjectSources(id)
+        } catch {
+          // Mantener detalle sin revalidar si falla la API.
+        }
+      }
       setProject(detail)
       setName(detail.name)
       setDescription(detail.description ?? '')
@@ -159,14 +169,6 @@ export function useProjectPrepareDialog({
     if (!open || !projectId || uploadingTypeRef.current) return
     loadProject(projectId)
   }, [open, projectId, loadProject])
-
-  useEffect(() => {
-    if (modalidad !== 'it_ops' || activeTab !== PREPARE_TAB.data) return
-    const timer = window.setTimeout(() => {
-      setActiveTab(PREPARE_TAB.params)
-    }, 0)
-    return () => window.clearTimeout(timer)
-  }, [modalidad, activeTab])
 
   useEffect(() => {
     if (strategy !== 'merged' || csvCount >= 2) return
@@ -305,6 +307,17 @@ export function useProjectPrepareDialog({
       setNewSourceType(AUTO_SOURCE_TYPE)
       setNewSourceFiles([])
       setSourceFileInputKey((current) => current + 1)
+      const hasText = (latestDetail.sources ?? []).some((source) => !isTabularSource(source))
+      const hasTabular = (latestDetail.sources ?? []).some((source) => isTabularSource(source))
+      if (hasText && hasTabular) {
+        try {
+          const validated = await validateProjectSources(latestDetail.id)
+          setProject(validated)
+          onProjectSaved?.(validated)
+        } catch {
+          // La validación puede fallar offline; se conserva el detalle subido.
+        }
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error al subir el archivo'
       setNewSourceFiles(pendingFiles)
@@ -380,10 +393,6 @@ export function useProjectPrepareDialog({
   const goNextTab = useCallback(() => {
     setLocalError(null)
     if (activeTab === PREPARE_TAB.origin) {
-      if (modalidad === 'it_ops') {
-        setActiveTab(PREPARE_TAB.params)
-        return
-      }
       setActiveTab(PREPARE_TAB.data)
       return
     }
@@ -391,23 +400,23 @@ export function useProjectPrepareDialog({
       if (!validateTab(PREPARE_TAB.data)) return
       setActiveTab(PREPARE_TAB.params)
     }
-  }, [activeTab, modalidad, validateTab])
+  }, [activeTab, validateTab])
 
   const goPrevTab = useCallback(() => {
     setLocalError(null)
     if (activeTab === PREPARE_TAB.params) {
-      setActiveTab(modalidad === 'it_ops' ? PREPARE_TAB.origin : PREPARE_TAB.data)
+      setActiveTab(PREPARE_TAB.data)
       return
     }
     if (activeTab === PREPARE_TAB.data) {
       setActiveTab(PREPARE_TAB.origin)
     }
-  }, [activeTab, modalidad])
+  }, [activeTab])
 
   const handleAnalyze = useCallback(async () => {
     setLocalError(null)
     if (!validateTab(PREPARE_TAB.data)) {
-      setActiveTab(modalidad === 'it_ops' ? PREPARE_TAB.origin : PREPARE_TAB.data)
+      setActiveTab(PREPARE_TAB.data)
       return
     }
     setSaving(true)
@@ -430,8 +439,7 @@ export function useProjectPrepareDialog({
   const handleTabChange = useCallback(
     (tab) => {
       setLocalError(null)
-      if (tab === PREPARE_TAB.data && modalidad === 'it_ops') return
-      if (tab === PREPARE_TAB.params && modalidad !== 'it_ops' && !validateTab(PREPARE_TAB.data)) {
+      if (tab === PREPARE_TAB.params && !validateTab(PREPARE_TAB.data)) {
         return
       }
       setActiveTab(tab)
@@ -442,6 +450,14 @@ export function useProjectPrepareDialog({
   const displayError = localError || error
   const busy = saving || ejecutando || Boolean(uploadingType) || uploading
   const isLastTab = activeTab === PREPARE_TAB.params
+  const excludedSourceWarning = useMemo(() => {
+    const excluded = (project?.sources ?? []).filter(
+      (source) => !isTabularSource(source) && source.relationship_status === 'excluded',
+    )
+    if (!excluded.length) return null
+    const names = excluded.map((source) => source.source_name || source.filename).join(', ')
+    return `${excluded.length} documento(s) sin relación con el dataset (${names}) quedaron excluidos del análisis.`
+  }, [project])
 
   return {
     activeTab,
@@ -480,5 +496,6 @@ export function useProjectPrepareDialog({
     busy,
     isLastTab,
     saving,
+    excludedSourceWarning,
   }
 }
