@@ -17,11 +17,6 @@ export const MODALITY_CARD_OPTIONS = [
     label: 'Escenario multifuente',
     description: 'Varias fuentes en un mismo escenario.',
   },
-  {
-    value: 'it_ops',
-    label: 'Demo IT',
-    description: 'Dataset de ejemplo sin subir archivos.',
-  },
 ]
 
 export const AUTO_SOURCE_TYPE = 'auto'

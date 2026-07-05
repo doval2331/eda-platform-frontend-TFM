@@ -14,12 +14,6 @@ export function PrepareOriginTab({ modalidad, onModalidadChange }) {
         value={modalidad}
         onChange={onModalidadChange}
       />
-      {modalidad === 'it_ops' ? (
-        <Typography variant="body2" color="text.secondary">
-          Usarás el dataset de demostración IT Ops. No necesitas subir archivos; continúa a
-          Parámetros.
-        </Typography>
-      ) : null}
     </div>
   )
 }

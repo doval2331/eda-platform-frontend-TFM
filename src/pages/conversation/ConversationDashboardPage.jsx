@@ -1,34 +1,48 @@
 import PropTypes from 'prop-types'
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
-import { AnalysisFlowStrip, MetabaseFlowCTA, MetabaseFlowNextLink } from '@/components/bi'
+import { useLocation } from 'react-router-dom'
+import { AnalysisFlowStrip, MetabaseFlowCTA } from '@/components/bi'
 import {
   ConversationDashboardFooter,
   ConversationDashboardHero,
+  ConversationClusterRiskChart,
+  ConversationClusterVolumeChart,
+  ConversationDimensionChart,
+  ConversationDimensionTreemap,
+  ConversationEvidenceChart,
+  ConversationInsightImpactChart,
   ConversationInsightTable,
   ConversationMetricMixChart,
+  ConversationPriorityChart,
   ConversationRankingChart,
   ConversationReadingPanel,
+  ConversationRunLinkBar,
   ConversationScatterChart,
+  ConversationDashboardToolbar,
 } from '@/components/conversation'
 import { InsightListPagination } from '@/components/agent'
 import { useConversationDashboard, useRunsList } from '@/hooks/queries'
-import { Button, Card, Feedback, LoadingPanel, LoadingSlot, PageNavbar } from '@/ui'
+import { Card, Feedback, LoadingPanel, LoadingSlot, PageNavbar } from '@/ui'
 import {
   buildDecisionReading,
   buildRunsForFilter,
   countInsightsByKind,
   DASHBOARD_PAGE_SIZE,
   formatMetric,
+  hasClusterInsightData,
+  hasDimensionEvidenceData,
+  hasInsightImpactData,
+  hasSegmentedDimensionData,
   insightKey,
   metricKind,
   paginateDashboardList,
   runOptionLabel,
   summarize,
+  summarizeClusterCoverage,
 } from '@/utils/conversationDashboard'
 import '@/styles/llm-visual.css'
 
-export function ConversationDashboardPage({ embedded = false }) {
+export function ConversationDashboardPage({ embedded = false, toolbarHost = null }) {
   const location = useLocation()
   const [selectedRunId, setSelectedRunId] = useState('')
   const [metricFilter, setMetricFilter] = useState('all')
@@ -44,7 +58,7 @@ export function ConversationDashboardPage({ embedded = false }) {
     error: dashboardError,
     refetch: refetchDashboard,
     isFetching: dashboardFetching,
-  } = useConversationDashboard(selectedRunId)
+  } = useConversationDashboard()
 
   const {
     data: runs = [],
@@ -69,8 +83,20 @@ export function ConversationDashboardPage({ embedded = false }) {
     setMetricFilter('all')
   }, [embedded, location.pathname])
 
-  const insights = useMemo(() => dashboard.insights ?? [], [dashboard.insights])
-  const runsForFilter = useMemo(() => buildRunsForFilter(runs, insights), [runs, insights])
+  const allInsights = useMemo(() => dashboard.insights ?? [], [dashboard.insights])
+  const insights = useMemo(() => {
+    if (!selectedRunId) return allInsights
+    return allInsights.filter((item) => item.run_id === selectedRunId)
+  }, [allInsights, selectedRunId])
+  const isPageLoading = loading || isSoftLoading
+  const loadingTitle =
+    refreshing || (isSoftLoading && allInsights.length > 0)
+      ? 'Actualizando hallazgos guardados…'
+      : 'Cargando hallazgos guardados'
+  const runsForFilter = useMemo(
+    () => buildRunsForFilter(runs, allInsights),
+    [runs, allInsights],
+  )
   const kindCounts = useMemo(() => countInsightsByKind(insights), [insights])
   const metricKinds = useMemo(() => {
     return Object.keys(kindCounts).sort((a, b) => kindCounts[b] - kindCounts[a])
@@ -101,6 +127,26 @@ export function ConversationDashboardPage({ embedded = false }) {
   const avgSlaLabel = formatMetric('sla_breach_rate', summary.avgSla)
   const avgRiskLabel = formatMetric('avg_risk', summary.avgRisk)
   const activeChartKey = activeInsight ? insightKey(activeInsight) : activeInsightKey
+  const activeRunId = selectedRunId || activeInsight?.run_id || ''
+  const activeRun = useMemo(
+    () => runsForFilter.find((run) => run.id === activeRunId) ?? null,
+    [runsForFilter, activeRunId],
+  )
+  const clusterCoverage = useMemo(
+    () => summarizeClusterCoverage(filteredInsights),
+    [filteredInsights],
+  )
+  const showClusterCharts = useMemo(
+    () => hasClusterInsightData(filteredInsights),
+    [filteredInsights],
+  )
+  const showBusinessCharts = useMemo(
+    () =>
+      hasSegmentedDimensionData(filteredInsights) ||
+      hasDimensionEvidenceData(filteredInsights) ||
+      hasInsightImpactData(filteredInsights),
+    [filteredInsights],
+  )
 
   function onRunChange(event) {
     const nextRunId = event.target.value
@@ -157,8 +203,8 @@ export function ConversationDashboardPage({ embedded = false }) {
   return (
     <div
       className={`conversation-dashboard-page${
-        loading && insights.length === 0 ? ' conversation-dashboard-page--loading' : ''
-      }${isSoftLoading ? ' conversation-dashboard-page--refreshing' : ''}`}
+        isPageLoading ? ' conversation-dashboard-page--loading' : ''
+      }`}
     >
       {!embedded ? (
         <PageNavbar
@@ -166,40 +212,21 @@ export function ConversationDashboardPage({ embedded = false }) {
           breadcrumbCurrent="Dashboard conversacional"
           title="Tus hallazgos guardados"
           rightSlot={
-            <div className="conv-dashboard-toolbar">
-              <Link to="/" className="decision-link">
-                Volver a explorar
-              </Link>
-              <MetabaseFlowNextLink
-                currentStepId="consolidate"
-                runId={selectedRunId || activeInsight?.run_id}
-              />
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={loading || isSoftLoading}
-                onClick={() => void handleRefresh()}
-              >
-                {isSoftLoading ? 'Actualizando…' : 'Actualizar'}
-              </Button>
-            </div>
+            <ConversationDashboardToolbar
+              runId={selectedRunId || activeInsight?.run_id}
+              isLoading={isPageLoading}
+              onRefresh={() => void handleRefresh()}
+            />
           }
         />
       ) : (
-        <div className="conv-dashboard-toolbar conv-dashboard-toolbar--embedded">
-          <MetabaseFlowNextLink
-            currentStepId="consolidate"
-            runId={selectedRunId || activeInsight?.run_id}
-          />
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={loading || isSoftLoading}
-            onClick={() => void handleRefresh()}
-          >
-            {isSoftLoading ? 'Actualizando…' : 'Actualizar'}
-          </Button>
-        </div>
+        <ConversationDashboardToolbar
+          embedded
+          toolbarHost={toolbarHost}
+          runId={selectedRunId || activeInsight?.run_id}
+          isLoading={isPageLoading}
+          onRefresh={() => void handleRefresh()}
+        />
       )}
 
       {displayError ? <Feedback variant="danger" message={displayError} /> : null}
@@ -207,7 +234,7 @@ export function ConversationDashboardPage({ embedded = false }) {
       {!embedded ? (
         <>
           <AnalysisFlowStrip currentStepId="consolidate" compact />
-          {insights.length > 0 ? (
+          {!isPageLoading && allInsights.length > 0 ? (
             <MetabaseFlowCTA
               variant="consolidate"
               runId={selectedRunId || activeInsight?.run_id}
@@ -216,47 +243,40 @@ export function ConversationDashboardPage({ embedded = false }) {
         </>
       ) : null}
 
-      {isSoftLoading && insights.length > 0 ? (
-        <div className="conv-reload-toast" role="status" aria-live="polite">
-          <LoadingPanel
-            bare
-            compact
-            spinnerSize={64}
-            title="Actualizando hallazgos guardados…"
-          />
-        </div>
-      ) : null}
-
-      {!loading && insights.length > 0 ? (
-        <ConversationDashboardHero
-          summary={summary}
-          runsForFilter={runsForFilter}
-          selectedRunId={selectedRunId}
-          onRunChange={onRunChange}
-          runOptionLabel={runOptionLabel}
-          metricFilter={metricFilter}
-          metricKinds={metricKinds}
-          kindCounts={kindCounts}
-          totalInsights={insights.length}
-          onMetricFilterChange={onMetricFilterChange}
-        />
-      ) : null}
-
-      {loading && insights.length === 0 ? (
-        <Card className="decision-empty decision-empty--loading">
+      {isPageLoading ? (
+        <Card className="conv-dashboard-loading-card">
           <LoadingSlot variant="card">
-            <LoadingPanel bare compact title="Cargando hallazgos guardados" />
+            <LoadingPanel bare compact title={loadingTitle} />
           </LoadingSlot>
         </Card>
-      ) : insights.length === 0 ? (
+      ) : allInsights.length === 0 ? (
         <Card className="decision-empty">
           Todav&iacute;a no hay insights seleccionados. Ejecuta el pipeline, pregunta en el chat y
           usa el bot&oacute;n Seleccionar sobre los hallazgos relevantes.
         </Card>
-      ) : filteredInsights.length === 0 ? (
-        <Card className="decision-empty">No hay insights para el filtro seleccionado.</Card>
       ) : (
         <>
+          <ConversationDashboardHero
+            summary={summary}
+            runsForFilter={runsForFilter}
+            selectedRunId={selectedRunId}
+            onRunChange={onRunChange}
+            runOptionLabel={runOptionLabel}
+            metricFilter={metricFilter}
+            metricKinds={metricKinds}
+            kindCounts={kindCounts}
+            totalInsights={insights.length}
+            onMetricFilterChange={onMetricFilterChange}
+          />
+
+          {insights.length === 0 ? (
+            <Card className="decision-empty">
+              No hay hallazgos guardados para esta ejecuci&oacute;n. Elige otra en el filtro superior.
+            </Card>
+          ) : filteredInsights.length === 0 ? (
+            <Card className="decision-empty">No hay insights para el filtro seleccionado.</Card>
+          ) : (
+            <>
           <div className="decision-kpis decision-kpis--dashboard">
             <Card className="decision-kpi">
               <span>Insights</span>
@@ -282,6 +302,12 @@ export function ConversationDashboardPage({ embedded = false }) {
                 <strong>{avgRiskLabel}</strong>
               </Card>
             ) : null}
+            {clusterCoverage.totalRecords ? (
+              <Card className="decision-kpi">
+                <span>Registros en grupos guardados</span>
+                <strong>{clusterCoverage.totalRecords.toLocaleString('es-ES')}</strong>
+              </Card>
+            ) : null}
           </div>
 
           <div className="conv-dashboard-main">
@@ -291,7 +317,6 @@ export function ConversationDashboardPage({ embedded = false }) {
                 allItems={filteredInsights}
                 activeKey={activeChartKey}
                 selectedKeys={selectedKeys}
-                refreshing={isSoftLoading}
                 onSelect={(next) => setActiveInsightKey(insightKey(next))}
                 onToggleCheck={toggleInsightSelection}
                 onToggleSelectAll={toggleSelectAllOnPage}
@@ -317,21 +342,61 @@ export function ConversationDashboardPage({ embedded = false }) {
           </div>
 
           <section className="conv-dashboard-analytics" aria-label="Visualizaciones analiticas">
+            <ConversationRunLinkBar run={activeRun} />
+
+            {showClusterCharts ? (
+              <div className="conv-dashboard-insight-charts">
+                <ConversationClusterVolumeChart
+                  insights={filteredInsights}
+                  activeKey={activeChartKey}
+                  onSelect={setActiveInsightKey}
+                />
+                <ConversationClusterRiskChart
+                  insights={filteredInsights}
+                  activeKey={activeChartKey}
+                  onSelect={setActiveInsightKey}
+                />
+              </div>
+            ) : null}
+
             <ConversationScatterChart
               insights={filteredInsights}
               activeKey={activeChartKey}
               onSelect={setActiveInsightKey}
             />
 
-            <div className="decision-secondary-grid">
+            {showBusinessCharts ? (
+              <div className="conv-dashboard-insight-charts">
+                <ConversationDimensionChart insights={filteredInsights} />
+                <ConversationDimensionTreemap insights={filteredInsights} />
+                <ConversationEvidenceChart
+                  insights={filteredInsights}
+                  activeKey={activeChartKey}
+                  onSelect={setActiveInsightKey}
+                />
+                <ConversationInsightImpactChart
+                  insights={filteredInsights}
+                  activeKey={activeChartKey}
+                  onSelect={setActiveInsightKey}
+                />
+              </div>
+            ) : null}
+
+            <div className="conv-dashboard-insight-charts">
+              <ConversationPriorityChart insights={filteredInsights} />
               <ConversationRankingChart
                 insights={filteredInsights}
                 activeKey={activeChartKey}
                 onSelect={setActiveInsightKey}
               />
+            </div>
+
+            <div className="conv-dashboard-metric-mix-full">
               <ConversationMetricMixChart insights={filteredInsights} />
             </div>
           </section>
+            </>
+          )}
         </>
       )}
     </div>
@@ -340,4 +405,5 @@ export function ConversationDashboardPage({ embedded = false }) {
 
 ConversationDashboardPage.propTypes = {
   embedded: PropTypes.bool,
+  toolbarHost: PropTypes.object,
 }

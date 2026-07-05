@@ -24,7 +24,6 @@ export function ProjectPrepareDialog({
   pipelineTuning,
   onPipelineTuningChange,
   advancedMode,
-  onAdvancedModeChange,
   canExecute,
   ejecutando,
   error,
@@ -41,6 +40,7 @@ export function ProjectPrepareDialog({
   uploadError = null,
   onDatasetFileChange,
   onClearDataset,
+  reductionRecommendation = null,
 }) {
   const state = useProjectPrepareDialog({
     open,
@@ -146,7 +146,6 @@ export function ProjectPrepareDialog({
             reduccionOptions={state.reduccionOptions}
             descripcionMetodo={state.descripcionMetodo}
             advancedMode={advancedMode}
-            onAdvancedModeChange={onAdvancedModeChange}
             seed={seed}
             onSeedChange={onSeedChange}
             nSamples={nSamples}
@@ -154,11 +153,15 @@ export function ProjectPrepareDialog({
             pipelineTuning={pipelineTuning}
             onPipelineTuningChange={onPipelineTuningChange}
             rowCountHint={state.rowCountHint}
+            reductionRecommendation={reductionRecommendation}
             apiOnline={apiOnline}
           />
         </TabPanel>
         </div>
       </div>
+      {state.excludedSourceWarning ? (
+        <Feedback variant="warning" message={state.excludedSourceWarning} />
+      ) : null}
       <Feedback
         open={Boolean(state.displayError && !uploadError)}
         variant="danger"

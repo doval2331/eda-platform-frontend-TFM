@@ -145,6 +145,13 @@ export async function removeProjectSource(projectId, sourceId) {
   })
 }
 
+export async function validateProjectSources(projectId) {
+  return apiRequest(`/api/projects/${projectId}/validate-sources`, {
+    method: 'POST',
+    auth: true,
+  })
+}
+
 export async function executeProjectRuns(projectId, options = {}) {
   const body = {
     reduction_method: options.reductionMethod ?? 'UMAP',
