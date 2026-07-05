@@ -2,12 +2,10 @@ import PropTypes from 'prop-types'
 import { Box, Card, CardActionArea, CardContent, Typography } from '@mui/material'
 import DatasetOutlinedIcon from '@mui/icons-material/DatasetOutlined'
 import FolderCopyOutlinedIcon from '@mui/icons-material/FolderCopyOutlined'
-import ScienceOutlinedIcon from '@mui/icons-material/ScienceOutlined'
 
 const ICONS = {
   tabular: <DatasetOutlinedIcon />,
   project: <FolderCopyOutlinedIcon />,
-  it_ops: <ScienceOutlinedIcon />,
 }
 
 export function ModalityCards({ options = [], value, onChange, className = '' }) {
@@ -16,7 +14,7 @@ export function ModalityCards({ options = [], value, onChange, className = '' })
       className={`modality-cards ${className}`.trim()}
       sx={{
         display: 'grid',
-        gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' },
+        gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' },
         gap: 1.5,
       }}
     >

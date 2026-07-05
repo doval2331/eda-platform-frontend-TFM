@@ -56,6 +56,9 @@ export function buildSourceChips(source) {
 
 export function buildSourceDetail(source) {
   const columns = source.all_columns ?? []
+  if (source?.relationship_reason && source?.relationship_status === 'excluded') {
+    return source.relationship_reason
+  }
   if (isTabularSource(source) && columns.length) {
     const visible = columns.slice(0, 12)
     const extra = columns.length > visible.length ? ` (+${columns.length - visible.length} más)` : ''
@@ -65,4 +68,21 @@ export function buildSourceDetail(source) {
     return `Texto extraído: ${source.preview}`
   }
   return ''
+}
+
+export function relationshipStatusLabel(status) {
+  const map = {
+    accepted: 'Relacionada',
+    excluded: 'Sin relación',
+    pending: 'Validando…',
+    skipped: 'Sin referencia tabular',
+  }
+  return map[status] ?? null
+}
+
+export function relationshipStatusTone(status) {
+  if (status === 'accepted') return 'success'
+  if (status === 'excluded') return 'danger'
+  if (status === 'pending') return 'warning'
+  return 'neutral'
 }

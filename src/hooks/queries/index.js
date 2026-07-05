@@ -5,3 +5,6 @@ export {
   useConversationDashboard,
   conversationDashboardQueryKey,
 } from './useConversationDashboard'
+export { useDatasetExploreProfile } from './useDatasetExploreProfile'
+export { useDatasetFullProfile } from './useDatasetFullProfile'
+export { useClusterProfiles } from './useClusterProfiles'

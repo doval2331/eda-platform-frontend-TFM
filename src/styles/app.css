@@ -187,6 +187,82 @@
   margin: 0;
 }
 
+.panel-results-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.dataset-quick-charts,
+.dataset-histogram-grid,
+.dataset-business-breakdown,
+.cluster-profiles-summary,
+.dataset-quality-summary,
+.explore-dataset-profile {
+  margin-top: 1.25rem;
+}
+
+.dataset-histogram-grid__mosaic {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.dataset-histogram-grid__cell {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #fff;
+}
+
+.explore-visualization {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.explore-visualization__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.explore-visualization__tab {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 8px 14px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.explore-visualization__tab:hover {
+  background: #f1f5f9;
+}
+
+.explore-visualization__tab--active {
+  background: rgba(37, 99, 235, 0.08);
+  border-color: rgba(37, 99, 235, 0.35);
+  color: #1d4ed8;
+}
+
+.explore-visualization__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.dashboard-kpis-tuning-note {
+  margin: 0 0 0.75rem;
+  color: #0369a1;
+}
+
 .prepare-data-btn {
   width: auto;
   min-width: 10rem;
@@ -712,27 +788,6 @@
   font-size: 17px;
   font-weight: 600;
   color: var(--color-brand-500);
-}
-
-.conversation-dashboard-page--refreshing::before {
-  content: '';
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  z-index: 120;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    var(--color-brand-400) 35%,
-    var(--color-brand-500) 50%,
-    var(--color-brand-400) 65%,
-    transparent 100%
-  );
-  background-size: 220% 100%;
-  animation: conv-reload-sweep 1.5s ease-in-out infinite;
-  pointer-events: none;
 }
 
 @keyframes conv-reload-sweep {
@@ -1518,6 +1573,28 @@
 .conversation-dashboard-page--loading {
   flex: 1;
   min-height: 0;
+}
+
+.conv-dashboard-loading-card {
+  flex: 1;
+  min-height: min(520px, calc(100vh - 280px));
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  background: #fff;
+  border: 1px solid var(--color-fog-border, #e2e8f0);
+  border-radius: var(--radius-cards, 16px);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.conv-dashboard-loading-card .loading-slot--card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
 }
 
 .conv-dashboard-toolbar {
@@ -2325,6 +2402,126 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.conv-run-link-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  padding: 14px 18px;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid #e2e8f0;
+}
+
+.conv-run-link-bar__text {
+  margin: 0;
+  color: #64748b;
+  font-size: 14px;
+  line-height: 1.45;
+  max-width: 720px;
+}
+
+.conv-run-link-bar__link {
+  color: #0f766e;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.conv-run-link-bar__link:hover {
+  text-decoration: underline;
+}
+
+.conv-run-context-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 20px;
+  padding: 14px 18px;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid #e2e8f0;
+}
+
+.conv-run-context-card__text {
+  margin: 0;
+  color: #64748b;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.conv-run-context-card__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-top: 10px;
+}
+
+.conv-run-context-card__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 72px;
+}
+
+.conv-run-context-card__stat span {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.conv-run-context-card__stat strong {
+  font-size: 18px;
+  color: #1e293b;
+}
+
+.conv-run-context-card__link {
+  color: #0f766e;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.conv-run-context-card__link:hover {
+  text-decoration: underline;
+}
+
+.conv-insight-cluster-card {
+  padding: 14px 18px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+}
+
+.conv-dashboard-insight-charts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.conv-dashboard-metric-mix-full {
+  width: 100%;
+}
+
+.conv-dashboard-metric-mix-full .conv-metric-mix-card {
+  width: 100%;
+}
+
+.conv-dashboard-metric-mix-full .conv-metric-mix-card .js-plotly-plot,
+.conv-dashboard-metric-mix-full .conv-metric-mix-card .plot-container {
+  width: 100% !important;
+}
+
+.conv-metric-mix-single {
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
 .conv-dashboard-analytics .decision-impact-map {
@@ -3390,6 +3587,7 @@
   .decision-kpis,
   .decision-grid,
   .decision-secondary-grid,
+  .conv-dashboard-insight-charts,
   .decision-visual-grid,
   .metabase-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3427,6 +3625,8 @@
   .decision-kpis,
   .decision-grid,
   .decision-secondary-grid,
+  .conv-dashboard-insight-charts,
+  .dataset-histogram-grid__mosaic,
   .decision-visual-grid,
   .conv-dashboard-main,
   .conv-reading-panel__grid,

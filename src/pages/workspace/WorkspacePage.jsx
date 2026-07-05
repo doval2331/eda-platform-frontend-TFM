@@ -1,8 +1,10 @@
 import { useCallback, useState } from 'react'
 import '@/styles/workspace.css'
+import { AnalysisUserProfileToggle } from '@/components/workspace/AnalysisUserProfileToggle'
 import { DashboardPage } from '@/pages/dashboard/DashboardPage'
 import { ConversationDashboardPage } from '@/pages/conversation/ConversationDashboardPage'
 import { MetabasePage } from '@/pages/metabase/MetabasePage'
+import { useAnalysisUserProfile } from '@/hooks/useAnalysisUserProfile'
 import { WorkspaceFlowTabs } from './WorkspaceFlowTabs'
 import { useWorkspaceTabs } from './useWorkspaceTabs'
 
@@ -28,7 +30,9 @@ const FLOW_NAVBAR = {
 export function WorkspacePage() {
   const { activeFlowTab, setActiveFlowTab, visitedFlowTabs, isDashboardTab } =
     useWorkspaceTabs()
+  const { isExpert, setExpertProfile } = useAnalysisUserProfile()
   const [hasRunResults, setHasRunResults] = useState(false)
+  const [consolidateToolbarHost, setConsolidateToolbarHost] = useState(null)
 
   const handleRunStateChange = useCallback(({ hasResults, isNewRun }) => {
     setHasRunResults(Boolean(hasResults))
@@ -46,15 +50,22 @@ export function WorkspacePage() {
   return (
     <div className="workspace-page">
       <header className="workspace-header">
-        <div className="workspace-header__breadcrumb">
-          <span className="workspace-header__parent">Plataforma</span>
-          <span className="workspace-header__sep" aria-hidden>
-            /
-          </span>
-          <span className="workspace-header__current">{navbar.breadcrumbCurrent}</span>
+        <div className="workspace-header__top">
+          <div className="workspace-header__breadcrumb">
+            <span className="workspace-header__parent">Plataforma</span>
+            <span className="workspace-header__sep" aria-hidden>
+              /
+            </span>
+            <span className="workspace-header__current">{navbar.breadcrumbCurrent}</span>
+          </div>
+          <AnalysisUserProfileToggle isExpert={isExpert} onChange={setExpertProfile} />
         </div>
         <h1 className="workspace-header__title">{navbar.title}</h1>
       </header>
+
+      {activeFlowTab === 'consolidate' ? (
+        <div ref={setConsolidateToolbarHost} className="workspace-consolidate-actions" />
+      ) : null}
 
       <WorkspaceFlowTabs
         activeTab={activeFlowTab}
@@ -72,6 +83,7 @@ export function WorkspacePage() {
             <DashboardPage
               embedded
               flowStepId={dashboardFlowStep}
+              isExpert={isExpert}
               onRunStateChange={handleRunStateChange}
             />
           </div>
@@ -83,7 +95,10 @@ export function WorkspacePage() {
             hidden={activeFlowTab !== 'consolidate'}
             aria-hidden={activeFlowTab !== 'consolidate'}
           >
-            <ConversationDashboardPage embedded />
+            <ConversationDashboardPage
+              embedded
+              toolbarHost={consolidateToolbarHost}
+            />
           </div>
         )}
 

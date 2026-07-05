@@ -1,6 +1,6 @@
 import PropTypes from 'prop-types'
-import { Collapse, Stack, Typography } from '@mui/material'
-import { Button, Feedback, FormSelect, TextField } from '@/ui'
+import { Stack, Typography } from '@mui/material'
+import { Feedback, FormSelect, TextField } from '@/ui'
 import { PrepareFormSection } from './PrepareFormSection'
 
 export function PrepareParamsTab({
@@ -9,7 +9,6 @@ export function PrepareParamsTab({
   reduccionOptions,
   descripcionMetodo,
   advancedMode,
-  onAdvancedModeChange,
   seed,
   onSeedChange,
   nSamples,
@@ -17,13 +16,39 @@ export function PrepareParamsTab({
   pipelineTuning = {},
   onPipelineTuningChange,
   rowCountHint,
+  reductionRecommendation,
   apiOnline,
 }) {
+  const showTsneWarning =
+    reductionRecommendation?.warnTsne && metodoReduccion === 't-SNE'
+  const largeDatasetHint =
+    advancedMode &&
+    reductionRecommendation?.warnTsne &&
+    (!nSamples || Number(nSamples) >= 10000)
+
   return (
     <Stack spacing={3} className="prepare-data-panel">
       <Typography className="prepare-data-panel__title" component="h3">
         Parámetros del análisis
       </Typography>
+
+      {reductionRecommendation?.message ? (
+        <Feedback variant="info" message={reductionRecommendation.message} />
+      ) : null}
+
+      {showTsneWarning ? (
+        <Feedback
+          variant="warning"
+          message="t-SNE puede ser lento o poco estable con más de 3 000 filas. Considera UMAP o PCA, o limita las incidencias a analizar."
+        />
+      ) : null}
+
+      {largeDatasetHint ? (
+        <Feedback
+          variant="info"
+          message="Para datasets grandes puedes definir un límite de incidencias (máx. 10 000) y mantener tiempos de respuesta razonables."
+        />
+      ) : null}
 
       <PrepareFormSection
         title="Visualización"
@@ -39,22 +64,16 @@ export function PrepareParamsTab({
         />
         {!advancedMode ? (
           <Typography variant="caption" color="text.secondary" display="block">
-            Sin opciones avanzadas se analizan {rowCountHint}.
+            Se analizan {rowCountHint} con la configuración recomendada.
           </Typography>
         ) : null}
       </PrepareFormSection>
 
-      <PrepareFormSection title="Opciones avanzadas" description="Solo para analistas.">
-        <Button
-          type="button"
-          variant="text"
-          size="small"
-          onClick={() => onAdvancedModeChange(!advancedMode)}
-          sx={{ alignSelf: 'flex-start', px: 0, mt: -0.5 }}
+      {advancedMode ? (
+        <PrepareFormSection
+          title="Opciones avanzadas"
+          description="Hiperparámetros del modelo y muestreo."
         >
-          {advancedMode ? 'Ocultar opciones avanzadas' : 'Mostrar opciones avanzadas'}
-        </Button>
-        <Collapse in={advancedMode}>
           <Stack spacing={2}>
             <FormSelect
               label="Algoritmo de proyección"
@@ -110,7 +129,7 @@ export function PrepareParamsTab({
                 value={pipelineTuning.hdbscanMinClusterSize ?? ''}
                 onChange={(e) => onPipelineTuningChange?.('hdbscanMinClusterSize', e.target.value)}
                 inputProps={{ min: 2, max: 5000, step: 1 }}
-                helperText="HDBSCAN. Vacio usa el valor automatico."
+                helperText="HDBSCAN. Vacio usa el valor automatico. Mas alto reduce el numero de grupos."
               />
               <TextField
                 label="Muestras minimas HDBSCAN"
@@ -132,8 +151,8 @@ export function PrepareParamsTab({
               />
             </div>
           </Stack>
-        </Collapse>
-      </PrepareFormSection>
+        </PrepareFormSection>
+      ) : null}
 
       {apiOnline === false ? (
         <Feedback variant="warning" message="No se pudo confirmar la conexión con el backend." />
@@ -148,7 +167,6 @@ PrepareParamsTab.propTypes = {
   reduccionOptions: PropTypes.array.isRequired,
   descripcionMetodo: PropTypes.string,
   advancedMode: PropTypes.bool.isRequired,
-  onAdvancedModeChange: PropTypes.func.isRequired,
   seed: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
   onSeedChange: PropTypes.func.isRequired,
   nSamples: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
@@ -162,5 +180,10 @@ PrepareParamsTab.propTypes = {
   }),
   onPipelineTuningChange: PropTypes.func,
   rowCountHint: PropTypes.string.isRequired,
+  reductionRecommendation: PropTypes.shape({
+    method: PropTypes.string,
+    message: PropTypes.string,
+    warnTsne: PropTypes.bool,
+  }),
   apiOnline: PropTypes.bool,
 }

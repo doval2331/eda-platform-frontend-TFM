@@ -19,7 +19,7 @@ import {
 } from '@/utils/projectLabels'
 import { PrepareFormSection } from './PrepareFormSection'
 import { AUTO_SOURCE_TYPE } from './constants'
-import { buildSourceChips, buildSourceDetail, isTabularSource, sourceStatusLabel } from './helpers'
+import { buildSourceChips, buildSourceDetail, isTabularSource, relationshipStatusLabel, relationshipStatusTone, sourceStatusLabel } from './helpers'
 
 export function PrepareProjectSection({
   loading,
@@ -168,7 +168,7 @@ export function PrepareProjectSection({
                 value={newSourceName}
                 onChange={(e) => onNewSourceNameChange(e.target.value)}
                 disabled={selectedFileCount > 1}
-                placeholder="Incidencias 2023"
+                placeholder="Registro de incidencias"
                 helperText={
                   selectedFileCount > 1
                     ? 'Con varios archivos se usa el nombre de cada fichero.'
@@ -236,7 +236,15 @@ export function PrepareProjectSection({
                 originalFormat={source.original_format}
                 normalizedKind={source.normalized_kind}
                 chips={buildSourceChips(source)}
-                statusLabel={sourceStatusLabel(source.processing_status)}
+                statusLabel={
+                  relationshipStatusLabel(source.relationship_status) ||
+                  sourceStatusLabel(source.processing_status)
+                }
+                statusTone={
+                  source.relationship_status
+                    ? relationshipStatusTone(source.relationship_status)
+                    : 'success'
+                }
                 detail={buildSourceDetail(source)}
                 removing={uploadingType === source.id}
                 onRemove={() => onRemoveSource(source)}

@@ -142,9 +142,16 @@ export function RunKpis({ result, runMeta, className = '', advancedMode = false 
     result?.metrics ?? runMeta?.metrics,
     result?.baseline_metrics,
   )
+  const tuningApplied =
+    result?.metrics?.pipeline_tuning_applied ?? runMeta?.metrics?.pipeline_tuning_applied
 
   return (
     <Box className={`dashboard-kpis-wrap ${className}`.trim()}>
+      {tuningApplied ? (
+        <p className="note dashboard-kpis-tuning-note">
+          Parámetros avanzados personalizados aplicados en esta ejecución.
+        </p>
+      ) : null}
       <div className="dashboard-kpis-grid">
         <MetricCard
           label="Grupos (clusters)"
