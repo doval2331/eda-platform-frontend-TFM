@@ -1,10 +1,11 @@
 import { apiRequest } from './apiClient'
 
-export async function askRunQuestion(runId, question, history = []) {
+export async function askRunQuestion(runId, question, history = [], options = {}) {
   return apiRequest(`/api/runs/${runId}/chat`, {
     method: 'POST',
     body: {
       question,
+      display_question: options.displayQuestion || question,
       history: history
         .filter((item) => item?.role && item?.text)
         .slice(-8)
@@ -23,6 +24,28 @@ export async function appendRunChatMessage(runId, body) {
     method: 'POST',
     body,
     auth: true,
+  })
+}
+
+export async function sendConversationFeedback(runId, feedback) {
+  const label = feedback?.helpful ? 'util' : 'no util'
+  return appendRunChatMessage(runId, {
+    text: `Feedback del dashboard conversacional: recomendacion ${label}.`,
+    metadata: {
+      kind: 'conversation_dashboard_feedback',
+      ...feedback,
+    },
+  })
+}
+
+export async function saveOperationalSelection(runId, selection) {
+  const count = Number(selection?.ticket_count || 0)
+  return appendRunChatMessage(runId, {
+    text: `Seleccion operativa guardada: ${selection?.title || 'tickets seleccionados'} (${count} tickets).`,
+    metadata: {
+      kind: 'conversation_dashboard_operational_selection',
+      ...selection,
+    },
   })
 }
 
@@ -46,7 +69,36 @@ export async function selectRunInsights(runId, insights) {
   })
 }
 
+export async function fetchRunSelectedInsights(runId) {
+  return apiRequest(`/api/runs/${runId}/insights/selected`, { auth: true })
+}
+
 export async function fetchConversationDashboard(runId) {
   const suffix = runId ? `?run_id=${encodeURIComponent(runId)}` : ''
   return apiRequest(`/api/conversation-dashboard${suffix}`, { auth: true })
+}
+
+export async function fetchConversationSemanticDictionary({ refresh = false } = {}) {
+  const suffix = refresh ? '?refresh=true' : ''
+  return apiRequest(`/api/conversation/semantic-dictionary${suffix}`, { auth: true })
+}
+
+export async function updateConversationSemanticDictionary(variables) {
+  return apiRequest('/api/conversation/semantic-dictionary', {
+    method: 'PUT',
+    body: { variables },
+    auth: true,
+  })
+}
+
+export async function fetchConversationChartData(runId, visualization, options = {}) {
+  return apiRequest(`/api/runs/${runId}/conversation-chart-data`, {
+    method: 'POST',
+    body: {
+      visualization,
+      limit: options.limit ?? 12,
+      evidence_limit: options.evidenceLimit ?? 12,
+    },
+    auth: true,
+  })
 }
