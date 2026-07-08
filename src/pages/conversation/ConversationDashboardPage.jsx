@@ -1563,10 +1563,19 @@ export function ConversationDashboardPage({
       )
     })
   }, [chartDataState, isExpertMode, rawRecommendations, semanticMap, visualizations])
+  const showExpandedAgentSections = isExpertMode || detailOpen
+  const visibleRecommendations = useMemo(
+    () => (showExpandedAgentSections ? recommendations : recommendations.slice(0, 3)),
+    [recommendations, showExpandedAgentSections],
+  )
   const conclusions = asList(spec.conclusions)
   const conclusionMatrixItems = useMemo(
     () => buildConclusionMatrixItems(conclusions),
     [conclusions],
+  )
+  const visibleConclusionListItems = useMemo(
+    () => (showExpandedAgentSections ? conclusionMatrixItems : conclusionMatrixItems.slice(0, 3)),
+    [conclusionMatrixItems, showExpandedAgentSections],
   )
   const activeConclusionItem = useMemo(
     () =>
@@ -3033,60 +3042,62 @@ export function ConversationDashboardPage({
             ) : null}
           </section>
 
-          <section className="dashboard-spec-section">
-            <div className="dashboard-spec-section-head">
-              <div>
-                <span className="dashboard-spec-eyebrow">Prioridades detectadas por el agente</span>
-                <h2>Que interpretar primero</h2>
+          {showExpandedAgentSections ? (
+            <section className="dashboard-spec-section">
+              <div className="dashboard-spec-section-head">
+                <div>
+                  <span className="dashboard-spec-eyebrow">Prioridades detectadas por el agente</span>
+                  <h2>Que interpretar primero</h2>
+                </div>
               </div>
-            </div>
-            <div className="dashboard-spec-card-grid">
-              {findings.length ? (
-                findings.map((finding) => (
-                  <Card key={finding.id} className="dashboard-spec-finding-card">
-                    <div className="dashboard-spec-card-top">
-                      <h3>{finding.title}</h3>
-                      <span className={priorityClass(finding.priority)}>
-                        {PRIORITY_LABELS[finding.priority] || 'Media'}
-                      </span>
-                    </div>
-                    <p>{finding.evidence || finding.impact || 'Sin evidencia resumida.'}</p>
-                    <dl>
-                      <div>
-                        <dt>Impacto</dt>
-                        <dd>{finding.impact || 'Sin dato'}</dd>
+              <div className="dashboard-spec-card-grid">
+                {findings.length ? (
+                  findings.map((finding) => (
+                    <Card key={finding.id} className="dashboard-spec-finding-card">
+                      <div className="dashboard-spec-card-top">
+                        <h3>{finding.title}</h3>
+                        <span className={priorityClass(finding.priority)}>
+                          {PRIORITY_LABELS[finding.priority] || 'Media'}
+                        </span>
                       </div>
-                      <div>
-                        <dt>Urgencia</dt>
-                        <dd>{finding.urgency || 'Sin dato'}</dd>
+                      <p>{finding.evidence || finding.impact || 'Sin evidencia resumida.'}</p>
+                      <dl>
+                        <div>
+                          <dt>Impacto</dt>
+                          <dd>{finding.impact || 'Sin dato'}</dd>
+                        </div>
+                        <div>
+                          <dt>Urgencia</dt>
+                          <dd>{finding.urgency || 'Sin dato'}</dd>
+                        </div>
+                      </dl>
+                      <div className="dashboard-spec-card-actions">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openChatWithContext({
+                              label: finding.title,
+                              intent: 'analizar hallazgo prioritario',
+                              visibleText: finding.suggested_question || `Analiza el hallazgo: ${finding.title}.`,
+                              context: {
+                                finding,
+                                evidence: finding.evidence,
+                                suggestedQuestion: finding.suggested_question,
+                              },
+                            })
+                          }
+                        >
+                          Analizar con agente
+                        </button>
                       </div>
-                    </dl>
-                    <div className="dashboard-spec-card-actions">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          openChatWithContext({
-                            label: finding.title,
-                            intent: 'analizar hallazgo prioritario',
-                            visibleText: finding.suggested_question || `Analiza el hallazgo: ${finding.title}.`,
-                            context: {
-                              finding,
-                              evidence: finding.evidence,
-                              suggestedQuestion: finding.suggested_question,
-                            },
-                          })
-                        }
-                      >
-                        Analizar con agente
-                      </button>
-                    </div>
-                  </Card>
-                ))
-              ) : (
-                <Card className="dashboard-spec-empty-card">No hay prioridades detectadas.</Card>
-              )}
-            </div>
-          </section>
+                    </Card>
+                  ))
+                ) : (
+                  <Card className="dashboard-spec-empty-card">No hay prioridades detectadas.</Card>
+                )}
+              </div>
+            </section>
+          ) : null}
 
           <section className="dashboard-spec-section">
             <div className="dashboard-spec-section-head">
@@ -3100,8 +3111,8 @@ export function ConversationDashboardPage({
               </div>
             </div>
             <div className="dashboard-spec-list">
-              {recommendations.length ? (
-                recommendations.map((recommendation, index) => {
+              {visibleRecommendations.length ? (
+                visibleRecommendations.map((recommendation, index) => {
                   const recommendationText = recommendationSearchText(recommendation)
                   const recommendedViz = findVisualizationForRecommendation(
                     recommendation,
@@ -3252,6 +3263,13 @@ export function ConversationDashboardPage({
                 <Card className="dashboard-spec-empty-card">No hay recomendaciones para este modo.</Card>
               )}
             </div>
+            {!showExpandedAgentSections && recommendations.length > visibleRecommendations.length ? (
+              <div className="dashboard-spec-compact-note">
+                Mostrando {visibleRecommendations.length} recomendaciones principales de{' '}
+                {recommendations.length}. Usa Ver detalle para ver prioridades, trazabilidad y
+                recomendaciones completas.
+              </div>
+            ) : null}
           </section>
 
           <section ref={activeChartRef} className="dashboard-spec-section dashboard-spec-active-chart">
@@ -3839,8 +3857,8 @@ export function ConversationDashboardPage({
             ) : null}
 
             <div className="dashboard-spec-list dashboard-spec-conclusion-list">
-              {conclusionMatrixItems.length ? (
-                conclusionMatrixItems.map((item) => {
+              {visibleConclusionListItems.length ? (
+                visibleConclusionListItems.map((item) => {
                   const graphCandidate = conclusionGraphCandidate(
                     item.source,
                     visualizations,
@@ -3914,6 +3932,13 @@ export function ConversationDashboardPage({
                 <Card className="dashboard-spec-empty-card">No hay conclusiones generadas.</Card>
               )}
             </div>
+            {!showExpandedAgentSections && conclusionMatrixItems.length > visibleConclusionListItems.length ? (
+              <div className="dashboard-spec-compact-note">
+                Mostrando {visibleConclusionListItems.length} conclusiones principales de{' '}
+                {conclusionMatrixItems.length}. Usa Ver detalle para revisar toda la lectura
+                accionable.
+              </div>
+            ) : null}
           </section>
 
           {isExpertMode ? (
@@ -4018,9 +4043,21 @@ export function ConversationDashboardPage({
                       </div>
                     ) : null}
 
+                    <ConversationScatterChart
+                      insights={filteredInsights}
+                      activeKey={activeChartKey}
+                      onSelect={setActiveInsightKey}
+                    />
+
                     {showBusinessCharts ? (
                       <div className="conv-dashboard-insight-charts">
                         <ConversationDimensionChart insights={filteredInsights} />
+                        <ConversationDimensionTreemap insights={filteredInsights} />
+                        <ConversationEvidenceChart
+                          insights={filteredInsights}
+                          activeKey={activeChartKey}
+                          onSelect={setActiveInsightKey}
+                        />
                         <ConversationInsightImpactChart
                           insights={filteredInsights}
                           activeKey={activeChartKey}
@@ -4028,6 +4065,19 @@ export function ConversationDashboardPage({
                         />
                       </div>
                     ) : null}
+
+                    <div className="conv-dashboard-insight-charts">
+                      <ConversationPriorityChart insights={filteredInsights} />
+                      <ConversationRankingChart
+                        insights={filteredInsights}
+                        activeKey={activeChartKey}
+                        onSelect={setActiveInsightKey}
+                      />
+                    </div>
+
+                    <div className="conv-dashboard-metric-mix-full">
+                      <ConversationMetricMixChart insights={filteredInsights} />
+                    </div>
                   </section>
                 </section>
               </>
