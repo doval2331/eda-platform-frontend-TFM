@@ -19,7 +19,7 @@ const FLOW_NAVBAR = {
   },
   consolidate: {
     breadcrumbCurrent: 'Dashboard conversacional',
-    title: 'Tus hallazgos guardados',
+    title: 'Dashboard conversacional',
   },
   report: {
     breadcrumbCurrent: 'Informes',
@@ -97,6 +97,7 @@ export function WorkspacePage() {
           >
             <ConversationDashboardPage
               embedded
+              isExpert={isExpert}
               toolbarHost={consolidateToolbarHost}
             />
           </div>

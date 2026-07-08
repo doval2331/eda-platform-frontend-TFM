@@ -1063,6 +1063,22 @@
   padding: 20px 0 8px;
 }
 
+.agent-progress-panel__hint {
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.conv-dashboard-progress-panel__hint {
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: center;
+}
+
 .loading-panel--llm-bare {
   background: transparent;
   border: none;
@@ -1627,6 +1643,25 @@
 .conv-dashboard-hero__shell {
   position: relative;
   padding: 16px 18px 14px 20px;
+}
+
+.conv-dashboard-hero--embedded {
+  margin-bottom: 16px;
+  border-color: #dbeafe;
+  background: rgba(239, 246, 255, 0.68);
+  box-shadow: none;
+}
+
+.conv-dashboard-hero--embedded .conv-dashboard-hero__accent {
+  display: none;
+}
+
+.conv-dashboard-hero--embedded .conv-dashboard-hero__shell {
+  padding: 14px;
+}
+
+.conv-dashboard-hero--embedded .conv-dashboard-hero__title {
+  font-size: 18px;
 }
 
 .conv-dashboard-hero__top {

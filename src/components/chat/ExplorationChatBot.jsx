@@ -33,9 +33,21 @@ export function ExplorationChatBot({
   useEffect(() => {
     if (!externalPrompt?.text || !run?.id) return
     setQuestion('')
-    void sendQuestion(externalPrompt.text, { fromBridge: true })
+    void sendQuestion(externalPrompt.visibleText || externalPrompt.text, {
+      fromBridge: true,
+      backendText: externalPrompt.backendText,
+    })
     onExternalPromptConsumed?.()
-  }, [externalPrompt?.at, externalPrompt?.text, run?.id, onExternalPromptConsumed, sendQuestion, setQuestion])
+  }, [
+    externalPrompt?.at,
+    externalPrompt?.backendText,
+    externalPrompt?.text,
+    externalPrompt?.visibleText,
+    run?.id,
+    onExternalPromptConsumed,
+    sendQuestion,
+    setQuestion,
+  ])
 
   async function onInsightSelected(runId, insight) {
     if (!runId || selectedIds.has(insight.id)) return

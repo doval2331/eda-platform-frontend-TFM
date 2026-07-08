@@ -33,7 +33,7 @@ export function ConversationRankingChart({ insights, activeKey, onSelect }) {
       <div className="decision-card-title conv-ranking-card__head">
         <div>
           <h2>Ranking visual</h2>
-          <p>Ordena los hallazgos seleccionados por intensidad relativa.</p>
+          <p>Ordena las evidencias seleccionadas por intensidad relativa.</p>
         </div>
       </div>
       <Plot

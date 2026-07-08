@@ -33,7 +33,13 @@ function priorityTickStep(maxValue) {
   return 10
 }
 
-export function ConversationPriorityChart({ insights, className = '' }) {
+export function ConversationPriorityChart({
+  insights,
+  className = '',
+  activePriority = '',
+  onSelectPriority,
+  chartRevision = 'all',
+}) {
   const breakdown = buildPriorityBreakdown(insights)
   if (!breakdown.length) return null
 
@@ -53,20 +59,27 @@ export function ConversationPriorityChart({ insights, className = '' }) {
       <div className="decision-card-title">
         <div>
           <h2>Distribución de prioridad</h2>
-          <p>Cuántos hallazgos guardados son de prioridad alta, media o baja.</p>
+          <p>Cuántas evidencias guardadas son de prioridad alta, media o baja.</p>
         </div>
       </div>
       <Plot
+        key={chartRevision}
         data={[
           {
             type: 'bar',
             orientation: 'h',
             x: rows.map((row) => row.value).reverse(),
             y: labels,
+            customdata: rows.map((row) => row.level).reverse(),
             marker: {
               color: rows.map((row) => PRIORITY_COLORS[row.level]).reverse(),
+              opacity: rows.map((row) => (row.level === activePriority ? 1 : 0.82)).reverse(),
+              line: {
+                color: rows.map((row) => (row.level === activePriority ? '#061b31' : '#ffffff')).reverse(),
+                width: rows.map((row) => (row.level === activePriority ? 3 : 1)).reverse(),
+              },
             },
-            hovertemplate: '<b>%{y}</b><br>%{x} hallazgos<extra></extra>',
+            hovertemplate: '<b>%{y}</b><br>%{x} evidencias<extra></extra>',
           },
         ]}
         layout={{
@@ -75,7 +88,7 @@ export function ConversationPriorityChart({ insights, className = '' }) {
           margin: { l: 120, r: 16, t: 8, b: 32 },
           paper_bgcolor: 'rgba(0,0,0,0)',
           xaxis: {
-            title: 'Hallazgos',
+            title: 'Evidencias',
             gridcolor: '#e2e8f0',
             dtick: tickStep,
             rangemode: 'tozero',
@@ -83,9 +96,14 @@ export function ConversationPriorityChart({ insights, className = '' }) {
           yaxis: { automargin: true, categoryorder: 'array', categoryarray: labels },
           bargap: 0.28,
           showlegend: false,
+          datarevision: chartRevision,
         }}
         style={{ width: '100%' }}
         config={{ responsive: true, displaylogo: false }}
+        onClick={(event) => {
+          const level = event?.points?.[0]?.customdata
+          if (level && onSelectPriority) onSelectPriority(level)
+        }}
         useResizeHandler
       />
     </Card>
@@ -95,4 +113,7 @@ export function ConversationPriorityChart({ insights, className = '' }) {
 ConversationPriorityChart.propTypes = {
   insights: PropTypes.arrayOf(PropTypes.object).isRequired,
   className: PropTypes.string,
+  activePriority: PropTypes.string,
+  onSelectPriority: PropTypes.func,
+  chartRevision: PropTypes.string,
 }

@@ -1,4 +1,5 @@
 import PropTypes from 'prop-types'
+import { useEffect, useState } from 'react'
 import { AgentLlmHero, LlmModeChip, SparkleIcon } from '@/components/LlmVisual'
 import { Button, Card, Feedback, LoadingPanel, LoadingSlot } from '@/ui'
 import { INSIGHT_PAGE_SIZE } from '../shared/InsightListPagination'
@@ -12,9 +13,72 @@ import { AgentNextStepHint } from './AgentNextStepHint'
 import { useAgentAnalysisPanel } from './useAgentAnalysisPanel'
 import '@/styles/llm-visual.css'
 
+function useEstimatedProgress(active) {
+  const [progress, setProgress] = useState(0)
+
+  useEffect(() => {
+    if (!active) {
+      setProgress(0)
+      return undefined
+    }
+
+    const startedAt = Date.now()
+    setProgress(8)
+    const interval = window.setInterval(() => {
+      setProgress((current) => {
+        const elapsed = Date.now() - startedAt
+        const curvedProgress = 92 - 84 * Math.exp(-elapsed / 18000)
+        const step = current < 55 ? 4 : current < 78 ? 2 : 1
+        return Math.min(92, Math.max(current + step, Math.round(curvedProgress)))
+      })
+    }, 900)
+
+    return () => window.clearInterval(interval)
+  }, [active])
+
+  return progress
+}
+
+function AgentProgressLoading({ title, description, progress }) {
+  const boundedProgress = Math.max(0, Math.min(100, progress))
+
+  return (
+    <div className="analysis-progress-panel agent-progress-panel">
+      <LoadingPanel
+        bare
+        compact
+        spinnerSize={64}
+        variant="llm"
+        title={title}
+        description={description}
+      />
+      <div className="analysis-progress-panel__summary">
+        <span>Progreso estimado</span>
+        <strong>{boundedProgress}%</strong>
+      </div>
+      <div
+        className="analysis-progress-panel__bar"
+        role="progressbar"
+        aria-label={title}
+        aria-valuenow={boundedProgress}
+        aria-valuemin={0}
+        aria-valuemax={100}
+      >
+        <span style={{ width: `${boundedProgress}%` }} />
+      </div>
+      <p className="agent-progress-panel__hint">
+        El agente esta procesando muestras y generando interpretaciones. El cierre real depende de
+        la respuesta del backend.
+      </p>
+    </div>
+  )
+}
+
 export function AgentAnalysisPanel({ run, onOpenChatWithPrompt, enabled = true }) {
   const runId = run?.id
   const panel = useAgentAnalysisPanel(runId, onOpenChatWithPrompt, { enabled })
+  const strategyProgress = useEstimatedProgress(panel.strategyLoading)
+  const interpretationProgress = useEstimatedProgress(panel.interpretationLoading)
 
   if (!runId) {
     return (
@@ -143,24 +207,26 @@ export function AgentAnalysisPanel({ run, onOpenChatWithPrompt, enabled = true }
         </LoadingSlot>
       ) : strategyLoading ? (
         <LoadingSlot variant="panel">
-          <LoadingPanel
+          <AgentProgressLoading
             bare
             compact
             spinnerSize={64}
             variant="llm"
             title="Generando estrategia…"
             description="Consultando Azure AI y definiendo variables."
+            progress={strategyProgress}
           />
         </LoadingSlot>
       ) : interpretationLoading ? (
         <LoadingSlot variant="panel">
-          <LoadingPanel
+          <AgentProgressLoading
             bare
             compact
             spinnerSize={64}
             variant="llm"
             title="Interpretando clusters…"
             description="Generando insights por grupo con Azure AI."
+            progress={interpretationProgress}
           />
         </LoadingSlot>
       ) : null}
@@ -247,4 +313,10 @@ AgentAnalysisPanel.propTypes = {
   }),
   onOpenChatWithPrompt: PropTypes.func,
   enabled: PropTypes.bool,
+}
+
+AgentProgressLoading.propTypes = {
+  title: PropTypes.string.isRequired,
+  description: PropTypes.string,
+  progress: PropTypes.number.isRequired,
 }

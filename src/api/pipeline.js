@@ -68,6 +68,7 @@ export async function fetchRun(runId) {
 }
 
 export async function checkApiHealth() {
-  const response = await fetch(`${import.meta.env.VITE_API_BASE ?? ''}/health`)
+  const base = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_BASE ?? '')
+  const response = await fetch(`${base}/health`, { cache: 'no-store' })
   return response.ok
 }

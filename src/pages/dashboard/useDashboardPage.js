@@ -329,10 +329,35 @@ export function useDashboardPage({ onRunStateChange, isExpert = false } = {}) {
     }
   }, [])
 
+  const refreshApiHealth = useCallback(async () => {
+    try {
+      const online = await checkApiHealth()
+      setApiOnline(online)
+      return online
+    } catch {
+      setApiOnline(false)
+      return false
+    }
+  }, [])
+
   useEffect(() => {
-    checkApiHealth()
-      .then(setApiOnline)
-      .catch(() => setApiOnline(false))
+    let cancelled = false
+    async function refresh() {
+      try {
+        const online = await checkApiHealth()
+        if (!cancelled) setApiOnline(online)
+      } catch {
+        if (!cancelled) setApiOnline(false)
+      }
+    }
+    void refresh()
+    const timer = window.setInterval(() => {
+      void refresh()
+    }, 5000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
   }, [])
 
   useEffect(() => {
@@ -540,6 +565,11 @@ export function useDashboardPage({ onRunStateChange, isExpert = false } = {}) {
   useEffect(() => () => clearAnalysisProgressTimer(), [clearAnalysisProgressTimer])
 
   const ejecutarPipeline = useCallback(async ({ project: projectOverride } = {}) => {
+    const backendReady = await refreshApiHealth()
+    if (!backendReady) {
+      setError('No se pudo confirmar la conexion con el backend. Verifica que FastAPI este corriendo en el puerto 8000.')
+      return
+    }
     const projectForAnalysis = projectOverride ?? activeProject
     if (projectOverride) {
       setActiveProject(projectOverride)
@@ -672,6 +702,7 @@ export function useDashboardPage({ onRunStateChange, isExpert = false } = {}) {
     seed,
     startAnalysisProgress,
     stopAnalysisProgress,
+    refreshApiHealth,
   ])
 
   const clearDataset = useCallback(() => {
