@@ -72,6 +72,7 @@ const CHART_LABELS = {
 
 const ACTIVE_CHART_SERIES_LIMIT = 12
 const ACTIVE_CHART_INITIAL_EVIDENCE_LIMIT = 40
+const EMPTY_DASHBOARD = { total: 0, insights: [], dashboard_spec: {} }
 
 const CHART_RENDERERS = [
   {
@@ -1394,12 +1395,20 @@ export function ConversationDashboardPage({
   const conclusionDetailRef = useRef(null)
 
   const {
-    data: dashboard = { total: 0, insights: [], dashboard_spec: {} },
-    isLoading: dashboardLoading,
-    error: dashboardError,
-    refetch: refetchDashboard,
-    isFetching: dashboardFetching,
+    data: aggregateDashboard = EMPTY_DASHBOARD,
+    isLoading: aggregateDashboardLoading,
+    error: aggregateDashboardError,
+    refetch: refetchAggregateDashboard,
+    isFetching: aggregateDashboardFetching,
   } = useConversationDashboard()
+
+  const {
+    data: selectedDashboard = EMPTY_DASHBOARD,
+    isLoading: selectedDashboardLoading,
+    error: selectedDashboardError,
+    refetch: refetchSelectedDashboard,
+    isFetching: selectedDashboardFetching,
+  } = useConversationDashboard(selectedRunId, { enabled: Boolean(selectedRunId) })
 
   const {
     data: runs = [],
@@ -1408,6 +1417,10 @@ export function ConversationDashboardPage({
     isFetching: runsFetching,
   } = useRunsList(50)
 
+  const dashboard = selectedRunId ? selectedDashboard : aggregateDashboard
+  const dashboardLoading = selectedRunId ? selectedDashboardLoading : aggregateDashboardLoading
+  const dashboardFetching = selectedRunId ? selectedDashboardFetching : aggregateDashboardFetching
+  const dashboardError = selectedRunId ? selectedDashboardError : aggregateDashboardError
   const loading = dashboardLoading || runsLoading
   const isSoftLoading = refreshing || dashboardFetching || runsFetching
   const queryErrorMessage =
@@ -1426,6 +1439,10 @@ export function ConversationDashboardPage({
   const executive = useMemo(() => spec.executive_summary ?? {}, [spec])
   const semanticVariables = useMemo(() => asList(spec.semantic_variables), [spec.semantic_variables])
   const semanticMap = useMemo(() => semanticMapFromList(semanticVariables), [semanticVariables])
+  const aggregateInsights = useMemo(
+    () => aggregateDashboard.insights ?? [],
+    [aggregateDashboard.insights],
+  )
   const allInsights = useMemo(() => dashboard.insights ?? [], [dashboard.insights])
   const insights = useMemo(() => {
     if (!selectedRunId) return allInsights
@@ -1438,8 +1455,8 @@ export function ConversationDashboardPage({
       ? 'Actualizando dashboard conversacional...'
       : 'Cargando dashboard conversacional'
   const runsForFilter = useMemo(
-    () => buildRunsForFilter(runs, allInsights),
-    [runs, allInsights],
+    () => buildRunsForFilter(runs, aggregateInsights),
+    [runs, aggregateInsights],
   )
   const kindCounts = useMemo(() => countInsightsByKind(insights), [insights])
   const metricKinds = useMemo(() => {
@@ -1952,7 +1969,11 @@ export function ConversationDashboardPage({
     setRefreshing(true)
     setError(null)
     try {
-      await Promise.all([refetchDashboard(), refetchRuns()])
+      await Promise.all([
+        refetchAggregateDashboard(),
+        selectedRunId ? refetchSelectedDashboard() : Promise.resolve(),
+        refetchRuns(),
+      ])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo actualizar el dashboard')
     } finally {
