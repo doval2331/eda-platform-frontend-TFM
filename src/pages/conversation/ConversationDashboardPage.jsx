@@ -30,6 +30,11 @@ import { useConversationDashboard, useRunsList } from '@/hooks/queries'
 import { useAnalysisUserProfile } from '@/hooks/useAnalysisUserProfile'
 import { Card, Dialog, Feedback, LoadingPanel, LoadingSlot, PageNavbar } from '@/ui'
 import {
+  dashboardContractLabel,
+  dashboardContractMessage,
+  normalizeDashboardSpecContract,
+} from './dashboardContract'
+import {
   buildDecisionReading,
   buildDimensionTreemapData,
   buildMaxByKind,
@@ -1413,7 +1418,11 @@ export function ConversationDashboardPage({
         : null
   const displayError = error ?? queryErrorMessage
 
-  const spec = useMemo(() => dashboard.dashboard_spec ?? {}, [dashboard.dashboard_spec])
+  const dashboardContract = useMemo(
+    () => normalizeDashboardSpecContract(dashboard.dashboard_spec),
+    [dashboard.dashboard_spec],
+  )
+  const spec = dashboardContract.spec
   const executive = useMemo(() => spec.executive_summary ?? {}, [spec])
   const semanticVariables = useMemo(() => asList(spec.semantic_variables), [spec.semantic_variables])
   const semanticMap = useMemo(() => semanticMapFromList(semanticVariables), [semanticVariables])
@@ -2804,6 +2813,24 @@ export function ConversationDashboardPage({
                   {detailOpen ? 'Cerrar detalle' : 'Ver detalle'}
                 </button>
               </div>
+            </div>
+
+            <div
+              className={`dashboard-spec-contract-banner${
+                dashboardContract.status === 'warning'
+                  ? ' dashboard-spec-contract-banner--warning'
+                  : ''
+              }${
+                dashboardContract.status === 'unsupported'
+                  ? ' dashboard-spec-contract-banner--danger'
+                  : ''
+              }`}
+            >
+              <strong>{dashboardContractLabel(dashboardContract, isExpertMode)}</strong>
+              <span>{dashboardContractMessage(dashboardContract, isExpertMode)}</span>
+              {isExpertMode ? (
+                <small>Schema: {dashboardContract.spec.schema_version}</small>
+              ) : null}
             </div>
 
             <Card className="dashboard-spec-context-panel">
