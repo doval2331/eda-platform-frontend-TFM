@@ -1564,6 +1564,7 @@ export function ConversationDashboardPage({
   const activeChartRef = useRef(null)
   const conclusionDetailRef = useRef(null)
   const recommendationsPresentedKeyRef = useRef('')
+  const latestChartRequestRef = useRef('')
 
   const {
     data: aggregateDashboard = EMPTY_DASHBOARD,
@@ -2231,6 +2232,7 @@ export function ConversationDashboardPage({
   )
   useEffect(() => {
     if (!activeRunId || !activeVisualizationRequestKey) {
+      latestChartRequestRef.current = ''
       const timer = window.setTimeout(() => {
         setChartBackendData(null)
         setChartBackendError('')
@@ -2245,17 +2247,28 @@ export function ConversationDashboardPage({
       setChartBackendLoading(true)
       setChartBackendError('')
       const visualizationRequest = JSON.parse(activeVisualizationRequestKey)
-      fetchConversationChartData(activeRunId, visualizationRequest, {
+      const requestRunId = activeRunId
+      const requestIdentity = `${requestRunId}:${activeVisualizationRequestKey}:${chartRefreshKey}`
+      latestChartRequestRef.current = requestIdentity
+      fetchConversationChartData(requestRunId, visualizationRequest, {
         limit: ACTIVE_CHART_SERIES_LIMIT,
         evidenceLimit: ACTIVE_CHART_INITIAL_EVIDENCE_LIMIT,
       })
         .then((data) => {
-          if (cancelled) return
+          if (cancelled || latestChartRequestRef.current !== requestIdentity) return
+          if (data?.run_id && data.run_id !== requestRunId) {
+            setChartBackendData(null)
+            setActiveBackendSegmentKey('')
+            setChartBackendError(
+              'La respuesta del grafico pertenece a otra ejecucion y fue bloqueada para evitar mezclar datos.',
+            )
+            return
+          }
           setChartBackendData(data)
           setActiveBackendSegmentKey(data?.series?.[0]?.key || '')
         })
         .catch((err) => {
-          if (cancelled) return
+          if (cancelled || latestChartRequestRef.current !== requestIdentity) return
           setChartBackendData(null)
           setActiveBackendSegmentKey('')
           setChartBackendError(
@@ -2263,7 +2276,9 @@ export function ConversationDashboardPage({
           )
         })
         .finally(() => {
-          if (!cancelled) setChartBackendLoading(false)
+          if (!cancelled && latestChartRequestRef.current === requestIdentity) {
+            setChartBackendLoading(false)
+          }
         })
     }, 0)
     return () => {
