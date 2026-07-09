@@ -42,6 +42,24 @@ import {
   normalizeDashboardSpecContract,
 } from './dashboardContract'
 import {
+  evidenceModeLabel,
+  normalizeOperationalReadiness,
+  readinessStatusClass,
+  readinessStatusLabel,
+  runScopeLabel,
+  trustLevelLabel,
+  visibleReadinessActions,
+  visibleReadinessWarnings as buildVisibleReadinessWarnings,
+} from '@/components/conversation/dashboard/operationalReadiness'
+import {
+  buildSemanticDraftRows,
+  normalizeSemanticDraftForSave,
+  semanticItem,
+  semanticLabel,
+  semanticMapFromList,
+  semanticRole,
+} from '@/components/conversation/dashboard/semanticDashboard'
+import {
   buildDecisionReading,
   buildDimensionTreemapData,
   buildMaxByKind,
@@ -315,98 +333,6 @@ function audienceLabel(value, isExpertMode) {
   if (text === 'funcional') return 'usuario funcional'
   if (text === 'experto') return 'usuario experto'
   return 'todos'
-}
-
-function readinessStatusLabel(status, isExpertMode) {
-  const text = String(status || 'limited').toLowerCase()
-  if (text === 'operational') return isExpertMode ? 'Operativo con evidencia' : 'Listo para decidir'
-  if (text === 'interpretive') return isExpertMode ? 'Soporte parcial' : 'Revisar antes de decidir'
-  return isExpertMode ? 'Contexto limitado' : 'Falta evidencia'
-}
-
-function readinessStatusClass(status) {
-  const text = String(status || 'limited').toLowerCase()
-  if (text === 'operational' || text === 'interpretive' || text === 'limited') return text
-  return 'limited'
-}
-
-function runScopeLabel(readiness, isExpertMode) {
-  const scope = String(readiness?.run_scope || '').toLowerCase()
-  const count = asList(readiness?.run_ids).length
-  if (scope === 'single_run') {
-    return isExpertMode ? `Ejecucion aislada: ${readiness.active_run_id || 'actual'}` : 'Una ejecucion activa'
-  }
-  if (scope === 'multi_run') {
-    return isExpertMode
-      ? `${count || readiness?.evidence_runs || 0} ejecuciones combinadas`
-      : 'Varias ejecuciones combinadas'
-  }
-  return isExpertMode ? 'Sin ejecucion activa' : 'Sin ejecucion seleccionada'
-}
-
-function semanticMapFromList(items) {
-  return asList(items).reduce((acc, item) => {
-    if (item?.name) acc.set(String(item.name), item)
-    return acc
-  }, new Map())
-}
-
-function buildSemanticDraftRows(dictionaryPayload, semanticVariables) {
-  const configuredItems = asList(dictionaryPayload?.variables)
-  const configuredByName = configuredItems.reduce((acc, item) => {
-    const keys = [item?.name, item?.lookup_key, ...(Array.isArray(item?.aliases) ? item.aliases : [])]
-      .map((value) => String(value || '').trim())
-      .filter(Boolean)
-    keys.forEach((key) => acc.set(key, item))
-    return acc
-  }, new Map())
-
-  return asList(semanticVariables)
-    .slice(0, 40)
-    .map((item) => {
-      const configured = configuredByName.get(item.name) || {}
-      return {
-        name: item.name,
-        label: configured.label || item.label || item.name,
-        role: configured.role || item.role || 'unknown',
-        semantic_type: configured.semantic_type || item.semantic_type || '',
-        can_chart: configured.can_chart ?? item.can_chart ?? true,
-        avoid_as_metric: configured.avoid_as_metric ?? item.avoid_as_metric ?? false,
-        description: configured.description || item.description || '',
-        recommended_use: configured.recommended_use || item.recommended_use || '',
-        aliases: asList(configured.aliases),
-      }
-    })
-}
-
-function normalizeSemanticDraftForSave(rows) {
-  return asList(rows)
-    .filter((row) => row?.name)
-    .map((row) => ({
-      name: row.name,
-      label: row.label || row.name,
-      role: row.role || 'unknown',
-      type: row.semantic_type || '',
-      can_chart: row.can_chart !== false,
-      avoid_as_metric: Boolean(row.avoid_as_metric),
-      description: row.description || '',
-      recommended_use: row.recommended_use || '',
-      aliases: asList(row.aliases),
-    }))
-}
-
-function semanticLabel(semanticMap, value) {
-  const text = String(value || '').trim()
-  if (!text) return ''
-  return semanticMap.get(text)?.label || text.replace(/_/g, ' ')
-}
-
-function semanticRole(semanticMap, value) {
-  return semanticMap.get(String(value || ''))?.role || ''
-}
-
-function semanticItem(semanticMap, value) {
-  return semanticMap.get(String(value || '')) || null
 }
 
 function formatBackendNumber(value) {
@@ -1736,30 +1662,14 @@ export function ConversationDashboardPage({
   const findings = asList(spec.priority_findings)
   const audienceMode = (isExpertProp ?? storedIsExpert) ? 'experto' : 'funcional'
   const isExpertMode = audienceMode === 'experto'
-  const operationalReadiness = useMemo(() => {
-    const readiness = spec.operational_readiness ?? {}
-    return {
-      status: readiness.status || 'limited',
-      run_scope: readiness.run_scope || (selectedRunId ? 'single_run' : 'multi_run'),
-      active_run_id: readiness.active_run_id || '',
-      run_ids: asList(readiness.run_ids),
-      decision_level: readiness.decision_level || 'interpretive',
-      evidence_materialized: Boolean(readiness.evidence_materialized),
-      evidence_records: Number(readiness.evidence_records || 0),
-      evidence_runs: Number(readiness.evidence_runs || 0),
-      selected_insights: Number(readiness.selected_insights || insights.length || 0),
-      semantic_dictionary_configured: Boolean(readiness.semantic_dictionary_configured),
-      semantic_dictionary_source: readiness.semantic_dictionary_source || '',
-      semantic_dictionary_total: Number(readiness.semantic_dictionary_total || 0),
-      semantic_dictionary_configured_count: Number(readiness.semantic_dictionary_configured_count || 0),
-      llm_validated: Boolean(readiness.llm_validated),
-      summary: readiness.summary || '',
-      functional_message: readiness.functional_message || '',
-      expert_message: readiness.expert_message || '',
-      recommended_next_step: readiness.recommended_next_step || '',
-      warnings: asList(readiness.warnings),
-    }
-  }, [insights.length, selectedRunId, spec.operational_readiness])
+  const operationalReadiness = useMemo(
+    () =>
+      normalizeOperationalReadiness(spec.operational_readiness, {
+        selectedRunId,
+        fallbackInsightsCount: insights.length,
+      }),
+    [insights.length, selectedRunId, spec.operational_readiness],
+  )
   const runScopeMismatch = Boolean(
     selectedRunId &&
       operationalReadiness.active_run_id &&
@@ -1774,19 +1684,21 @@ export function ConversationDashboardPage({
     [backendFeedbackState, feedbackState],
   )
   const visibleReadinessWarnings = useMemo(
-    () => {
-      const warnings = runScopeMismatch
-        ? [
-            'La respuesta recibida no coincide con la ejecucion seleccionada; actualiza antes de decidir.',
-            ...operationalReadiness.warnings,
-          ]
-        : operationalReadiness.warnings
-      return warnings
-        .map((warning) => textForProfile(warning, isExpertMode))
-        .filter(Boolean)
-        .slice(0, isExpertMode ? 5 : 2)
-    },
-    [isExpertMode, operationalReadiness.warnings, runScopeMismatch],
+    () =>
+      buildVisibleReadinessWarnings(operationalReadiness, {
+        isExpertMode,
+        runScopeMismatch,
+        textForProfile,
+      }),
+    [isExpertMode, operationalReadiness, runScopeMismatch],
+  )
+  const visibleRequiredActions = useMemo(
+    () =>
+      visibleReadinessActions(operationalReadiness, {
+        isExpertMode,
+        textForProfile,
+      }),
+    [isExpertMode, operationalReadiness],
   )
   const visualizations = useMemo(
     () => audienceList(spec.suggested_visualizations, audienceMode),
@@ -2013,6 +1925,8 @@ export function ConversationDashboardPage({
 
     const readinessSignals = [
       runScopeLabel(operationalReadiness, isExpertMode),
+      evidenceModeLabel(operationalReadiness.evidence_mode, isExpertMode),
+      trustLevelLabel(operationalReadiness.trust_level, isExpertMode),
       operationalReadiness.decision_level === 'operational'
         ? isExpertMode
           ? 'Decision operativa habilitada'
@@ -2117,6 +2031,10 @@ export function ConversationDashboardPage({
         title: isExpertMode ? 'Madurez operativa' : 'Estado del analisis',
         label: readinessStatusLabel(operationalReadiness.status, isExpertMode),
         evidenceMaterialized: operationalReadiness.evidence_materialized,
+        evidenceMode: operationalReadiness.evidence_mode,
+        evidenceModeLabel: evidenceModeLabel(operationalReadiness.evidence_mode, isExpertMode),
+        trustLevel: operationalReadiness.trust_level,
+        trustLabel: trustLevelLabel(operationalReadiness.trust_level, isExpertMode),
         evidenceLabel: operationalReadiness.evidence_materialized
           ? `${operationalReadiness.evidence_records.toLocaleString('es-ES')} evidencias reales`
           : isExpertMode
@@ -2146,6 +2064,11 @@ export function ConversationDashboardPage({
         nextStep: textForProfile(operationalReadiness.recommended_next_step, isExpertMode),
         signals: readinessSignals,
         warnings: visibleReadinessWarnings,
+        blockingReasons: operationalReadiness.blocking_reasons
+          .map((reason) => textForProfile(reason, isExpertMode))
+          .filter(Boolean)
+          .slice(0, isExpertMode ? 5 : 2),
+        requiredActions: visibleRequiredActions,
       },
       detail: {
         open: detailOpen,
@@ -2160,7 +2083,7 @@ export function ConversationDashboardPage({
         questions: suggestedQuestions,
         semanticTitle: isExpertMode ? 'Capa semantica de variables' : 'Variables traducidas',
         semanticDescription: operationalReadiness.semantic_dictionary_configured
-          ? `${operationalReadiness.semantic_dictionary_configured_count.toLocaleString('es-ES')} variables configuradas en ${operationalReadiness.semantic_dictionary_source || 'diccionario semantico'}.`
+          ? `${operationalReadiness.semantic_dictionary_configured_count.toLocaleString('es-ES')} variables configuradas (${operationalReadiness.semantic_dictionary_active_count.toLocaleString('es-ES')} activas, ${operationalReadiness.semantic_dictionary_inactive_count.toLocaleString('es-ES')} inactivas) en ${operationalReadiness.semantic_dictionary_source || 'diccionario semantico'}.`
           : `Usando diccionario base con ${operationalReadiness.semantic_dictionary_total.toLocaleString('es-ES')} variables detectadas para este run.`,
         semanticItems,
         technicalVisualizationsTitle: 'Visualizaciones tecnicas disponibles',
@@ -2189,6 +2112,7 @@ export function ConversationDashboardPage({
     spec.llm_used,
     suggestedQuestions,
     visibleEvidenceLine,
+    visibleRequiredActions,
     visibleReadinessWarnings,
     visualizations,
   ])

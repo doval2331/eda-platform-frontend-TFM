@@ -48,6 +48,8 @@ function EvidenceReadinessBanner({ readiness, isExpertMode }) {
       <div className="dashboard-spec-evidence-state__meta">
         <span>{readiness.scopeLabel}</span>
         <span>{readiness.decisionLabel}</span>
+        <span>{readiness.evidenceModeLabel}</span>
+        <span>{readiness.trustLabel}</span>
       </div>
     </div>
   )
@@ -258,6 +260,16 @@ export function ConversationExecutiveSummary({
               ))}
             </ul>
           ) : null}
+          {readiness.requiredActions.length ? (
+            <div className="dashboard-spec-readiness__actions">
+              <span>{isExpertMode ? 'Acciones para madurar operacion' : 'Para usarlo con confianza'}</span>
+              <ul>
+                {readiness.requiredActions.map((action) => (
+                  <li key={action}>{action}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
 
         <ol className="dashboard-spec-context-list">
@@ -303,6 +315,8 @@ EvidenceReadinessBanner.propTypes = {
   readiness: PropTypes.shape({
     statusClass: PropTypes.string.isRequired,
     evidenceMaterialized: PropTypes.bool,
+    evidenceModeLabel: PropTypes.string.isRequired,
+    trustLabel: PropTypes.string.isRequired,
     evidenceLabel: PropTypes.string.isRequired,
     scopeLabel: PropTypes.string.isRequired,
     decisionLabel: PropTypes.string.isRequired,
@@ -354,12 +368,18 @@ ConversationExecutiveSummary.propTypes = {
     label: PropTypes.string.isRequired,
     summary: PropTypes.string.isRequired,
     evidenceMaterialized: PropTypes.bool,
+    evidenceMode: PropTypes.string,
+    evidenceModeLabel: PropTypes.string.isRequired,
+    trustLevel: PropTypes.string,
+    trustLabel: PropTypes.string.isRequired,
     evidenceLabel: PropTypes.string.isRequired,
     scopeLabel: PropTypes.string.isRequired,
     decisionLabel: PropTypes.string.isRequired,
     nextStep: PropTypes.string,
     signals: PropTypes.arrayOf(PropTypes.string).isRequired,
     warnings: PropTypes.arrayOf(PropTypes.string).isRequired,
+    blockingReasons: PropTypes.arrayOf(PropTypes.string),
+    requiredActions: PropTypes.arrayOf(PropTypes.string).isRequired,
   }).isRequired,
   detail: DetailPanel.propTypes.detail,
   semanticEditor: PropTypes.object,

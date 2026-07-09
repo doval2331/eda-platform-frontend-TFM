@@ -1,4 +1,4 @@
-/* ── LLM visual system — llamativo para demo/defensa ── */
+/* â”€â”€ LLM visual system â€” llamativo para demo/defensa â”€â”€ */
 
 @keyframes llm-pulse-ring {
   0% {
@@ -676,6 +676,34 @@
   color: #9a3412;
   font-size: 12px;
   font-weight: 700;
+  line-height: 1.45;
+}
+
+.dashboard-spec-readiness__actions {
+  grid-column: 1 / -1;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.75);
+  padding: 10px 12px;
+}
+
+.dashboard-spec-readiness__actions span {
+  display: block;
+  color: #1251d8;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.dashboard-spec-readiness__actions ul {
+  display: grid;
+  gap: 5px;
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: #25407b;
+  font-size: 12px;
+  font-weight: 800;
   line-height: 1.45;
 }
 
@@ -1836,6 +1864,36 @@
   opacity: 0.58;
 }
 
+.conversation-dashboard-page.dashboard-spec-page .dashboard-spec-semantic-editor__governance {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.conversation-dashboard-page.dashboard-spec-page .dashboard-spec-semantic-editor__governance span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  border: 1px solid #cfe0ff;
+  border-radius: 999px;
+  background: #f8fbff;
+  color: #25407b;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.conversation-dashboard-page.dashboard-spec-page .dashboard-spec-semantic-editor__warning {
+  border: 1px solid #fed7aa;
+  border-radius: 10px;
+  background: #fff7ed;
+  color: #9a3412;
+  padding: 10px 12px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
 .conversation-dashboard-page.dashboard-spec-page .dashboard-spec-semantic-editor__error,
 .conversation-dashboard-page.dashboard-spec-page .dashboard-spec-semantic-editor__empty {
   border: 1px solid #fed7aa;
@@ -1930,6 +1988,26 @@
 
 .conversation-dashboard-page.dashboard-spec-page .dashboard-spec-semantic-editor__table label + label {
   margin-top: 6px;
+}
+
+.conversation-dashboard-page.dashboard-spec-page .dashboard-spec-semantic-editor__governance-cell {
+  min-width: 180px;
+}
+
+.conversation-dashboard-page.dashboard-spec-page .dashboard-spec-semantic-editor__governance-cell label {
+  margin-bottom: 6px;
+  color: #1557e8;
+}
+
+.conversation-dashboard-page.dashboard-spec-page .dashboard-spec-semantic-editor__governance-cell select,
+.conversation-dashboard-page.dashboard-spec-page .dashboard-spec-semantic-editor__governance-cell input[type='text'] {
+  margin-top: 6px;
+}
+
+.conversation-dashboard-page.dashboard-spec-page .dashboard-spec-semantic-editor__governance-cell input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  accent-color: #2563eb;
 }
 
 .conversation-dashboard-page.dashboard-spec-page .dashboard-spec-technical-item button {

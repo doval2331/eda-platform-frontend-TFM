@@ -8,6 +8,12 @@ const ROLE_OPTIONS = [
   { value: 'unknown', label: 'Sin clasificar' },
 ]
 
+const CONFIDENCE_OPTIONS = [
+  { value: 'alta', label: 'Alta' },
+  { value: 'media', label: 'Media' },
+  { value: 'baja', label: 'Baja' },
+]
+
 const TYPE_OPTIONS = [
   { value: '', label: 'Sin tipo' },
   { value: 'categorical', label: 'Categorica' },
@@ -29,6 +35,24 @@ export function ConversationSemanticDictionaryEditor({
 }) {
   const governed = Boolean(status?.governed || status?.configured_total)
   const source = status?.source || ''
+  const scope = String(status?.scope || '').replaceAll('_', ' ')
+  const writable = status?.writable !== false
+  const governanceItems = [
+    scope ? `Ambito: ${scope}` : '',
+    status?.project_id ? `Proyecto: ${status.project_id}` : '',
+    writable ? 'Editable desde la app' : 'Solo lectura',
+    status?.project_scope_enabled ? 'Gobierno por proyecto activo' : '',
+    Number.isFinite(Number(status?.base_total)) ? `Base: ${Number(status.base_total).toLocaleString('es-ES')}` : '',
+    Number.isFinite(Number(status?.configured_total))
+      ? `Configuradas: ${Number(status.configured_total).toLocaleString('es-ES')}`
+      : '',
+    Number.isFinite(Number(status?.active_configured_total))
+      ? `Activas: ${Number(status.active_configured_total).toLocaleString('es-ES')}`
+      : '',
+    Number.isFinite(Number(status?.inactive_configured_total))
+      ? `Inactivas: ${Number(status.inactive_configured_total).toLocaleString('es-ES')}`
+      : '',
+  ].filter(Boolean)
 
   return (
     <div className="dashboard-spec-semantic-editor">
@@ -51,6 +75,19 @@ export function ConversationSemanticDictionaryEditor({
           </button>
         </div>
       </div>
+      {governanceItems.length ? (
+        <div className="dashboard-spec-semantic-editor__governance">
+          {governanceItems.map((item) => (
+            <span key={item}>{item}</span>
+          ))}
+        </div>
+      ) : null}
+      {!writable ? (
+        <div className="dashboard-spec-semantic-editor__warning">
+          El diccionario actual no se puede guardar desde la app. Configura una ruta writable o un
+          diccionario por proyecto.
+        </div>
+      ) : null}
 
       {error ? <div className="dashboard-spec-semantic-editor__error">{error}</div> : null}
       {loading ? (
@@ -64,6 +101,7 @@ export function ConversationSemanticDictionaryEditor({
                 <th>Nombre funcional</th>
                 <th>Rol</th>
                 <th>Tipo</th>
+                <th>Gobierno</th>
                 <th>Uso</th>
               </tr>
             </thead>
@@ -106,6 +144,32 @@ export function ConversationSemanticDictionaryEditor({
                         </option>
                       ))}
                     </select>
+                  </td>
+                  <td className="dashboard-spec-semantic-editor__governance-cell">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={row.active !== false}
+                        onChange={(event) => onChange(row.name, 'active', event.target.checked)}
+                      />
+                      Activa
+                    </label>
+                    <select
+                      value={row.confidence || 'media'}
+                      onChange={(event) => onChange(row.name, 'confidence', event.target.value)}
+                    >
+                      {CONFIDENCE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="text"
+                      value={row.source || ''}
+                      placeholder="Fuente"
+                      onChange={(event) => onChange(row.name, 'source', event.target.value)}
+                    />
                   </td>
                   <td>
                     <label>
@@ -151,6 +215,9 @@ ConversationSemanticDictionaryEditor.propTypes = {
       can_chart: PropTypes.bool,
       avoid_as_metric: PropTypes.bool,
       description: PropTypes.string,
+      active: PropTypes.bool,
+      confidence: PropTypes.string,
+      source: PropTypes.string,
     }),
   ),
   status: PropTypes.object,
