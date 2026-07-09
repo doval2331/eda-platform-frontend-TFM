@@ -3,6 +3,8 @@ import { Card } from '@/ui'
 
 export function ConversationTicketDrilldownPanel({
   isExpertMode = false,
+  hasRealEvidence = true,
+  evidenceModeLabel = '',
   segmentLabel = '',
   visualizationTitle = '',
   visibleCount = 0,
@@ -39,6 +41,7 @@ export function ConversationTicketDrilldownPanel({
   const analyzeLabel = isExpertMode ? 'Analizar seleccion con agente' : 'Analizar seleccion'
   const reportLabel = isExpertMode ? 'Preparar para informe' : 'Preparar resumen'
   const exportLabel = isExpertMode ? 'Exportar CSV' : 'Exportar'
+  const hasRows = rows.length > 0
 
   return (
     <Card className="dashboard-spec-priority-drilldown dashboard-spec-real-evidence">
@@ -48,6 +51,12 @@ export function ConversationTicketDrilldownPanel({
             {isExpertMode ? 'Drill-down real de tickets' : 'Tickets relacionados'}
           </span>
           <h3>{panelTitle}</h3>
+          <div className="dashboard-spec-evidence-source-line">
+            <span className={hasRealEvidence ? 'is-real' : 'is-assisted'}>
+              {hasRealEvidence ? 'Evidencia real de la ejecucion activa' : 'Interpretacion asistida'}
+            </span>
+            {evidenceModeLabel ? <small>{evidenceModeLabel}</small> : null}
+          </div>
           {isExpertMode ? (
             <p>
               Esta tabla complementa el grafico activo; no reemplaza la visualizacion. {visibleText} de{' '}
@@ -65,16 +74,16 @@ export function ConversationTicketDrilldownPanel({
           )}
         </div>
         <div className="dashboard-spec-drilldown-actions">
-          <button type="button" onClick={onAnalyzeSelection}>
+          <button type="button" onClick={onAnalyzeSelection} disabled={!hasRows}>
             {analyzeLabel}
           </button>
-          <button type="button" onClick={onPrepareReport}>
+          <button type="button" onClick={onPrepareReport} disabled={!hasRows}>
             {reportLabel}
           </button>
-          <button type="button" onClick={onSaveSelection} disabled={savedStatus === 'saving'}>
+          <button type="button" onClick={onSaveSelection} disabled={!hasRows || savedStatus === 'saving'}>
             {savedStatus === 'saving' ? 'Guardando...' : 'Guardar seleccion'}
           </button>
-          <button type="button" onClick={onExportCsv}>
+          <button type="button" onClick={onExportCsv} disabled={!hasRows}>
             {exportLabel}
           </button>
           <button type="button" onClick={onClose}>
@@ -193,7 +202,11 @@ export function ConversationTicketDrilldownPanel({
       </div>
 
       {!rows.length ? (
-        <p className="dashboard-spec-muted">No hay tickets que coincidan con los filtros actuales.</p>
+        <p className="dashboard-spec-muted">
+          {hasRealEvidence
+            ? 'No hay tickets que coincidan con los filtros actuales.'
+            : 'No hay tickets/evidencias reales para esta vista; lo disponible es una lectura asistida, no evidencia comprobada.'}
+        </p>
       ) : null}
     </Card>
   )
@@ -225,6 +238,8 @@ TicketFilter.propTypes = {
 
 ConversationTicketDrilldownPanel.propTypes = {
   isExpertMode: PropTypes.bool,
+  hasRealEvidence: PropTypes.bool,
+  evidenceModeLabel: PropTypes.string,
   segmentLabel: PropTypes.string,
   visualizationTitle: PropTypes.string,
   visibleCount: PropTypes.number,

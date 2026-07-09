@@ -32,11 +32,11 @@ function EvidenceReadinessBanner({ readiness, isExpertMode }) {
       : 'Lectura orientativa, no decision final'
   const body = hasEvidence
     ? isExpertMode
-      ? 'El dashboard puede conectar graficos, muestras y drill-down con evidencias reales de la ejecucion activa.'
-      : 'Puedes abrir casos relacionados, revisar evidencias y pedir una accion concreta al agente.'
+      ? 'El dashboard conecta graficos, muestras y drill-down con tickets/evidencias reales de la ejecucion activa.'
+      : 'Puedes abrir casos reales, revisar evidencias y pedir una accion concreta al agente.'
     : isExpertMode
-      ? 'El dashboard puede explicar patrones, pero faltan tickets/evidencias reales para operar con trazabilidad completa.'
-      : 'El analisis ayuda a orientar la revision, pero antes de decidir conviene guardar hallazgos o generar evidencias revisables.'
+      ? 'El dashboard puede explicar patrones, pero faltan tickets/evidencias reales. No lo trates como evidencia comprobada ni como decision operativa.'
+      : 'El analisis orienta la revision, pero no es evidencia comprobada. Antes de decidir, guarda hallazgos o genera casos revisables.'
 
   return (
     <div className={`dashboard-spec-evidence-state dashboard-spec-evidence-state--${variant}`}>

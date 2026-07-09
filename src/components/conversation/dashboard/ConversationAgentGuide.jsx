@@ -1,6 +1,24 @@
 import PropTypes from 'prop-types'
 import { Card } from '@/ui'
 
+const FEEDBACK_REASON_OPTIONS = [
+  { value: '', label: 'Motivo' },
+  { value: 'useful', label: 'Util' },
+  { value: 'action_taken', label: 'Termino en accion' },
+  { value: 'needs_detail', label: 'Requiere detalle' },
+  { value: 'insufficient_evidence', label: 'Falta evidencia' },
+  { value: 'wrong_variable', label: 'Variable incorrecta' },
+  { value: 'chart_not_useful', label: 'Grafico no util' },
+  { value: 'irrelevant', label: 'No aporta' },
+]
+
+const NEGATIVE_FEEDBACK_REASONS = new Set([
+  'insufficient_evidence',
+  'wrong_variable',
+  'chart_not_useful',
+  'irrelevant',
+])
+
 function evaluationItemsForMode(items = [], isExpertMode = false) {
   const sourceItems = Array.isArray(items) ? items : []
   if (isExpertMode) return sourceItems
@@ -149,11 +167,26 @@ export function ConversationAgentGuide({
                     </button>
                   ) : null}
                   <div className="dashboard-spec-feedback-actions">
+                    <select
+                      aria-label="Motivo del feedback"
+                      value={item.feedbackReason || ''}
+                      onChange={(event) => {
+                        const reason = event.target.value
+                        if (!reason) return
+                        onFeedback(item, !NEGATIVE_FEEDBACK_REASONS.has(reason), reason)
+                      }}
+                    >
+                      {FEEDBACK_REASON_OPTIONS.map((option) => (
+                        <option key={option.value || 'empty'} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
                     <button
                       type="button"
                       className={item.feedbackValue === 'useful' ? 'is-selected' : ''}
                       aria-pressed={item.feedbackValue === 'useful'}
-                      onClick={() => onFeedback(item, true)}
+                      onClick={() => onFeedback(item, true, item.feedbackReason || 'useful')}
                     >
                       Util
                     </button>
@@ -161,7 +194,7 @@ export function ConversationAgentGuide({
                       type="button"
                       className={item.feedbackValue === 'not_useful' ? 'is-selected' : ''}
                       aria-pressed={item.feedbackValue === 'not_useful'}
-                      onClick={() => onFeedback(item, false)}
+                      onClick={() => onFeedback(item, false, item.feedbackReason || 'irrelevant')}
                     >
                       No util
                     </button>
@@ -209,6 +242,7 @@ ConversationAgentGuide.propTypes = {
       applyLabel: PropTypes.string,
       chatLabel: PropTypes.string,
       feedbackValue: PropTypes.string,
+      feedbackReason: PropTypes.string,
       feedbackStatus: PropTypes.string,
       recommendation: PropTypes.object,
       visualization: PropTypes.object,

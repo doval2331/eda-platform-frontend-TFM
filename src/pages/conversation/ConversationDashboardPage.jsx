@@ -42,6 +42,13 @@ import {
   normalizeDashboardSpecContract,
 } from './dashboardContract'
 import {
+  buildChartRequestIdentity,
+  resetRunDerivedDashboardState,
+  resetTicketFilterState,
+  responseBelongsToRun,
+  runMismatchMessage,
+} from './dashboardRunScope'
+import {
   evidenceModeLabel,
   normalizeOperationalReadiness,
   readinessStatusClass,
@@ -207,6 +214,15 @@ function limitChatText(value, max = CHAT_BACKEND_MAX_CHARS) {
 }
 
 const FEEDBACK_STORAGE_PREFIX = 'conversation-dashboard-feedback'
+const FEEDBACK_REASON_LABELS = {
+  useful: 'Recomendacion util',
+  irrelevant: 'Recomendacion irrelevante',
+  wrong_variable: 'Variable incorrecta',
+  chart_not_useful: 'Grafico no util',
+  insufficient_evidence: 'Sin evidencia suficiente',
+  needs_detail: 'Requiere mas detalle',
+  action_taken: 'Termino en accion',
+}
 
 function feedbackStorageKey(runId) {
   return `${FEEDBACK_STORAGE_PREFIX}:${runId || 'global'}`
@@ -246,6 +262,17 @@ function feedbackStateFromBackend(summary) {
     if (id && ['useful', 'not_useful'].includes(status)) {
       result[id] = status
     }
+  })
+  return result
+}
+
+function feedbackReasonStateFromBackend(summary) {
+  if (!summary || typeof summary !== 'object') return {}
+  const result = {}
+  asList(summary.recent).forEach((item) => {
+    const id = String(item?.recommendation_id || item?.target_id || '').trim()
+    const reason = String(item?.reason || '').trim()
+    if (id && reason) result[id] = reason
   })
   return result
 }
@@ -1477,6 +1504,7 @@ export function ConversationDashboardPage({
   const [ticketStatusFilter, setTicketStatusFilter] = useState('all')
   const [selectedBackendTicketKeys, setSelectedBackendTicketKeys] = useState(() => new Set())
   const [feedbackState, setFeedbackState] = useState({})
+  const [feedbackReasonState, setFeedbackReasonState] = useState({})
   const [savedOperationState, setSavedOperationState] = useState({ status: 'idle', key: '' })
   const [semanticDictionaryState, setSemanticDictionaryState] = useState(null)
   const [semanticDraftRows, setSemanticDraftRows] = useState([])
@@ -1679,9 +1707,17 @@ export function ConversationDashboardPage({
     () => feedbackStateFromBackend(spec.recommendation_feedback),
     [spec.recommendation_feedback],
   )
+  const backendFeedbackReasonState = useMemo(
+    () => feedbackReasonStateFromBackend(spec.recommendation_feedback),
+    [spec.recommendation_feedback],
+  )
   const effectiveFeedbackState = useMemo(
     () => ({ ...backendFeedbackState, ...feedbackState }),
     [backendFeedbackState, feedbackState],
+  )
+  const effectiveFeedbackReasonState = useMemo(
+    () => ({ ...backendFeedbackReasonState, ...feedbackReasonState }),
+    [backendFeedbackReasonState, feedbackReasonState],
   )
   const visibleReadinessWarnings = useMemo(
     () =>
@@ -1767,6 +1803,7 @@ export function ConversationDashboardPage({
           graphReadiness,
         )
         const feedbackValue = effectiveFeedbackState[recommendation.id] || ''
+        const feedbackReason = effectiveFeedbackReasonState[recommendation.id] || ''
         const feedbackPersisted = Boolean(backendFeedbackState[recommendation.id])
         const feedbackLocal = Boolean(feedbackState[recommendation.id])
         return {
@@ -1788,6 +1825,7 @@ export function ConversationDashboardPage({
           applyLabel: activeRecommendationId === recommendation.id ? 'Enfoque activo' : 'Aplicar enfoque',
           chatLabel: recommendationChatActionLabel(recommendation),
           feedbackValue,
+          feedbackReason,
           feedbackStatus: feedbackValue
             ? feedbackValue === 'useful'
               ? `${feedbackPersisted && !feedbackLocal ? 'Feedback historico' : 'Feedback persistido'}: se priorizara como recomendacion util.`
@@ -1799,6 +1837,7 @@ export function ConversationDashboardPage({
       activeRecommendationId,
       chartDataState,
       backendFeedbackState,
+      effectiveFeedbackReasonState,
       effectiveFeedbackState,
       feedbackState,
       isExpertMode,
@@ -2172,7 +2211,11 @@ export function ConversationDashboardPage({
       setChartBackendError('')
       const visualizationRequest = JSON.parse(activeVisualizationRequestKey)
       const requestRunId = activeRunId
-      const requestIdentity = `${requestRunId}:${activeVisualizationRequestKey}:${chartRefreshKey}`
+      const requestIdentity = buildChartRequestIdentity({
+        runId: requestRunId,
+        requestKey: activeVisualizationRequestKey,
+        refreshKey: chartRefreshKey,
+      })
       latestChartRequestRef.current = requestIdentity
       fetchConversationChartData(requestRunId, visualizationRequest, {
         limit: ACTIVE_CHART_SERIES_LIMIT,
@@ -2180,12 +2223,10 @@ export function ConversationDashboardPage({
       })
         .then((data) => {
           if (cancelled || latestChartRequestRef.current !== requestIdentity) return
-          if (data?.run_id && data.run_id !== requestRunId) {
+          if (!responseBelongsToRun(data?.run_id, requestRunId)) {
             setChartBackendData(null)
             setActiveBackendSegmentKey('')
-            setChartBackendError(
-              'La respuesta del grafico pertenece a otra ejecucion y fue bloqueada para evitar mezclar datos.',
-            )
+            setChartBackendError(runMismatchMessage({ isExpertMode }))
             return
           }
           setChartBackendData(data)
@@ -2209,7 +2250,7 @@ export function ConversationDashboardPage({
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [activeRunId, activeVisualizationRequestKey, chartRefreshKey])
+  }, [activeRunId, activeVisualizationRequestKey, chartRefreshKey, isExpertMode])
   const chartBackendRunMismatch = Boolean(
     chartBackendData?.run_id && activeRunId && chartBackendData.run_id !== activeRunId,
   )
@@ -2345,46 +2386,57 @@ export function ConversationDashboardPage({
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      setMetricFilter('all')
-      setActiveInsightKey('')
-      setSelectedKeys(new Set())
-      setListPage(0)
-      setActiveVisualizationId('')
-      setActiveChartRendererId('')
-      setActiveRecommendationId('')
-      setActivePriorityLevel('')
-      setActiveConclusionId('')
-      setActiveChartConclusionId('')
-      setChartRefreshKey((current) => current + 1)
-      setChartNotice('')
-      setChartEvidenceOpen(false)
-      setChartBackendData(null)
-      setChartBackendLoading(false)
-      setChartBackendError('')
-      setActiveBackendSegmentKey('')
-      setTicketSearch('')
-      setTicketPriorityFilter('all')
-      setTicketServiceFilter('all')
-      setTicketCategoryFilter('all')
-      setTicketStatusFilter('all')
-      setSelectedBackendTicketKeys(new Set())
-      setSavedOperationState({ status: 'idle', key: '' })
-      setDetailOpen(false)
-      setSavedInsightsOpen(false)
-      setChatExternalPrompt(null)
+      resetRunDerivedDashboardState({
+        setMetricFilter,
+        setActiveInsightKey,
+        setSelectedKeys,
+        setListPage,
+        setActiveVisualizationId,
+        setActiveChartRendererId,
+        setActiveRecommendationId,
+        setActivePriorityLevel,
+        setActiveConclusionId,
+        setActiveChartConclusionId,
+        setChartRefreshKey,
+        setChartNotice,
+        setChartEvidenceOpen,
+        setChartBackendData,
+        setChartBackendLoading,
+        setChartBackendError,
+        setActiveBackendSegmentKey,
+        setTicketSearch,
+        setTicketPriorityFilter,
+        setTicketServiceFilter,
+        setTicketCategoryFilter,
+        setTicketStatusFilter,
+        setSelectedBackendTicketKeys,
+        setFeedbackReasonState,
+        setSavedOperationState,
+        setDetailOpen,
+        setSavedInsightsOpen,
+        setChatExternalPrompt,
+        setSemanticDictionaryState,
+        setSemanticDraftRows,
+        setSemanticDictionaryLoading,
+        setSemanticDictionarySaving,
+        setSemanticDictionaryError,
+      })
       recommendationsPresentedKeyRef.current = ''
+      latestChartRequestRef.current = ''
     }, 0)
     return () => window.clearTimeout(timer)
   }, [selectedRunId])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      setTicketSearch('')
-      setTicketPriorityFilter('all')
-      setTicketServiceFilter('all')
-      setTicketCategoryFilter('all')
-      setTicketStatusFilter('all')
-      setSelectedBackendTicketKeys(new Set())
+      resetTicketFilterState({
+        setTicketSearch,
+        setTicketPriorityFilter,
+        setTicketServiceFilter,
+        setTicketCategoryFilter,
+        setTicketStatusFilter,
+        setSelectedBackendTicketKeys,
+      })
     }, 0)
     return () => window.clearTimeout(timer)
   }, [activeBackendSegmentKey, activeVisualization?.id])
@@ -2392,31 +2444,46 @@ export function ConversationDashboardPage({
   function onRunChange(event) {
     const nextRunId = event.target.value
     setSelectedRunId(nextRunId)
-    setMetricFilter('all')
-    setActiveInsightKey('')
-    setActiveVisualizationId('')
-    setActiveChartRendererId('')
-    setActiveRecommendationId('')
-    setActivePriorityLevel('')
-    setActiveConclusionId('')
-    setActiveChartConclusionId('')
-    setChartEvidenceOpen(false)
-    setChartNotice('')
-    setChartBackendData(null)
-    setChartBackendLoading(false)
-    setChartBackendError('')
-    setActiveBackendSegmentKey('')
-    setTicketSearch('')
-    setTicketPriorityFilter('all')
-    setTicketServiceFilter('all')
-    setTicketCategoryFilter('all')
-    setTicketStatusFilter('all')
-    setSelectedBackendTicketKeys(new Set())
-    setSavedOperationState({ status: 'idle', key: '' })
-    setDetailOpen(false)
-    setSavedInsightsOpen(false)
-    setSelectedKeys(new Set())
-    setListPage(0)
+    resetRunDerivedDashboardState(
+      {
+        setMetricFilter,
+        setActiveInsightKey,
+        setSelectedKeys,
+        setListPage,
+        setActiveVisualizationId,
+        setActiveChartRendererId,
+        setActiveRecommendationId,
+        setActivePriorityLevel,
+        setActiveConclusionId,
+        setActiveChartConclusionId,
+        setChartRefreshKey,
+        setChartNotice,
+        setChartEvidenceOpen,
+        setChartBackendData,
+        setChartBackendLoading,
+        setChartBackendError,
+        setActiveBackendSegmentKey,
+        setTicketSearch,
+        setTicketPriorityFilter,
+        setTicketServiceFilter,
+        setTicketCategoryFilter,
+        setTicketStatusFilter,
+        setSelectedBackendTicketKeys,
+        setFeedbackReasonState,
+        setSavedOperationState,
+        setDetailOpen,
+        setSavedInsightsOpen,
+        setChatExternalPrompt,
+        setSemanticDictionaryState,
+        setSemanticDraftRows,
+        setSemanticDictionaryLoading,
+        setSemanticDictionarySaving,
+        setSemanticDictionaryError,
+      },
+      { bumpChartRefresh: false },
+    )
+    recommendationsPresentedKeyRef.current = ''
+    latestChartRequestRef.current = ''
   }
 
   function onMetricFilterChange(kind) {
@@ -2487,11 +2554,14 @@ export function ConversationDashboardPage({
   }
 
   function clearTicketFilters() {
-    setTicketSearch('')
-    setTicketPriorityFilter('all')
-    setTicketServiceFilter('all')
-    setTicketCategoryFilter('all')
-    setTicketStatusFilter('all')
+    resetTicketFilterState({
+      setTicketSearch,
+      setTicketPriorityFilter,
+      setTicketServiceFilter,
+      setTicketCategoryFilter,
+      setTicketStatusFilter,
+      setSelectedBackendTicketKeys,
+    })
   }
 
   function analyzeBackendTicketRow(row) {
@@ -2530,6 +2600,7 @@ export function ConversationDashboardPage({
       ticket_count: items.length,
       selected_segment: activeBackendSegmentKey || '',
       visualization_id: activeVisualization?.id || '',
+      recommendation_id: activeRecommendationId || '',
     })
   }
 
@@ -2554,6 +2625,8 @@ export function ConversationDashboardPage({
         visualization_id: activeVisualization?.id || '',
         visualization_title: activeVisualization?.title || chartBackendData?.title || '',
         selected_segment: activeBackendSegmentKey || '',
+        recommendation_id: activeRecommendationId || '',
+        action_taken: true,
         ticket_count: items.length,
         ticket_ids: items.slice(0, 120).map((item, index) => backendEvidenceKey(item, index)),
         tickets: items.slice(0, 30).map(summarizeBackendEvidence),
@@ -2566,6 +2639,7 @@ export function ConversationDashboardPage({
         ticket_count: items.length,
         selected_segment: activeBackendSegmentKey || '',
         visualization_id: activeVisualization?.id || '',
+        recommendation_id: activeRecommendationId || '',
       })
     } catch (err) {
       setSavedOperationState({ status: 'error', key: operationKey })
@@ -2584,6 +2658,7 @@ export function ConversationDashboardPage({
       ticket_count: items.length,
       selected_segment: activeBackendSegmentKey || '',
       visualization_id: activeVisualization?.id || '',
+      recommendation_id: activeRecommendationId || '',
       intent,
     })
     openChatWithContext({
@@ -2825,10 +2900,12 @@ export function ConversationDashboardPage({
     ],
   )
 
-  async function handleRecommendationFeedback(recommendation, helpful, evaluationItems = [], visualization = null) {
+  async function handleRecommendationFeedback(recommendation, helpful, evaluationItems = [], visualization = null, reason = '') {
     if (!activeRunId || !recommendation?.id) return
     const key = recommendation.id
     const feedbackValue = helpful ? 'useful' : 'not_useful'
+    const reasonCode = reason || (helpful ? 'useful' : 'irrelevant')
+    const reasonLabel = FEEDBACK_REASON_LABELS[reasonCode] || reasonCode
     const evaluationLabels = evaluationItems.map((item) => item.label)
     const hasWarning = evaluationItems.some((item) => item.tone === 'warning')
     const isGraphValidated = evaluationLabels.some((label) =>
@@ -2836,52 +2913,69 @@ export function ConversationDashboardPage({
         (candidate) => label.includes(candidate),
       ),
     )
+    const variablesUsed = [
+      visualization?.x,
+      visualization?.y,
+      visualization?.metric,
+      visualization?.group_by,
+    ]
+      .filter(Boolean)
+      .map((value) => String(value))
+    const finalState = reasonCode === 'action_taken' ? 'action_taken' : helpful ? 'accepted' : 'needs_revision'
+    const basePayload = {
+      helpful,
+      reason: reasonCode,
+      reason_label: reasonLabel,
+      final_state: finalState,
+      action_taken: reasonCode === 'action_taken',
+      target_type: 'agent_recommendation',
+      target_id: recommendation.id,
+      target_title: recommendation.title,
+      recommendation_id: recommendation.id,
+      recommendation_title: recommendation.title,
+      evaluation: evaluationLabels,
+      has_warning: hasWarning,
+      chart_validated: isGraphValidated,
+      chart_generated: Boolean(visualization?.id && isGraphValidated),
+      drilldown_used: Boolean(activeBackendSegmentKey),
+      tickets_analyzed: selectedBackendEvidenceItems.length || visibleBackendEvidenceItems.length || 0,
+      exported: false,
+      report_prepared: false,
+      variables_used: variablesUsed,
+      evidence_materialized: operationalReadiness.evidence_materialized,
+      evidence_records: operationalReadiness.evidence_records,
+      llm_used: Boolean(spec.llm_used),
+      visualization_id: visualization?.id || '',
+      visualization_title: visualization?.title || '',
+      dashboard_mode: audienceMode,
+      project_id: activeRun?.project_id || '',
+      feedback_source: 'dashboard_ui',
+      persisted_locally: true,
+    }
     setFeedbackState((prev) => {
       const next = { ...prev, [key]: feedbackValue }
       writeStoredFeedback(activeRunId, next)
       return next
     })
-    trackDashboardEvent('recommendation_feedback', {
-      helpful,
-      target_type: 'agent_recommendation',
-      target_id: recommendation.id,
-      target_title: recommendation.title,
-      visualization_id: visualization?.id || '',
-      evaluation: evaluationLabels,
-      has_warning: hasWarning,
-      chart_validated: isGraphValidated,
-      evidence_materialized: operationalReadiness.evidence_materialized,
-      evidence_records: operationalReadiness.evidence_records,
-      llm_used: Boolean(spec.llm_used),
-    })
+    setFeedbackReasonState((prev) => ({ ...prev, [key]: reasonCode }))
+    trackDashboardEvent('recommendation_feedback', basePayload)
     try {
-      await sendConversationFeedback(activeRunId, {
-        helpful,
-        target_type: 'agent_recommendation',
-        target_id: recommendation.id,
-        target_title: recommendation.title,
-        evaluation: evaluationLabels,
-        has_warning: hasWarning,
-        chart_validated: isGraphValidated,
-        evidence_materialized: operationalReadiness.evidence_materialized,
-        evidence_records: operationalReadiness.evidence_records,
-        llm_used: Boolean(spec.llm_used),
-        visualization_id: visualization?.id || '',
-        visualization_title: visualization?.title || '',
-        dashboard_mode: audienceMode,
-        feedback_source: 'dashboard_ui',
-        persisted_locally: true,
-      })
+      await sendConversationFeedback(activeRunId, basePayload)
       setChartNotice(
         helpful
-          ? `Feedback registrado: "${recommendation.title}" fue util.`
-          : `Feedback registrado: revisaremos la recomendacion "${recommendation.title}".`,
+          ? `Feedback registrado: "${recommendation.title}" fue util (${reasonLabel}).`
+          : `Feedback registrado: revisaremos "${recommendation.title}" (${reasonLabel}).`,
       )
     } catch (err) {
       setFeedbackState((prev) => {
         const next = { ...prev }
         delete next[key]
         writeStoredFeedback(activeRunId, next)
+        return next
+      })
+      setFeedbackReasonState((prev) => {
+        const next = { ...prev }
+        delete next[key]
         return next
       })
       setError(err instanceof Error ? err.message : 'No se pudo guardar el feedback.')
@@ -3019,8 +3113,8 @@ export function ConversationDashboardPage({
     })
   }
 
-  function handleGuideFeedback(item, helpful) {
-    handleRecommendationFeedback(item.recommendation, helpful, item.evaluationItems, item.visualization)
+  function handleGuideFeedback(item, helpful, reason = '') {
+    handleRecommendationFeedback(item.recommendation, helpful, item.evaluationItems, item.visualization, reason)
   }
 
   function handleSelectVisualization(visualization) {
@@ -3142,6 +3236,14 @@ export function ConversationDashboardPage({
         ? `Drill-down real: mostrando evidencias que explican "${point.label || point.key}".`
         : `Mostrando tickets y evidencias que explican "${point.label || point.key}".`,
     )
+    trackDashboardEvent('drilldown_opened', {
+      segment_key: point.key,
+      segment_label: point.label || point.key,
+      visualization_id: activeVisualization?.id || '',
+      visualization_title: activeVisualization?.title || '',
+      recommendation_id: activeRecommendationId || '',
+      ticket_count: Number(point.count || point.value || 0),
+    })
   }
 
   function renderBackendSeriesChart({ chartType, maxValue, metricLabel }) {
@@ -3958,6 +4060,8 @@ export function ConversationDashboardPage({
             {chartEvidenceOpen && backendEvidenceItems.length ? (
               <ConversationTicketDrilldownPanel
                 isExpertMode={isExpertMode}
+                hasRealEvidence={Boolean(operationalReadiness.evidence_materialized)}
+                evidenceModeLabel={evidenceModeLabel(operationalReadiness.evidence_mode, isExpertMode)}
                 segmentLabel={activeBackendSegmentKey}
                 visualizationTitle={activeVisualization?.title || ''}
                 visibleCount={visibleBackendEvidenceItems.length}

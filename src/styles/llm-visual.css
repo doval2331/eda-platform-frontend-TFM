@@ -2849,6 +2849,7 @@
   margin-top: 2px;
 }
 
+.conversation-dashboard-page.dashboard-spec-page .dashboard-spec-feedback-actions select,
 .conversation-dashboard-page.dashboard-spec-page .dashboard-spec-feedback-actions button {
   min-height: 30px;
   border-color: #dbeafe;
@@ -2856,6 +2857,14 @@
   color: #536da8;
   padding: 5px 10px;
   font-size: 12px;
+}
+
+.conversation-dashboard-page.dashboard-spec-page .dashboard-spec-feedback-actions select {
+  max-width: 150px;
+  border: 1px solid #dbeafe;
+  border-radius: 999px;
+  font-weight: 800;
+  outline: none;
 }
 
 .conversation-dashboard-page.dashboard-spec-page .dashboard-spec-feedback-actions button.is-selected {
@@ -2896,6 +2905,41 @@
 .conversation-dashboard-page.dashboard-spec-page .dashboard-spec-drilldown-actions button:disabled {
   cursor: not-allowed;
   opacity: 0.6;
+}
+
+.conversation-dashboard-page.dashboard-spec-page .dashboard-spec-evidence-source-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.conversation-dashboard-page.dashboard-spec-page .dashboard-spec-evidence-source-line span {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.conversation-dashboard-page.dashboard-spec-page .dashboard-spec-evidence-source-line span.is-real {
+  border: 1px solid #86efac;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.conversation-dashboard-page.dashboard-spec-page .dashboard-spec-evidence-source-line span.is-assisted {
+  border: 1px solid #fed7aa;
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.conversation-dashboard-page.dashboard-spec-page .dashboard-spec-evidence-source-line small {
+  color: #6475aa;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .conversation-dashboard-page.dashboard-spec-page .dashboard-spec-operation-saved {

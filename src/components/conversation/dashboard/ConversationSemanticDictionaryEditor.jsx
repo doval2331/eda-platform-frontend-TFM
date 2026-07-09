@@ -170,6 +170,33 @@ export function ConversationSemanticDictionaryEditor({
                       placeholder="Fuente"
                       onChange={(event) => onChange(row.name, 'source', event.target.value)}
                     />
+                    <input
+                      type="text"
+                      value={(row.enabled_profiles || []).join(', ')}
+                      placeholder="Perfiles: funcional, experto"
+                      onChange={(event) =>
+                        onChange(
+                          row.name,
+                          'enabled_profiles',
+                          event.target.value
+                            .split(',')
+                            .map((value) => value.trim())
+                            .filter(Boolean),
+                        )
+                      }
+                    />
+                    <input
+                      type="text"
+                      value={row.domain || ''}
+                      placeholder="Dominio"
+                      onChange={(event) => onChange(row.name, 'domain', event.target.value)}
+                    />
+                    <input
+                      type="text"
+                      value={row.owner || ''}
+                      placeholder="Owner"
+                      onChange={(event) => onChange(row.name, 'owner', event.target.value)}
+                    />
                   </td>
                   <td>
                     <label>
@@ -189,6 +216,16 @@ export function ConversationSemanticDictionaryEditor({
                         }
                       />
                       Evitar como metrica
+                    </label>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={row.avoid_as_dimension}
+                        onChange={(event) =>
+                          onChange(row.name, 'avoid_as_dimension', event.target.checked)
+                        }
+                      />
+                      Evitar como dimension
                     </label>
                   </td>
                 </tr>
@@ -214,6 +251,10 @@ ConversationSemanticDictionaryEditor.propTypes = {
       semantic_type: PropTypes.string,
       can_chart: PropTypes.bool,
       avoid_as_metric: PropTypes.bool,
+      avoid_as_dimension: PropTypes.bool,
+      enabled_profiles: PropTypes.arrayOf(PropTypes.string),
+      domain: PropTypes.string,
+      owner: PropTypes.string,
       description: PropTypes.string,
       active: PropTypes.bool,
       confidence: PropTypes.string,

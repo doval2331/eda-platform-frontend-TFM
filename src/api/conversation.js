@@ -48,8 +48,9 @@ export async function appendRunChatMessage(runId, body) {
 
 export async function sendConversationFeedback(runId, feedback) {
   const label = feedback?.helpful ? 'util' : 'no util'
+  const reason = feedback?.reason_label || feedback?.reason || ''
   return appendRunChatMessage(runId, {
-    text: `Feedback del dashboard conversacional: recomendacion ${label}.`,
+    text: `Feedback del dashboard conversacional: recomendacion ${label}${reason ? ` (${reason})` : ''}.`,
     metadata: {
       kind: 'conversation_dashboard_feedback',
       ...feedback,
