@@ -21,6 +21,17 @@ export function getStoredToken() {
 }
 
 const API_BASE = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_BASE ?? '')
+export const AUTH_EXPIRED_EVENT = 'eda-auth-expired'
+
+function notifyAuthExpired(status, message) {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(
+    new CustomEvent(AUTH_EXPIRED_EVENT, {
+      detail: { status, message },
+    }),
+  )
+}
+
 
 export async function apiRequest(path, options = {}) {
   const { method = 'GET', body, token, auth = false, headers = {} } = options
@@ -63,6 +74,9 @@ export async function apiRequest(path, options = {}) {
         : Array.isArray(detail)
           ? detail.map((e) => e.msg ?? JSON.stringify(e)).join('; ')
           : `Error del servidor (${response.status})`
+    if (response.status === 401 && (auth || token || bearer)) {
+      notifyAuthExpired(response.status, message)
+    }
     throw new ApiHttpError(response.status, message, data)
   }
 
