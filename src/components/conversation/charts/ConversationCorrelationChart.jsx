@@ -15,9 +15,7 @@ export function ConversationCorrelationChart({ correlations = [], className = ''
   const pairs = correlations.slice(0, 12)
   if (!pairs.length) return null
 
-  const labels = pairs
-    .map((pair) => `${pair.column_a} ↔ ${pair.column_b}`)
-    .reverse()
+  const labels = pairs.map((pair) => `${pair.column_a} vs ${pair.column_b}`).reverse()
   const values = pairs.map((pair) => pair.coefficient).reverse()
   const colors = values.map((value) => (value >= 0 ? '#2563eb' : '#dc2626'))
 
@@ -26,7 +24,7 @@ export function ConversationCorrelationChart({ correlations = [], className = ''
       <div className="decision-card-title">
         <div>
           <h2>Correlaciones destacadas</h2>
-          <p>Relaciones fuertes entre variables numéricas del dataset.</p>
+          <p>Relaciones fuertes entre variables numericas del dataset.</p>
         </div>
       </div>
       <Plot

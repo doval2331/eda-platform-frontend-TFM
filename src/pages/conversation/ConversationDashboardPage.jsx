@@ -2,19 +2,25 @@ import PropTypes from 'prop-types'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   fetchConversationChartData,
+  fetchConversationSemanticDictionary,
   saveOperationalSelection,
   sendConversationFeedback,
+  trackConversationDashboardEvent,
+  updateConversationSemanticDictionary,
 } from '@/api/conversation'
 import { AnalysisFlowStrip, MetabaseFlowCTA } from '@/components/bi'
 import { FloatingChatWidget } from '@/components/chat'
 import {
   ConversationDashboardFooter,
   ConversationDashboardHero,
+  ConversationCorrelationChart,
   ConversationClusterRiskChart,
   ConversationClusterVolumeChart,
   ConversationDimensionChart,
   ConversationDimensionTreemap,
   ConversationEvidenceChart,
+  ConversationAgentGuide,
+  ConversationExecutiveSummary,
   ConversationInsightImpactChart,
   ConversationInsightTable,
   ConversationMetricMixChart,
@@ -24,6 +30,7 @@ import {
   ConversationRunLinkBar,
   ConversationScatterChart,
   ConversationDashboardToolbar,
+  ConversationTicketDrilldownPanel,
 } from '@/components/conversation'
 import { InsightListPagination } from '@/components/agent'
 import { useConversationDashboard, useRunsList } from '@/hooks/queries'
@@ -172,6 +179,15 @@ function compactText(value, max = 480) {
   return text.length > max ? `${text.slice(0, max - 1)}...` : text
 }
 
+const CHAT_BACKEND_MAX_CHARS = 4800
+const CHAT_CONTEXT_MAX_CHARS = 3600
+
+function limitChatText(value, max = CHAT_BACKEND_MAX_CHARS) {
+  const text = String(value || '').trim()
+  if (text.length <= max) return text
+  return `${text.slice(0, Math.max(0, max - 3))}...`
+}
+
 const FEEDBACK_STORAGE_PREFIX = 'conversation-dashboard-feedback'
 
 function feedbackStorageKey(runId) {
@@ -197,18 +213,44 @@ function writeStoredFeedback(runId, state) {
   }
 }
 
+function feedbackStateFromBackend(summary) {
+  if (!summary || typeof summary !== 'object') return {}
+  const result = {}
+  asList(summary.useful_recommendation_ids).forEach((id) => {
+    if (id) result[id] = 'useful'
+  })
+  asList(summary.not_useful_recommendation_ids).forEach((id) => {
+    if (id) result[id] = 'not_useful'
+  })
+  asList(summary.recent).forEach((item) => {
+    const id = String(item?.recommendation_id || item?.target_id || '').trim()
+    const status = String(item?.status || '').trim()
+    if (id && ['useful', 'not_useful'].includes(status)) {
+      result[id] = status
+    }
+  })
+  return result
+}
+
 function textForProfile(value, isExpertMode) {
   const text = String(value || '').trim()
   if (!text || isExpertMode) return text
   return text
     .replace(/\bincident_id\b/gi, 'ticket')
     .replace(/\bevidence_id\b/gi, 'evidencia')
-    .replace(/\bcluster_label\b/gi, 'grupo tecnico')
-    .replace(/\bcluster_agent_risk\b/gi, 'riesgo operativo del grupo')
-    .replace(/\bcluster_critical_score\b/gi, 'criticidad del grupo')
+    .replace(/\bcluster_label\b/gi, 'grupo de incidencias')
+    .replace(/\bcluster_agent_risk\b/gi, 'riesgo operativo')
+    .replace(/\bcluster_critical_score\b/gi, 'criticidad operativa')
     .replace(/\bmetric_value\b/gi, 'valor de la metrica')
     .replace(/\bmetric_label\b/gi, 'tipo de evidencia')
     .replace(/\bmetric\b/gi, 'indicador')
+    .replace(/\bvariable tecnica\b/gi, 'dato interno')
+    .replace(/\bvariable técnica\b/gi, 'dato interno')
+    .replace(/\bvariables tecnicas\b/gi, 'datos internos')
+    .replace(/\bvariables técnicas\b/gi, 'datos internos')
+    .replace(/\bcontrato JSON\b/gi, 'validacion del sistema')
+    .replace(/\bJSON\b/g, 'estructura')
+    .replace(/\bschema\b/gi, 'validacion')
     .replace(/\baffected_service\b/gi, 'servicio afectado')
     .replace(/\bavg_resolution_hours\b/gi, 'tiempo promedio de resolucion')
     .replace(/\bsla_breach_rate\b/gi, 'incumplimiento de SLA')
@@ -220,9 +262,15 @@ function textForProfile(value, isExpertMode) {
     .replace(/\bgroup_by\b/gi, 'agrupacion')
     .replace(/\baggregation\b/gi, 'calculo')
     .replace(/\bHDBSCAN\b/gi, 'agrupamiento')
-    .replace(/\bDBSCAN\b/gi, 'comparacion tecnica')
+    .replace(/\bDBSCAN\b/gi, 'comparacion de referencia')
     .replace(/\bUMAP\b/gi, 'mapa visual')
     .replace(/\bPCA\b/gi, 'vista rapida')
+    .replace(/\bDuckDB\b/gi, 'base de evidencias')
+    .replace(/\bpipeline\b/gi, 'proceso de analisis')
+    .replace(/\bsilhouette\b/gi, 'calidad del agrupamiento')
+    .replace(/\bevidencias materializadas\b/gi, 'casos disponibles')
+    .replace(/\bevidencia materializada\b/gi, 'casos disponibles')
+    .replace(/\bcontrato\b/gi, 'validacion')
     .replace(/\bclusters\b/gi, 'grupos')
     .replace(/\bcluster\b/gi, 'grupo')
     .replace(/\bclustering\b/gi, 'agrupamiento')
@@ -231,6 +279,9 @@ function textForProfile(value, isExpertMode) {
     .replace(/\bnoise\b/gi, 'registros sin patron claro')
     .replace(/\bpipeline\b/gi, 'proceso de analisis')
     .replace(/\bDuckDB\b/g, 'datos guardados')
+    .replace(/\bbackend\b/gi, 'sistema')
+    .replace(/\bendpoint\b/gi, 'servicio')
+    .replace(/\bLLM\b/g, 'agente')
     .replace(/\bfallback\b/gi, 'respaldo automatico')
 }
 
@@ -266,11 +317,82 @@ function audienceLabel(value, isExpertMode) {
   return 'todos'
 }
 
+function readinessStatusLabel(status, isExpertMode) {
+  const text = String(status || 'limited').toLowerCase()
+  if (text === 'operational') return isExpertMode ? 'Operativo con evidencia' : 'Listo para decidir'
+  if (text === 'interpretive') return isExpertMode ? 'Soporte parcial' : 'Revisar antes de decidir'
+  return isExpertMode ? 'Contexto limitado' : 'Falta evidencia'
+}
+
+function readinessStatusClass(status) {
+  const text = String(status || 'limited').toLowerCase()
+  if (text === 'operational' || text === 'interpretive' || text === 'limited') return text
+  return 'limited'
+}
+
+function runScopeLabel(readiness, isExpertMode) {
+  const scope = String(readiness?.run_scope || '').toLowerCase()
+  const count = asList(readiness?.run_ids).length
+  if (scope === 'single_run') {
+    return isExpertMode ? `Ejecucion aislada: ${readiness.active_run_id || 'actual'}` : 'Una ejecucion activa'
+  }
+  if (scope === 'multi_run') {
+    return isExpertMode
+      ? `${count || readiness?.evidence_runs || 0} ejecuciones combinadas`
+      : 'Varias ejecuciones combinadas'
+  }
+  return isExpertMode ? 'Sin ejecucion activa' : 'Sin ejecucion seleccionada'
+}
+
 function semanticMapFromList(items) {
   return asList(items).reduce((acc, item) => {
     if (item?.name) acc.set(String(item.name), item)
     return acc
   }, new Map())
+}
+
+function buildSemanticDraftRows(dictionaryPayload, semanticVariables) {
+  const configuredItems = asList(dictionaryPayload?.variables)
+  const configuredByName = configuredItems.reduce((acc, item) => {
+    const keys = [item?.name, item?.lookup_key, ...(Array.isArray(item?.aliases) ? item.aliases : [])]
+      .map((value) => String(value || '').trim())
+      .filter(Boolean)
+    keys.forEach((key) => acc.set(key, item))
+    return acc
+  }, new Map())
+
+  return asList(semanticVariables)
+    .slice(0, 40)
+    .map((item) => {
+      const configured = configuredByName.get(item.name) || {}
+      return {
+        name: item.name,
+        label: configured.label || item.label || item.name,
+        role: configured.role || item.role || 'unknown',
+        semantic_type: configured.semantic_type || item.semantic_type || '',
+        can_chart: configured.can_chart ?? item.can_chart ?? true,
+        avoid_as_metric: configured.avoid_as_metric ?? item.avoid_as_metric ?? false,
+        description: configured.description || item.description || '',
+        recommended_use: configured.recommended_use || item.recommended_use || '',
+        aliases: asList(configured.aliases),
+      }
+    })
+}
+
+function normalizeSemanticDraftForSave(rows) {
+  return asList(rows)
+    .filter((row) => row?.name)
+    .map((row) => ({
+      name: row.name,
+      label: row.label || row.name,
+      role: row.role || 'unknown',
+      type: row.semantic_type || '',
+      can_chart: row.can_chart !== false,
+      avoid_as_metric: Boolean(row.avoid_as_metric),
+      description: row.description || '',
+      recommended_use: row.recommended_use || '',
+      aliases: asList(row.aliases),
+    }))
 }
 
 function semanticLabel(semanticMap, value) {
@@ -341,17 +463,17 @@ function backendEvidenceField(item, key, fallback = 'Sin dato') {
 
 function summarizeBackendEvidence(item) {
   return {
-    ticket: backendEvidenceField(item, 'ticket', item?.incident_id || item?.evidence_id || ''),
-    title: backendEvidenceTitle(item),
-    service: backendEvidenceField(item, 'servicio', item?.service || ''),
-    category: backendEvidenceField(item, 'categoria', item?.category || ''),
-    priority: backendEvidenceField(item, 'prioridad', item?.priority || ''),
-    status: backendEvidenceField(item, 'estado', ''),
-    group: backendEvidenceField(item, 'grupo', item?.group || ''),
-    reassignments: backendEvidenceField(item, 'reasignaciones', ''),
-    meta: backendEvidenceMeta(item),
+    ticket: compactText(backendEvidenceField(item, 'ticket', item?.incident_id || item?.evidence_id || ''), 80),
+    title: compactText(backendEvidenceTitle(item), 120),
+    service: compactText(backendEvidenceField(item, 'servicio', item?.service || ''), 80),
+    category: compactText(backendEvidenceField(item, 'categoria', item?.category || ''), 80),
+    priority: compactText(backendEvidenceField(item, 'prioridad', item?.priority || ''), 50),
+    status: compactText(backendEvidenceField(item, 'estado', ''), 60),
+    group: compactText(backendEvidenceField(item, 'grupo', item?.group || ''), 60),
+    reassignments: compactText(backendEvidenceField(item, 'reasignaciones', ''), 40),
+    meta: compactText(backendEvidenceMeta(item), 160),
     metric_value: item?.metric_value ?? null,
-    preview: compactText(item?.preview, 260),
+    preview: compactText(item?.preview, 140),
   }
 }
 
@@ -540,6 +662,23 @@ function shouldShowRecommendationForMode(recommendation, visualization, chartRen
   return true
 }
 
+function recommendationFeedbackRank(feedbackValue) {
+  if (feedbackValue === 'useful') return -1
+  if (feedbackValue === 'not_useful') return 1
+  return 0
+}
+
+function sortRecommendationsByFeedback(recommendations, feedbackState) {
+  return recommendations
+    .map((recommendation, index) => ({
+      recommendation,
+      index,
+      rank: recommendationFeedbackRank(feedbackState[recommendation.id]),
+    }))
+    .sort((left, right) => left.rank - right.rank || left.index - right.index)
+    .map((item) => item.recommendation)
+}
+
 function isTechnicalToken(value) {
   const text = String(value || '').toLowerCase().trim()
   if (!text) return true
@@ -614,8 +753,9 @@ function summarizeConclusion(item) {
 }
 
 function buildBackendPrompt({ visibleText, runId, context }) {
+  const safeVisibleText = limitChatText(visibleText, 700)
   const basePayload = {
-    action_label: context.label || visibleText,
+    action_label: compactText(context.label || safeVisibleText, 240),
     intent: context.intent || 'analizar seleccion del dashboard conversacional',
     run_id: runId || '',
     project_id: context.projectId || '',
@@ -635,11 +775,17 @@ function buildBackendPrompt({ visibleText, runId, context }) {
     chart_data: summarizeChartData(context.chartData),
     selected_segment: context.selectedSegment || '',
     selected_ticket: context.ticket ? summarizeBackendEvidence(context.ticket) : {},
-    operation: context.operation || {},
-    drilldown_tickets: asList(context.drilldownEvidence).slice(0, 12).map(summarizeBackendEvidence),
+    operation: {
+      action: context.operation?.action || '',
+      saved: Boolean(context.operation?.saved),
+      ticket_count: context.operation?.ticket_count ?? asList(context.drilldownEvidence).length,
+      recommended_action: compactText(context.operation?.recommended_action, 280),
+      quality_score: context.operation?.quality_score ?? null,
+    },
+    drilldown_tickets: asList(context.drilldownEvidence).slice(0, 8).map(summarizeBackendEvidence),
     drilldown_count: asList(context.drilldownEvidence).length,
     drilldown_ticket_ids: asList(context.drilldownEvidence)
-      .slice(0, 60)
+      .slice(0, 25)
       .map((item, index) => backendEvidenceKey(item, index)),
     focus_instruction:
       'Responde solo sobre la seleccion recibida. No cambies a otro hallazgo, grafico o ticket salvo que sea necesario para explicar la evidencia relacionada.',
@@ -649,7 +795,7 @@ function buildBackendPrompt({ visibleText, runId, context }) {
     question_answered: compactText(context.questionAnswered, 360),
   }
   let payloadText = JSON.stringify(basePayload)
-  if (payloadText.length > 4200) {
+  if (payloadText.length > CHAT_CONTEXT_MAX_CHARS) {
     payloadText = JSON.stringify({
       action_label: basePayload.action_label,
       intent: basePayload.intent,
@@ -661,15 +807,34 @@ function buildBackendPrompt({ visibleText, runId, context }) {
       selected_segment: basePayload.selected_segment,
       selected_ticket: basePayload.selected_ticket,
       operation: basePayload.operation,
-      drilldown_tickets: basePayload.drilldown_tickets.slice(0, 5),
+      drilldown_tickets: basePayload.drilldown_tickets.slice(0, 4),
       drilldown_count: basePayload.drilldown_count,
-      drilldown_ticket_ids: basePayload.drilldown_ticket_ids.slice(0, 30),
+      drilldown_ticket_ids: basePayload.drilldown_ticket_ids.slice(0, 18),
       focus_instruction: basePayload.focus_instruction,
-      evidence: compactText(basePayload.evidence, 420),
-      selected_findings: basePayload.selected_findings.slice(0, 3),
+      evidence: compactText(basePayload.evidence, 260),
+      selected_findings: basePayload.selected_findings.slice(0, 2),
     })
   }
-  return `DASHBOARD_CONTEXT_JSON:${payloadText}:END_DASHBOARD_CONTEXT\n${visibleText}`
+  if (payloadText.length > CHAT_CONTEXT_MAX_CHARS) {
+    payloadText = JSON.stringify({
+      action_label: basePayload.action_label,
+      intent: basePayload.intent,
+      run_id: basePayload.run_id,
+      visualization: {
+        id: basePayload.visualization.id,
+        title: basePayload.visualization.title,
+        chart_type: basePayload.visualization.chart_type,
+        question_answered: basePayload.visualization.question_answered,
+      },
+      selected_segment: basePayload.selected_segment,
+      operation: basePayload.operation,
+      drilldown_count: basePayload.drilldown_count,
+      drilldown_ticket_ids: basePayload.drilldown_ticket_ids.slice(0, 12),
+      drilldown_tickets: basePayload.drilldown_tickets.slice(0, 2),
+      focus_instruction: basePayload.focus_instruction,
+    })
+  }
+  return limitChatText(`DASHBOARD_CONTEXT_JSON:${payloadText}:END_DASHBOARD_CONTEXT\n${safeVisibleText}`)
 }
 
 function getSpecHasContent(spec) {
@@ -1387,12 +1552,18 @@ export function ConversationDashboardPage({
   const [selectedBackendTicketKeys, setSelectedBackendTicketKeys] = useState(() => new Set())
   const [feedbackState, setFeedbackState] = useState({})
   const [savedOperationState, setSavedOperationState] = useState({ status: 'idle', key: '' })
+  const [semanticDictionaryState, setSemanticDictionaryState] = useState(null)
+  const [semanticDraftRows, setSemanticDraftRows] = useState([])
+  const [semanticDictionaryLoading, setSemanticDictionaryLoading] = useState(false)
+  const [semanticDictionarySaving, setSemanticDictionarySaving] = useState(false)
+  const [semanticDictionaryError, setSemanticDictionaryError] = useState('')
   const [detailOpen, setDetailOpen] = useState(false)
   const [savedInsightsOpen, setSavedInsightsOpen] = useState(false)
   const [chatOpenSignal, setChatOpenSignal] = useState(0)
   const [chatExternalPrompt, setChatExternalPrompt] = useState(null)
   const activeChartRef = useRef(null)
   const conclusionDetailRef = useRef(null)
+  const recommendationsPresentedKeyRef = useRef('')
 
   const {
     data: aggregateDashboard = EMPTY_DASHBOARD,
@@ -1439,6 +1610,29 @@ export function ConversationDashboardPage({
   const executive = useMemo(() => spec.executive_summary ?? {}, [spec])
   const semanticVariables = useMemo(() => asList(spec.semantic_variables), [spec.semantic_variables])
   const semanticMap = useMemo(() => semanticMapFromList(semanticVariables), [semanticVariables])
+  const expertCorrelations = useMemo(() => {
+    const candidates = [
+      ...asList(spec.data_quality?.correlations),
+      ...asList(spec.technical_profile?.correlations),
+      ...asList(dashboard.data_quality?.correlations),
+      ...asList(dashboard.correlations),
+    ]
+    const seen = new Set()
+    return candidates
+      .map((pair) => {
+        const columnA = pair?.column_a ?? pair?.variable_a ?? pair?.left ?? pair?.x ?? ''
+        const columnB = pair?.column_b ?? pair?.variable_b ?? pair?.right ?? pair?.y ?? ''
+        const coefficient = Number(pair?.coefficient ?? pair?.correlation ?? pair?.value ?? 0)
+        return { column_a: columnA, column_b: columnB, coefficient }
+      })
+      .filter((pair) => {
+        if (!pair.column_a || !pair.column_b || !Number.isFinite(pair.coefficient)) return false
+        const key = `${pair.column_a}::${pair.column_b}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+  }, [dashboard.correlations, dashboard.data_quality?.correlations, spec.data_quality?.correlations, spec.technical_profile?.correlations])
   const aggregateInsights = useMemo(
     () => aggregateDashboard.insights ?? [],
     [aggregateDashboard.insights],
@@ -1541,6 +1735,58 @@ export function ConversationDashboardPage({
   const findings = asList(spec.priority_findings)
   const audienceMode = (isExpertProp ?? storedIsExpert) ? 'experto' : 'funcional'
   const isExpertMode = audienceMode === 'experto'
+  const operationalReadiness = useMemo(() => {
+    const readiness = spec.operational_readiness ?? {}
+    return {
+      status: readiness.status || 'limited',
+      run_scope: readiness.run_scope || (selectedRunId ? 'single_run' : 'multi_run'),
+      active_run_id: readiness.active_run_id || '',
+      run_ids: asList(readiness.run_ids),
+      decision_level: readiness.decision_level || 'interpretive',
+      evidence_materialized: Boolean(readiness.evidence_materialized),
+      evidence_records: Number(readiness.evidence_records || 0),
+      evidence_runs: Number(readiness.evidence_runs || 0),
+      selected_insights: Number(readiness.selected_insights || insights.length || 0),
+      semantic_dictionary_configured: Boolean(readiness.semantic_dictionary_configured),
+      semantic_dictionary_source: readiness.semantic_dictionary_source || '',
+      semantic_dictionary_total: Number(readiness.semantic_dictionary_total || 0),
+      semantic_dictionary_configured_count: Number(readiness.semantic_dictionary_configured_count || 0),
+      llm_validated: Boolean(readiness.llm_validated),
+      summary: readiness.summary || '',
+      functional_message: readiness.functional_message || '',
+      expert_message: readiness.expert_message || '',
+      recommended_next_step: readiness.recommended_next_step || '',
+      warnings: asList(readiness.warnings),
+    }
+  }, [insights.length, selectedRunId, spec.operational_readiness])
+  const runScopeMismatch = Boolean(
+    selectedRunId &&
+      operationalReadiness.active_run_id &&
+      operationalReadiness.active_run_id !== selectedRunId,
+  )
+  const backendFeedbackState = useMemo(
+    () => feedbackStateFromBackend(spec.recommendation_feedback),
+    [spec.recommendation_feedback],
+  )
+  const effectiveFeedbackState = useMemo(
+    () => ({ ...backendFeedbackState, ...feedbackState }),
+    [backendFeedbackState, feedbackState],
+  )
+  const visibleReadinessWarnings = useMemo(
+    () => {
+      const warnings = runScopeMismatch
+        ? [
+            'La respuesta recibida no coincide con la ejecucion seleccionada; actualiza antes de decidir.',
+            ...operationalReadiness.warnings,
+          ]
+        : operationalReadiness.warnings
+      return warnings
+        .map((warning) => textForProfile(warning, isExpertMode))
+        .filter(Boolean)
+        .slice(0, isExpertMode ? 5 : 2)
+    },
+    [isExpertMode, operationalReadiness.warnings, runScopeMismatch],
+  )
   const visualizations = useMemo(
     () => audienceList(spec.suggested_visualizations, audienceMode),
     [audienceMode, spec.suggested_visualizations],
@@ -1563,10 +1809,91 @@ export function ConversationDashboardPage({
       )
     })
   }, [chartDataState, isExpertMode, rawRecommendations, semanticMap, visualizations])
-  const showExpandedAgentSections = isExpertMode || detailOpen
+  const rankedRecommendations = useMemo(
+    () => sortRecommendationsByFeedback(recommendations, effectiveFeedbackState),
+    [effectiveFeedbackState, recommendations],
+  )
+  const showDetailPanels = isExpertMode || detailOpen
   const visibleRecommendations = useMemo(
-    () => (showExpandedAgentSections ? recommendations : recommendations.slice(0, 3)),
-    [recommendations, showExpandedAgentSections],
+    () => (isExpertMode ? rankedRecommendations : rankedRecommendations.slice(0, 3)),
+    [isExpertMode, rankedRecommendations],
+  )
+  const agentGuideItems = useMemo(
+    () =>
+      visibleRecommendations.map((recommendation, index) => {
+        const recommendationText = recommendationSearchText(recommendation)
+        const visualization = findVisualizationForRecommendation(
+          recommendation,
+          visualizations,
+          chartDataState,
+        )
+        const chartRenderer = selectChartRenderer(
+          visualization,
+          chartDataState,
+          recommendationText,
+        )
+        const graphReadiness = visualizationGraphReadiness(
+          visualization,
+          chartRenderer,
+          semanticMap,
+          isExpertMode,
+        )
+        const actionType = getRecommendationActionType(
+          recommendation,
+          visualization,
+          chartRenderer,
+          graphReadiness,
+        )
+        const evaluationItems = buildRecommendationEvaluation(
+          recommendation,
+          visualization,
+          chartRenderer,
+          semanticMap,
+          isExpertMode,
+          spec,
+          graphReadiness,
+        )
+        const feedbackValue = effectiveFeedbackState[recommendation.id] || ''
+        const feedbackPersisted = Boolean(backendFeedbackState[recommendation.id])
+        const feedbackLocal = Boolean(feedbackState[recommendation.id])
+        return {
+          id: recommendation.id,
+          number: String(index + 1).padStart(2, '0'),
+          recommendation,
+          visualization,
+          chartRenderer,
+          graphReadiness,
+          evaluationItems,
+          isActive: activeRecommendationId === recommendation.id,
+          audienceLabel: audienceLabel(recommendation.audience, isExpertMode),
+          actionLabel: textForProfile(actionType.label, isExpertMode),
+          title: textForProfile(recommendation.title, isExpertMode),
+          body: textForProfile(recommendation.why_it_matters || recommendation.what_to_analyze, isExpertMode),
+          nextStep: textForProfile(recommendation.recommended_next_step, isExpertMode),
+          hint: textForProfile(actionType.hint, isExpertMode),
+          graphReady: graphReadiness.ready,
+          applyLabel: activeRecommendationId === recommendation.id ? 'Enfoque activo' : 'Aplicar enfoque',
+          chatLabel: recommendationChatActionLabel(recommendation),
+          feedbackValue,
+          feedbackStatus: feedbackValue
+            ? feedbackValue === 'useful'
+              ? `${feedbackPersisted && !feedbackLocal ? 'Feedback historico' : 'Feedback persistido'}: se priorizara como recomendacion util.`
+              : `${feedbackPersisted && !feedbackLocal ? 'Feedback historico' : 'Feedback persistido'}: se marcara para ajustar futuras propuestas.`
+            : '',
+        }
+      }),
+    [
+      activeRecommendationId,
+      chartDataState,
+      backendFeedbackState,
+      effectiveFeedbackState,
+      feedbackState,
+      isExpertMode,
+      semanticMap,
+      spec,
+      visibleRecommendations,
+      visualizations,
+    ],
   )
   const conclusions = asList(spec.conclusions)
   const conclusionMatrixItems = useMemo(
@@ -1574,8 +1901,8 @@ export function ConversationDashboardPage({
     [conclusions],
   )
   const visibleConclusionListItems = useMemo(
-    () => (showExpandedAgentSections ? conclusionMatrixItems : conclusionMatrixItems.slice(0, 3)),
-    [conclusionMatrixItems, showExpandedAgentSections],
+    () => (showDetailPanels ? conclusionMatrixItems : conclusionMatrixItems.slice(0, 3)),
+    [conclusionMatrixItems, showDetailPanels],
   )
   const activeConclusionItem = useMemo(
     () =>
@@ -1625,6 +1952,245 @@ export function ConversationDashboardPage({
     audienceMode === 'experto'
       ? asList(spec.suggested_questions?.expert_user)
       : asList(spec.suggested_questions?.functional_user)
+  const dashboardUsageSummary = useMemo(
+    () => spec.dashboard_usage_summary || {},
+    [spec.dashboard_usage_summary],
+  )
+  const executiveSummaryView = useMemo(() => {
+    const usageItems = [
+      {
+        label: 'Graficos abiertos',
+        value: Number(dashboardUsageSummary.charts_opened || 0).toLocaleString('es-ES'),
+      },
+      {
+        label: 'Tickets al agente',
+        value: Number(dashboardUsageSummary.tickets_sent_to_agent || 0).toLocaleString('es-ES'),
+      },
+      {
+        label: 'Exportaciones',
+        value: Number(dashboardUsageSummary.exports || 0).toLocaleString('es-ES'),
+      },
+      {
+        label: 'Informes preparados',
+        value: Number(dashboardUsageSummary.reports_prepared || 0).toLocaleString('es-ES'),
+      },
+    ]
+    const usageRecent = asList(dashboardUsageSummary.recent)
+      .slice(-5)
+      .reverse()
+      .map((event, index) => ({
+        id: `${event.event_type || 'event'}-${event.target_id || index}-${event.created_at || index}`,
+        label: `${event.event_type || 'evento'}${event.target_title ? `: ${event.target_title}` : ''}`,
+      }))
+
+    const metrics = [
+      { label: 'Dataset', value: executive.dataset_name || 'Analisis actual' },
+      {
+        label: 'Registros',
+        value: Number(executive.records_count || 0).toLocaleString('es-ES'),
+      },
+    ]
+    if (isExpertMode) {
+      metrics.push({
+        label: 'Columnas',
+        value: Number(executive.columns_count || 0).toLocaleString('es-ES'),
+      })
+    }
+    metrics.push(
+      { label: 'Evidencias', value: insights.length.toLocaleString('es-ES') },
+      {
+        label: 'Modo',
+        value: isExpertMode
+          ? spec.llm_used
+            ? 'LLM'
+            : 'Reglas locales'
+          : spec.llm_used
+            ? 'Asistente'
+            : 'Respaldo automatico',
+      },
+    )
+
+    const readinessSignals = [
+      runScopeLabel(operationalReadiness, isExpertMode),
+      operationalReadiness.decision_level === 'operational'
+        ? isExpertMode
+          ? 'Decision operativa habilitada'
+          : 'Listo para decidir'
+        : operationalReadiness.decision_level === 'assisted_review'
+          ? isExpertMode
+            ? 'Revision asistida'
+            : 'Requiere revision'
+          : isExpertMode
+            ? 'Lectura interpretativa'
+            : 'Solo orientativo',
+      operationalReadiness.evidence_materialized
+        ? `${operationalReadiness.evidence_records.toLocaleString('es-ES')} evidencias reales`
+        : isExpertMode
+          ? 'Sin evidencias materializadas'
+          : 'Sin tickets listos para revisar',
+      spec.llm_used
+        ? operationalReadiness.llm_validated
+          ? isExpertMode
+            ? 'LLM validado con datos'
+            : 'Agente validado con datos'
+          : isExpertMode
+            ? 'LLM ajustado por backend'
+            : 'Agente ajustado con datos'
+        : 'Respaldo automatico',
+      operationalReadiness.semantic_dictionary_configured
+        ? isExpertMode
+          ? `Diccionario gobernado (${operationalReadiness.semantic_dictionary_configured_count.toLocaleString('es-ES')})`
+          : 'Variables gobernadas'
+        : isExpertMode
+          ? 'Diccionario base'
+          : 'Variables traducidas automaticamente',
+    ]
+    if (isExpertMode) {
+      readinessSignals.splice(
+        2,
+        0,
+        `${operationalReadiness.evidence_runs.toLocaleString('es-ES')} ejecuciones con evidencia`,
+      )
+    }
+
+    const semanticItems = semanticVariables
+      .filter((item) => isExpertMode || !['technical', 'identifier'].includes(item.role))
+      .slice(0, isExpertMode ? 14 : 8)
+      .map((item) => ({
+        id: item.name,
+        title: item.label || item.name,
+        description: isExpertMode ? `${item.name} | ${item.role}` : item.description || '',
+        warning: item.avoid_as_metric ? 'Evitar como metrica funcional' : '',
+      }))
+
+    const technicalVisualizations = isExpertMode
+      ? visualizations.map((visualization) => {
+          const chartRenderer = selectChartRenderer(visualization, chartDataState)
+          return {
+            id: visualization.id,
+            title: visualization.title,
+            source: visualization,
+            disabled: !chartRenderer,
+            meta: `${
+              chartRenderer?.label ||
+              CHART_LABELS[visualization.chart_type] ||
+              visualization.chart_type ||
+              'Sin grafica compatible'
+            } | Eje X: ${visualization.x || visualization.group_by || 'sin eje'} | Metrica: ${
+              visualization.metric || visualization.y || 'count'
+            }`,
+          }
+        })
+      : []
+
+    return {
+      title: textForProfile(executive.title || 'Resumen ejecutivo', isExpertMode),
+      description: isExpertMode
+        ? 'Perfil experto activo: se muestra trazabilidad, variables, visualizaciones tecnicas y base de evidencia.'
+        : 'Perfil funcional activo: se priorizan conclusiones, acciones y graficos interpretables.',
+      profileLabel: isExpertMode ? 'Perfil experto' : 'Perfil funcional',
+      contract: {
+        status: dashboardContract.status,
+        label: dashboardContractLabel(dashboardContract, isExpertMode),
+        message: dashboardContractMessage(dashboardContract, isExpertMode),
+        schemaVersion: dashboardContract.spec.schema_version || '',
+      },
+      context: {
+        title: isExpertMode ? 'Contexto tecnico del analisis' : 'Contexto ejecutivo del analisis',
+        metrics,
+        objective: textForProfile(executive.analysis_objective || 'Objetivo inferido', isExpertMode),
+        summary: textForProfile(
+          executive.summary ||
+            (isExpertMode
+              ? 'El backend no devolvio resumen ejecutivo.'
+              : 'No se recibio resumen ejecutivo para esta ejecucion.'),
+          isExpertMode,
+        ),
+        tags: contextTags.map((item) => ({
+          ...item,
+          title: isExpertMode ? `${item.name} - ${item.role || 'sin rol'}` : item.name,
+        })),
+      },
+      readiness: {
+        statusClass: readinessStatusClass(operationalReadiness.status),
+        title: isExpertMode ? 'Madurez operativa' : 'Estado del analisis',
+        label: readinessStatusLabel(operationalReadiness.status, isExpertMode),
+        evidenceMaterialized: operationalReadiness.evidence_materialized,
+        evidenceLabel: operationalReadiness.evidence_materialized
+          ? `${operationalReadiness.evidence_records.toLocaleString('es-ES')} evidencias reales`
+          : isExpertMode
+            ? '0 evidencias materializadas'
+            : 'Sin casos reales listos',
+        scopeLabel: runScopeLabel(operationalReadiness, isExpertMode),
+        decisionLabel:
+          operationalReadiness.decision_level === 'operational'
+            ? isExpertMode
+              ? 'Decision operativa'
+              : 'Listo para decidir'
+            : operationalReadiness.decision_level === 'assisted_review'
+              ? isExpertMode
+                ? 'Revision asistida'
+                : 'Requiere revision'
+              : isExpertMode
+                ? 'Interpretativo'
+                : 'Orientativo',
+        summary: textForProfile(
+          (isExpertMode
+            ? operationalReadiness.expert_message
+            : operationalReadiness.functional_message) ||
+            operationalReadiness.summary ||
+            'El backend no informo el estado operativo de esta vista.',
+          isExpertMode,
+        ),
+        nextStep: textForProfile(operationalReadiness.recommended_next_step, isExpertMode),
+        signals: readinessSignals,
+        warnings: visibleReadinessWarnings,
+      },
+      detail: {
+        open: detailOpen,
+        evidenceTitle: isExpertMode ? 'Linea de evidencia' : 'Como se construyo el analisis',
+        evidenceItems: visibleEvidenceLine.map((step) => ({
+          id: `${step.step}-${step.title}`,
+          title: textForProfile(cleanEvidenceTitle(step.title), isExpertMode),
+          description: textForProfile(step.description, isExpertMode),
+          sourceLabel: isExpertMode ? badgeLabel(step.source) : '',
+        })),
+        questionsTitle: isExpertMode ? 'Preguntas tecnicas sugeridas' : 'Preguntas para el agente',
+        questions: suggestedQuestions,
+        semanticTitle: isExpertMode ? 'Capa semantica de variables' : 'Variables traducidas',
+        semanticDescription: operationalReadiness.semantic_dictionary_configured
+          ? `${operationalReadiness.semantic_dictionary_configured_count.toLocaleString('es-ES')} variables configuradas en ${operationalReadiness.semantic_dictionary_source || 'diccionario semantico'}.`
+          : `Usando diccionario base con ${operationalReadiness.semantic_dictionary_total.toLocaleString('es-ES')} variables detectadas para este run.`,
+        semanticItems,
+        technicalVisualizationsTitle: 'Visualizaciones tecnicas disponibles',
+        technicalVisualizations,
+        usageTitle: 'Observabilidad de uso',
+        usageDescription: textForProfile(
+          dashboardUsageSummary.guidance ||
+            'Sin eventos de uso persistidos para este dashboard.',
+          true,
+        ),
+        usageItems,
+        usageRecent,
+      },
+    }
+  }, [
+    chartDataState,
+    contextTags,
+    dashboardContract,
+    dashboardUsageSummary,
+    detailOpen,
+    executive,
+    insights.length,
+    isExpertMode,
+    operationalReadiness,
+    semanticVariables,
+    spec.llm_used,
+    suggestedQuestions,
+    visibleEvidenceLine,
+    visibleReadinessWarnings,
+    visualizations,
+  ])
   const hasDashboardData = allInsights.length > 0 || getSpecHasContent(spec)
   const activeVisualization = useMemo(() => {
     const isRenderable = (item) => Boolean(selectChartRenderer(item, chartDataState))
@@ -1705,6 +2271,9 @@ export function ConversationDashboardPage({
       window.clearTimeout(timer)
     }
   }, [activeRunId, activeVisualizationRequestKey, chartRefreshKey])
+  const chartBackendRunMismatch = Boolean(
+    chartBackendData?.run_id && activeRunId && chartBackendData.run_id !== activeRunId,
+  )
   const activeVisualizationMeaning = useMemo(
     () =>
       buildVisualizationMeaning(
@@ -1712,10 +2281,19 @@ export function ConversationDashboardPage({
         activeChartRenderer,
         semanticMap,
         spec,
-        chartBackendData?.total_records || chartInsights.length,
+        chartBackendRunMismatch ? chartInsights.length : chartBackendData?.total_records || chartInsights.length,
         isExpertMode,
       ),
-    [activeChartRenderer, activeVisualization, chartBackendData?.total_records, chartInsights.length, isExpertMode, semanticMap, spec],
+    [
+      activeChartRenderer,
+      activeVisualization,
+      chartBackendData?.total_records,
+      chartBackendRunMismatch,
+      chartInsights.length,
+      isExpertMode,
+      semanticMap,
+      spec,
+    ],
   )
   const relatedEvidenceItems = useMemo(
     () =>
@@ -1728,12 +2306,12 @@ export function ConversationDashboardPage({
     [activeInsightKey, activePriorityLevel, chartInsights, priorityDrilldownItems],
   )
   const backendEvidenceItems = useMemo(() => {
-    if (!chartBackendData) return []
+    if (!chartBackendData || chartBackendRunMismatch) return []
     return asList(
       chartBackendData.samples_by_key?.[activeBackendSegmentKey] ??
         chartBackendData.evidence_samples,
     )
-  }, [activeBackendSegmentKey, chartBackendData])
+  }, [activeBackendSegmentKey, chartBackendData, chartBackendRunMismatch])
   const activeBackendSegmentCount = useMemo(() => {
     const point = asList(chartBackendData?.series).find((item) => item.key === activeBackendSegmentKey)
     return Number(point?.count || backendEvidenceItems.length || 0)
@@ -1798,7 +2376,67 @@ export function ConversationDashboardPage({
       selectedBackendTicketKeys.has(backendEvidenceKey(item, index)),
     )
   }, [backendEvidenceItems, selectedBackendTicketKeys])
+  const visibleBackendTicketRows = useMemo(
+    () =>
+      visibleBackendEvidenceRows.map(({ item, index }) => {
+        const ticket = backendEvidenceField(
+          item,
+          'ticket',
+          item.incident_id || item.evidence_id || `Ticket ${index + 1}`,
+        )
+        const key = backendEvidenceKey(item, index)
+        return {
+          key,
+          item,
+          index,
+          ticket,
+          selected: selectedBackendTicketKeys.has(key),
+          meta: item.evidence_id || item.source || '',
+          service: backendEvidenceField(item, 'servicio', item.service || 'Sin servicio'),
+          category: backendEvidenceField(item, 'categoria', item.category || 'Sin categoria'),
+          priority: backendEvidenceField(item, 'prioridad', item.priority || 'Sin dato'),
+          group: backendEvidenceField(item, 'grupo', item.group || 'Sin grupo'),
+          reassignments: backendEvidenceField(item, 'reasignaciones', '-'),
+          description: compactText(item.preview || backendEvidenceTitle(item), isExpertMode ? 180 : 130),
+        }
+      }),
+    [isExpertMode, selectedBackendTicketKeys, visibleBackendEvidenceRows],
+  )
   const activeChartEvidenceItems = backendEvidenceItems.length ? backendEvidenceItems : relatedEvidenceItems
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setMetricFilter('all')
+      setActiveInsightKey('')
+      setSelectedKeys(new Set())
+      setListPage(0)
+      setActiveVisualizationId('')
+      setActiveChartRendererId('')
+      setActiveRecommendationId('')
+      setActivePriorityLevel('')
+      setActiveConclusionId('')
+      setActiveChartConclusionId('')
+      setChartRefreshKey((current) => current + 1)
+      setChartNotice('')
+      setChartEvidenceOpen(false)
+      setChartBackendData(null)
+      setChartBackendLoading(false)
+      setChartBackendError('')
+      setActiveBackendSegmentKey('')
+      setTicketSearch('')
+      setTicketPriorityFilter('all')
+      setTicketServiceFilter('all')
+      setTicketCategoryFilter('all')
+      setTicketStatusFilter('all')
+      setSelectedBackendTicketKeys(new Set())
+      setSavedOperationState({ status: 'idle', key: '' })
+      setDetailOpen(false)
+      setSavedInsightsOpen(false)
+      setChatExternalPrompt(null)
+      recommendationsPresentedKeyRef.current = ''
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [selectedRunId])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -1825,7 +2463,19 @@ export function ConversationDashboardPage({
     setActiveChartConclusionId('')
     setChartEvidenceOpen(false)
     setChartNotice('')
+    setChartBackendData(null)
+    setChartBackendLoading(false)
+    setChartBackendError('')
     setActiveBackendSegmentKey('')
+    setTicketSearch('')
+    setTicketPriorityFilter('all')
+    setTicketServiceFilter('all')
+    setTicketCategoryFilter('all')
+    setTicketStatusFilter('all')
+    setSelectedBackendTicketKeys(new Set())
+    setSavedOperationState({ status: 'idle', key: '' })
+    setDetailOpen(false)
+    setSavedInsightsOpen(false)
     setSelectedKeys(new Set())
     setListPage(0)
   }
@@ -1889,6 +2539,37 @@ export function ConversationDashboardPage({
     })
   }
 
+  function handleTicketFilterChange(name, value) {
+    if (name === 'search') setTicketSearch(value)
+    if (name === 'priority') setTicketPriorityFilter(value)
+    if (name === 'service') setTicketServiceFilter(value)
+    if (name === 'category') setTicketCategoryFilter(value)
+    if (name === 'status') setTicketStatusFilter(value)
+  }
+
+  function clearTicketFilters() {
+    setTicketSearch('')
+    setTicketPriorityFilter('all')
+    setTicketServiceFilter('all')
+    setTicketCategoryFilter('all')
+    setTicketStatusFilter('all')
+  }
+
+  function analyzeBackendTicketRow(row) {
+    openChatWithContext({
+      label: row.ticket,
+      intent: 'analizar ticket especifico desde drill-down',
+      visibleText: `Analiza el ticket "${row.ticket}" dentro del segmento "${activeBackendSegmentKey}".`,
+      context: {
+        visualization: activeVisualization,
+        chartData: chartBackendData,
+        selectedSegment: activeBackendSegmentKey,
+        ticket: row.item,
+        drilldownEvidence: [row.item],
+      },
+    })
+  }
+
   function getBackendTicketsForAction() {
     return selectedBackendEvidenceItems.length ? selectedBackendEvidenceItems : visibleBackendEvidenceItems
   }
@@ -1906,6 +2587,11 @@ export function ConversationDashboardPage({
       'text/csv;charset=utf-8',
     )
     setChartNotice(`Exportados ${items.length} tickets/evidencias a CSV.`)
+    trackDashboardEvent('tickets_exported', {
+      ticket_count: items.length,
+      selected_segment: activeBackendSegmentKey || '',
+      visualization_id: activeVisualization?.id || '',
+    })
   }
 
   async function saveBackendTicketsAsOperationalSelection() {
@@ -1937,6 +2623,11 @@ export function ConversationDashboardPage({
       })
       setSavedOperationState({ status: 'saved', key: operationKey })
       setChartNotice(`Seleccion operativa guardada con ${items.length} tickets. Ya puede enviarse al agente o al informe.`)
+      trackDashboardEvent('operational_selection_saved', {
+        ticket_count: items.length,
+        selected_segment: activeBackendSegmentKey || '',
+        visualization_id: activeVisualization?.id || '',
+      })
     } catch (err) {
       setSavedOperationState({ status: 'error', key: operationKey })
       setChartNotice(err instanceof Error ? err.message : 'No se pudo guardar la seleccion operativa.')
@@ -1950,6 +2641,12 @@ export function ConversationDashboardPage({
       return
     }
     const ticketIds = items.slice(0, 120).map((item, index) => backendEvidenceKey(item, index))
+    trackDashboardEvent('tickets_sent_to_agent', {
+      ticket_count: items.length,
+      selected_segment: activeBackendSegmentKey || '',
+      visualization_id: activeVisualization?.id || '',
+      intent,
+    })
     openChatWithContext({
       label: `${items.length} tickets del segmento ${activeBackendSegmentKey}`,
       intent,
@@ -1990,6 +2687,148 @@ export function ConversationDashboardPage({
     }
   }
 
+  const trackDashboardEvent = useCallback(
+    (eventType, payload = {}) => {
+      if (!activeRunId) return
+      trackConversationDashboardEvent(activeRunId, {
+        event_type: eventType,
+        dashboard_mode: audienceMode,
+        run_scope: operationalReadiness.run_scope,
+        evidence_materialized: operationalReadiness.evidence_materialized,
+        evidence_records: operationalReadiness.evidence_records,
+        evidence_runs: operationalReadiness.evidence_runs,
+        llm_used: Boolean(spec.llm_used),
+        contract_status: dashboardContract.status,
+        active_visualization_id: activeVisualizationId || '',
+        active_recommendation_id: activeRecommendationId || '',
+        ...payload,
+      }).catch(() => {})
+    },
+    [
+      activeRecommendationId,
+      activeRunId,
+      activeVisualizationId,
+      audienceMode,
+      dashboardContract.status,
+      operationalReadiness.evidence_materialized,
+      operationalReadiness.evidence_records,
+      operationalReadiness.evidence_runs,
+      operationalReadiness.run_scope,
+      spec.llm_used,
+    ],
+  )
+
+  useEffect(() => {
+    if (!detailOpen || !isExpertMode) return
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      setSemanticDictionaryLoading(true)
+      setSemanticDictionaryError('')
+      fetchConversationSemanticDictionary({ runId: activeRunId })
+        .then((payload) => {
+          if (cancelled) return
+          setSemanticDictionaryState(payload)
+          setSemanticDraftRows(buildSemanticDraftRows(payload, semanticVariables))
+          trackDashboardEvent('semantic_dictionary_opened', {
+            configured_total: Number(payload?.configured_total || 0),
+            governed: Boolean(payload?.governed),
+            scope: payload?.scope || '',
+            project_id: payload?.project_id || '',
+            variable_count: semanticVariables.length,
+          })
+        })
+        .catch((err) => {
+          if (cancelled) return
+          const message =
+            err instanceof Error ? err.message : 'No se pudo cargar el diccionario semantico.'
+          setSemanticDictionaryError(message)
+          trackDashboardEvent('semantic_dictionary_error', { action: 'load', message })
+        })
+        .finally(() => {
+          if (!cancelled) setSemanticDictionaryLoading(false)
+        })
+    }, 0)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [activeRunId, detailOpen, isExpertMode, semanticVariables, trackDashboardEvent])
+
+  const handleSemanticDraftChange = useCallback((name, field, value) => {
+    setSemanticDraftRows((rows) =>
+      rows.map((row) => (row.name === name ? { ...row, [field]: value } : row)),
+    )
+  }, [])
+
+  async function handleSemanticDictionaryRefresh() {
+    setSemanticDictionaryLoading(true)
+    setSemanticDictionaryError('')
+    try {
+      const payload = await fetchConversationSemanticDictionary({ refresh: true, runId: activeRunId })
+      setSemanticDictionaryState(payload)
+      setSemanticDraftRows(buildSemanticDraftRows(payload, semanticVariables))
+      trackDashboardEvent('semantic_dictionary_refreshed', {
+        configured_total: Number(payload?.configured_total || 0),
+        governed: Boolean(payload?.governed),
+        scope: payload?.scope || '',
+        project_id: payload?.project_id || '',
+      })
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'No se pudo actualizar el diccionario semantico.'
+      setSemanticDictionaryError(message)
+      trackDashboardEvent('semantic_dictionary_error', { action: 'refresh', message })
+    } finally {
+      setSemanticDictionaryLoading(false)
+    }
+  }
+
+  async function handleSemanticDictionarySave() {
+    setSemanticDictionarySaving(true)
+    setSemanticDictionaryError('')
+    const variables = normalizeSemanticDraftForSave(semanticDraftRows)
+    try {
+      const payload = await updateConversationSemanticDictionary(variables, { runId: activeRunId })
+      const refreshed = await fetchConversationSemanticDictionary({ refresh: true, runId: activeRunId })
+      setSemanticDictionaryState(refreshed)
+      setSemanticDraftRows(buildSemanticDraftRows(refreshed, semanticVariables))
+      trackDashboardEvent('semantic_dictionary_saved', {
+        saved_total: Number(payload?.total || variables.length),
+        variable_count: variables.length,
+        scope: payload?.scope || '',
+        project_id: payload?.project_id || '',
+      })
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'No se pudo guardar el diccionario semantico.'
+      setSemanticDictionaryError(message)
+      trackDashboardEvent('semantic_dictionary_error', { action: 'save', message })
+    } finally {
+      setSemanticDictionarySaving(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!activeRunId || !agentGuideItems.length) return
+    const presentationKey = [
+      activeRunId,
+      audienceMode,
+      agentGuideItems.map((item) => item.id).join(','),
+    ].join('|')
+    if (recommendationsPresentedKeyRef.current === presentationKey) return
+    recommendationsPresentedKeyRef.current = presentationKey
+    trackDashboardEvent('recommendations_presented', {
+      recommendation_count: agentGuideItems.length,
+      recommendation_ids: agentGuideItems.map((item) => item.id),
+      graph_ready_count: agentGuideItems.filter((item) => item.graphReady).length,
+      useful_feedback_count: agentGuideItems.filter((item) => item.feedbackValue === 'useful').length,
+      not_useful_feedback_count: agentGuideItems.filter((item) => item.feedbackValue === 'not_useful').length,
+      warning_count: agentGuideItems.filter((item) =>
+        item.evaluationItems.some((evaluation) => evaluation.tone === 'warning'),
+      ).length,
+    })
+  }, [activeRunId, agentGuideItems, audienceMode, trackDashboardEvent])
+
   const openChatWithContext = useCallback(
     ({ label, intent, visibleText, context = {} }) => {
       if (!activeRunId) {
@@ -2023,18 +2862,58 @@ export function ConversationDashboardPage({
         at: Date.now(),
       })
       setChatOpenSignal((current) => current + 1)
+      trackConversationDashboardEvent(activeRunId, {
+        event_type: 'chat_context_opened',
+        dashboard_mode: audienceMode,
+        active_visualization_id: activeVisualizationId || '',
+        active_recommendation_id: activeRecommendationId || '',
+        label,
+        intent,
+        context_keys: Object.keys(context || {}).slice(0, 20),
+      }).catch(() => {})
     },
-    [activeRun, activeRunId, executive, findings, selectedInsights, semanticVariables, visualizations],
+    [
+      activeRun,
+      activeRecommendationId,
+      activeRunId,
+      activeVisualizationId,
+      audienceMode,
+      executive,
+      findings,
+      selectedInsights,
+      semanticVariables,
+      visualizations,
+    ],
   )
 
   async function handleRecommendationFeedback(recommendation, helpful, evaluationItems = [], visualization = null) {
     if (!activeRunId || !recommendation?.id) return
     const key = recommendation.id
     const feedbackValue = helpful ? 'useful' : 'not_useful'
+    const evaluationLabels = evaluationItems.map((item) => item.label)
+    const hasWarning = evaluationItems.some((item) => item.tone === 'warning')
+    const isGraphValidated = evaluationLabels.some((label) =>
+      ['Graficable', 'Grafico construible', 'Backend valida datos reales', 'Se valida con datos'].some(
+        (candidate) => label.includes(candidate),
+      ),
+    )
     setFeedbackState((prev) => {
       const next = { ...prev, [key]: feedbackValue }
       writeStoredFeedback(activeRunId, next)
       return next
+    })
+    trackDashboardEvent('recommendation_feedback', {
+      helpful,
+      target_type: 'agent_recommendation',
+      target_id: recommendation.id,
+      target_title: recommendation.title,
+      visualization_id: visualization?.id || '',
+      evaluation: evaluationLabels,
+      has_warning: hasWarning,
+      chart_validated: isGraphValidated,
+      evidence_materialized: operationalReadiness.evidence_materialized,
+      evidence_records: operationalReadiness.evidence_records,
+      llm_used: Boolean(spec.llm_used),
     })
     try {
       await sendConversationFeedback(activeRunId, {
@@ -2042,7 +2921,12 @@ export function ConversationDashboardPage({
         target_type: 'agent_recommendation',
         target_id: recommendation.id,
         target_title: recommendation.title,
-        evaluation: evaluationItems.map((item) => item.label),
+        evaluation: evaluationLabels,
+        has_warning: hasWarning,
+        chart_validated: isGraphValidated,
+        evidence_materialized: operationalReadiness.evidence_materialized,
+        evidence_records: operationalReadiness.evidence_records,
+        llm_used: Boolean(spec.llm_used),
         visualization_id: visualization?.id || '',
         visualization_title: visualization?.title || '',
         dashboard_mode: audienceMode,
@@ -2088,11 +2972,21 @@ export function ConversationDashboardPage({
       setChartNotice(
         `Recomendacion aplicada: ${recommendation.title}. La vista sugerida queda preparada como grafico activo.`,
       )
+      trackDashboardEvent('recommendation_applied', {
+        recommendation_id: recommendation?.id || '',
+        recommendation_title: recommendation?.title || '',
+        visualization_id: nextVisualization.id,
+        chart_renderer: nextRenderer?.id || '',
+      })
       return
     }
     setChartNotice(
       `Recomendacion aplicada: ${recommendation.title}. El agente no envio una visualizacion construible para esta accion.`,
     )
+    trackDashboardEvent('recommendation_applied_without_chart', {
+      recommendation_id: recommendation?.id || '',
+      recommendation_title: recommendation?.title || '',
+    })
   }
 
   function handleGraphRecommendation(recommendation) {
@@ -2106,6 +3000,11 @@ export function ConversationDashboardPage({
       setChartNotice(
         `No hay una visualizacion construible para "${recommendation.title}". Pide al agente una vista con eje X, metrica y tipo de grafico.`,
       )
+      trackDashboardEvent('recommendation_graph_unavailable', {
+        recommendation_id: recommendation?.id || '',
+        recommendation_title: recommendation?.title || '',
+        reason: 'missing_visualization',
+      })
       scrollToActiveChart()
       return
     }
@@ -2114,6 +3013,12 @@ export function ConversationDashboardPage({
       setChartNotice(
         `No se abre grafico para "${recommendation.title}". ${graphReadiness.reason} Usa "Preguntar al agente" para pedir una vista corregida.`,
       )
+      trackDashboardEvent('recommendation_graph_blocked', {
+        recommendation_id: recommendation?.id || '',
+        recommendation_title: recommendation?.title || '',
+        visualization_id: nextVisualization.id,
+        reason: graphReadiness.reason,
+      })
       scrollToActiveChart()
       return
     }
@@ -2127,7 +3032,56 @@ export function ConversationDashboardPage({
     setChartNotice(
       `Grafico activo: ${nextRenderer?.label || nextVisualization.title}. Se genero desde la recomendacion "${recommendation.title}".`,
     )
+    trackDashboardEvent('recommendation_graph_opened', {
+      recommendation_id: recommendation?.id || '',
+      recommendation_title: recommendation?.title || '',
+      visualization_id: nextVisualization.id,
+      visualization_title: nextVisualization.title,
+      chart_renderer: nextRenderer?.id || '',
+    })
     scrollToActiveChart()
+  }
+
+  function handleGuideApply(item) {
+    handleApplyRecommendation(item.recommendation)
+  }
+
+  function handleGuideGraph(item) {
+    handleGraphRecommendation(item.recommendation)
+  }
+
+  function handleGuideChat(item) {
+    openChatWithContext({
+      label: item.recommendation.title,
+      intent: 'profundizar recomendacion del agente visual',
+      visibleText: `Quiero analizar la recomendacion: ${item.recommendation.title}.`,
+      context: {
+        recommendation: item.recommendation,
+        visualization: item.visualization,
+        validation: {
+          graph_ready: item.graphReadiness?.ready || false,
+          reason: item.graphReadiness?.reason || '',
+          evaluation: item.evaluationItems,
+        },
+      },
+    })
+  }
+
+  function handleGuideAdd(item) {
+    openChatWithContext({
+      label: item.recommendation.title,
+      intent: 'agregar recomendacion al analisis',
+      visibleText: `Agrega esta recomendacion al analisis: ${item.recommendation.title}.`,
+      context: {
+        recommendation: item.recommendation,
+        visualization: item.visualization,
+        validation: item.evaluationItems,
+      },
+    })
+  }
+
+  function handleGuideFeedback(item, helpful) {
+    handleRecommendationFeedback(item.recommendation, helpful, item.evaluationItems, item.visualization)
   }
 
   function handleSelectVisualization(visualization) {
@@ -2149,6 +3103,11 @@ export function ConversationDashboardPage({
     setActiveBackendSegmentKey('')
     setChartEvidenceOpen(false)
     setChartNotice(`Grafico activo: ${chartRenderer.label}.`)
+    trackDashboardEvent('visualization_selected', {
+      visualization_id: visualization.id,
+      visualization_title: visualization.title,
+      chart_renderer: chartRenderer.id,
+    })
     scrollToActiveChart()
   }
 
@@ -2437,7 +3396,8 @@ export function ConversationDashboardPage({
               <span className="dashboard-spec-backend-hbar__label">
                 <strong>{point.label || point.key}</strong>
                 <small>
-                  {formatBackendNumber(point.count)} evidencias - clic para ver tickets
+                  {formatBackendNumber(point.count)} {isExpertMode ? 'evidencias' : 'casos'} - clic
+                  para ver tickets
                 </small>
               </span>
               <span className="dashboard-spec-backend-hbar__plot">
@@ -2453,7 +3413,11 @@ export function ConversationDashboardPage({
         })}
         <div className="dashboard-spec-backend-hbar-axis">
           <span>{metricLabel}</span>
-          <span>Haz clic en una barra para abrir el drill-down de tickets.</span>
+          <span>
+            {isExpertMode
+              ? 'Haz clic en una barra para abrir el drill-down de tickets.'
+              : 'Haz clic en una barra para ver los tickets relacionados.'}
+          </span>
         </div>
       </div>
     )
@@ -2472,11 +3436,27 @@ export function ConversationDashboardPage({
         </div>
       )
     }
+    if (chartBackendRunMismatch) {
+      return (
+        <div className="dashboard-spec-empty-chart">
+          <strong>La respuesta del grafico no pertenece a la ejecucion activa</strong>
+          <span>
+            {isExpertMode
+              ? 'Se bloqueo para evitar mezclar dataset, evidencias o tickets entre ejecuciones.'
+              : 'Actualiza la vista antes de revisar evidencias o tomar decisiones.'}
+          </span>
+        </div>
+      )
+    }
     if (chartBackendError) {
+      const readableError =
+        !isExpertMode && /internal server error/i.test(chartBackendError)
+          ? 'No se pudo preparar esta vista con los datos disponibles. Revisa otra recomendacion o abre el detalle tecnico.'
+          : chartBackendError
       return (
         <div className="dashboard-spec-empty-chart">
           <strong>No se pudo calcular el grafico real</strong>
-          <span>{chartBackendError}</span>
+          <span>{textForProfile(readableError, isExpertMode)}</span>
         </div>
       )
     }
@@ -2501,8 +3481,9 @@ export function ConversationDashboardPage({
               <span className="dashboard-spec-eyebrow">Grafico no construible</span>
               <h3>{chartBackendData?.title || activeVisualization?.title || 'Visualizacion sugerida'}</h3>
               <p>
-                El agente sugirio una vista, pero el backend no encontro una agregacion real para
-                dibujarla.
+                {isExpertMode
+                  ? 'El agente sugirio una vista, pero el backend no encontro una agregacion real para dibujarla.'
+                  : 'El agente sugirio una vista, pero faltan datos suficientes para dibujarla con seguridad.'}
               </p>
             </div>
             <div className="dashboard-spec-backend-chart__badges">
@@ -2804,245 +3785,62 @@ export function ConversationDashboardPage({
         </Card>
       ) : !hasDashboardData ? (
         <Card className="decision-empty">
-          Todavia no hay contexto suficiente para construir el dashboard conversacional. Ejecuta
-          el pipeline, guarda evidencias y vuelve a esta pantalla.
+          {isExpertMode
+            ? 'Todavia no hay contexto suficiente para construir el dashboard conversacional. Ejecuta el pipeline, guarda evidencias y vuelve a esta pantalla.'
+            : 'Todavia no hay contexto suficiente para construir el dashboard conversacional. Ejecuta el analisis, guarda hallazgos y vuelve a esta pantalla.'}
         </Card>
       ) : (
         <>
-          <section className="dashboard-spec-shell">
-            <div className="dashboard-spec-section-head dashboard-spec-section-head--split">
-              <div>
-                <span className="dashboard-spec-eyebrow">Dashboard generado por agente</span>
-                <h2>{textForProfile(executive.title || 'Resumen ejecutivo', isExpertMode)}</h2>
-                <p className="dashboard-spec-muted dashboard-spec-agent-bridge">
-                  {isExpertMode
-                    ? 'Perfil experto activo: se muestra trazabilidad, variables, visualizaciones tecnicas y base de evidencia.'
-                    : 'Perfil funcional activo: se priorizan conclusiones, acciones y graficos interpretables.'}
-                </p>
-              </div>
-              <div className="dashboard-spec-actions">
-                <span
-                  className={`dashboard-spec-profile-badge${
-                    isExpertMode ? ' dashboard-spec-profile-badge--expert' : ''
-                  }`}
-                >
-                  {isExpertMode ? 'Perfil experto' : 'Perfil funcional'}
-                </span>
-                <button
-                  type="button"
-                  className="dashboard-spec-outline-button"
-                  onClick={() => setSavedInsightsOpen(true)}
-                >
-                  Base de evidencia ({insights.length})
-                </button>
-                <button
-                  type="button"
-                  className="dashboard-spec-outline-button"
-                  onClick={() => setDetailOpen((current) => !current)}
-                >
-                  {detailOpen ? 'Cerrar detalle' : 'Ver detalle'}
-                </button>
-              </div>
-            </div>
+          <ConversationExecutiveSummary
+            isExpertMode={isExpertMode}
+            title={executiveSummaryView.title}
+            description={executiveSummaryView.description}
+            profileLabel={executiveSummaryView.profileLabel}
+            evidenceCount={insights.length}
+            detailOpen={detailOpen}
+            contract={executiveSummaryView.contract}
+            context={executiveSummaryView.context}
+            readiness={executiveSummaryView.readiness}
+            detail={executiveSummaryView.detail}
+            semanticEditor={
+              isExpertMode
+                ? {
+                    rows: semanticDraftRows,
+                    status: semanticDictionaryState,
+                    loading: semanticDictionaryLoading,
+                    saving: semanticDictionarySaving,
+                    error: semanticDictionaryError,
+                    onChange: handleSemanticDraftChange,
+                    onRefresh: handleSemanticDictionaryRefresh,
+                    onSave: handleSemanticDictionarySave,
+                  }
+                : null
+            }
+            onOpenEvidenceBase={() => {
+              setSavedInsightsOpen(true)
+              trackDashboardEvent('evidence_base_opened', {
+                evidence_count: insights.length,
+              })
+            }}
+            onToggleDetail={() => {
+              const nextDetailOpen = !detailOpen
+              setDetailOpen(nextDetailOpen)
+              trackDashboardEvent(nextDetailOpen ? 'evidence_detail_opened' : 'evidence_detail_closed', {
+                evidence_steps: executiveSummaryView.detail.evidenceItems.length,
+              })
+            }}
+            onQuestionClick={(question) =>
+              openChatWithContext({
+                label: question,
+                intent: 'responder pregunta sugerida del dashboard',
+                visibleText: question,
+                context: { suggestedQuestion: question },
+              })
+            }
+            onTechnicalVisualizationClick={handleSelectVisualization}
+          />
 
-            <div
-              className={`dashboard-spec-contract-banner${
-                dashboardContract.status === 'warning'
-                  ? ' dashboard-spec-contract-banner--warning'
-                  : ''
-              }${
-                dashboardContract.status === 'unsupported'
-                  ? ' dashboard-spec-contract-banner--danger'
-                  : ''
-              }`}
-            >
-              <strong>{dashboardContractLabel(dashboardContract, isExpertMode)}</strong>
-              <span>{dashboardContractMessage(dashboardContract, isExpertMode)}</span>
-              {isExpertMode ? (
-                <small>Schema: {dashboardContract.spec.schema_version}</small>
-              ) : null}
-            </div>
-
-            <Card className="dashboard-spec-context-panel">
-              <h3 className="dashboard-spec-panel-title">
-                {isExpertMode ? 'Contexto tecnico del analisis' : 'Contexto ejecutivo del analisis'}
-              </h3>
-              <div className="dashboard-spec-context-metrics">
-                <div>
-                  <span>Dataset</span>
-                  <strong>{executive.dataset_name || 'Analisis actual'}</strong>
-                </div>
-                <div>
-                  <span>Registros</span>
-                  <strong>{Number(executive.records_count || 0).toLocaleString('es-ES')}</strong>
-                </div>
-                {isExpertMode ? (
-                  <div>
-                    <span>Columnas</span>
-                    <strong>{Number(executive.columns_count || 0).toLocaleString('es-ES')}</strong>
-                  </div>
-                ) : null}
-                <div>
-                  <span>Evidencias</span>
-                  <strong>{insights.length.toLocaleString('es-ES')}</strong>
-                </div>
-                <div>
-                  <span>Modo</span>
-                  <strong>
-                    {isExpertMode
-                      ? spec.llm_used
-                        ? 'LLM'
-                        : 'Reglas locales'
-                      : spec.llm_used
-                        ? 'Asistente'
-                        : 'Respaldo automatico'}
-                  </strong>
-                </div>
-              </div>
-              <ol className="dashboard-spec-context-list">
-                <li>
-                  <strong>{textForProfile(executive.analysis_objective || 'Objetivo inferido', isExpertMode)}</strong>
-                  <span>
-                    {textForProfile(
-                      executive.summary ||
-                        (isExpertMode
-                          ? 'El backend no devolvio resumen ejecutivo.'
-                          : 'No se recibio resumen ejecutivo para esta ejecucion.'),
-                      isExpertMode,
-                    )}
-                  </span>
-                </li>
-              </ol>
-              {contextTags.length ? (
-                <div className="dashboard-spec-chip-row">
-                  {contextTags.map((item) => (
-                    <span key={item.name} title={isExpertMode ? `${item.name} - ${item.role || 'sin rol'}` : item.name}>
-                      {item.label}
-                      {isExpertMode && item.role ? <small>{item.role}</small> : null}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-            </Card>
-
-            {detailOpen ? (
-              <div className="dashboard-spec-detail-panel">
-                <div className="dashboard-spec-detail-grid">
-                  <Card>
-                    <h3 className="dashboard-spec-panel-title dashboard-spec-panel-title--evidence">
-                      {isExpertMode ? 'Linea de evidencia' : 'Como se construyo el analisis'}
-                    </h3>
-                    <ol className="dashboard-spec-evidence-list">
-                      {visibleEvidenceLine.length ? (
-                        visibleEvidenceLine.map((step) => (
-                          <li key={`${step.step}-${step.title}`}>
-                            <strong>{textForProfile(cleanEvidenceTitle(step.title), isExpertMode)}</strong>
-                            <span>{textForProfile(step.description, isExpertMode)}</span>
-                            {isExpertMode ? <small>{badgeLabel(step.source)}</small> : null}
-                          </li>
-                        ))
-                      ) : (
-                        <li>
-                          <strong>Sin detalle</strong>
-                          <span>El endpoint no devolvio pasos de evidencia.</span>
-                        </li>
-                      )}
-                    </ol>
-                  </Card>
-                  <Card>
-                    <h3 className="dashboard-spec-panel-title">
-                      {isExpertMode ? 'Preguntas tecnicas sugeridas' : 'Preguntas para el agente'}
-                    </h3>
-                    <div className="dashboard-spec-question-list">
-                      {suggestedQuestions.length ? (
-                        suggestedQuestions.map((question) => (
-                          <button
-                            type="button"
-                            key={question}
-                            onClick={() =>
-                              openChatWithContext({
-                                label: question,
-                                intent: 'responder pregunta sugerida del dashboard',
-                                visibleText: question,
-                                context: { suggestedQuestion: question },
-                              })
-                            }
-                          >
-                            {question}
-                          </button>
-                        ))
-                      ) : (
-                        <span>No hay preguntas sugeridas para este modo.</span>
-                      )}
-                    </div>
-                  </Card>
-                  <Card className="dashboard-spec-technical-card">
-                    <h3 className="dashboard-spec-panel-title">
-                      {isExpertMode ? 'Capa semantica de variables' : 'Variables traducidas'}
-                    </h3>
-                    {semanticVariables.length ? (
-                      <div className="dashboard-spec-technical-list">
-                        {semanticVariables
-                          .filter((item) => isExpertMode || !['technical', 'identifier'].includes(item.role))
-                          .slice(0, isExpertMode ? 14 : 8)
-                          .map((item) => (
-                            <div key={item.name} className="dashboard-spec-technical-item dashboard-spec-semantic-item">
-                              <div>
-                                <strong>{item.label || item.name}</strong>
-                                <span>{isExpertMode ? `${item.name} | ${item.role}` : item.description}</span>
-                                {item.avoid_as_metric ? <small>Evitar como metrica funcional</small> : null}
-                              </div>
-                            </div>
-                          ))}
-                      </div>
-                    ) : (
-                      <p className="dashboard-spec-muted">No hay diccionario semantico para este run.</p>
-                    )}
-                  </Card>
-                  {isExpertMode ? (
-                    <Card className="dashboard-spec-technical-card">
-                      <h3 className="dashboard-spec-panel-title">Visualizaciones tecnicas disponibles</h3>
-                      {visualizations.length ? (
-                        <div className="dashboard-spec-technical-list">
-                          {visualizations.map((visualization) => {
-                            const chartRenderer = selectChartRenderer(visualization, chartDataState)
-                            return (
-                              <div key={visualization.id} className="dashboard-spec-technical-item">
-                                <div>
-                                  <strong>{visualization.title}</strong>
-                                  <span>
-                                    {chartRenderer?.label ||
-                                      CHART_LABELS[visualization.chart_type] ||
-                                      visualization.chart_type ||
-                                      'Sin grafica compatible'}{' '}
-                                    | Eje X: {visualization.x || visualization.group_by || 'sin eje'} |
-                                    Metrica: {visualization.metric || visualization.y || 'count'}
-                                  </span>
-                                </div>
-                                <button
-                                  type="button"
-                                  disabled={!chartRenderer}
-                                  onClick={() => handleSelectVisualization(visualization)}
-                                >
-                                  Crear grafico
-                                </button>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      ) : (
-                        <p className="dashboard-spec-muted">
-                          El agente no devolvio visualizaciones tecnicas para este dashboard.
-                        </p>
-                      )}
-                    </Card>
-                  ) : null}
-                </div>
-              </div>
-            ) : null}
-          </section>
-
-          {showExpandedAgentSections ? (
+          {isExpertMode ? (
             <section className="dashboard-spec-section">
               <div className="dashboard-spec-section-head">
                 <div>
@@ -3099,180 +3897,18 @@ export function ConversationDashboardPage({
             </section>
           ) : null}
 
-          <section className="dashboard-spec-section">
-            <div className="dashboard-spec-section-head">
-              <div>
-                <span className="dashboard-spec-eyebrow">Guia del agente</span>
-                <h2>Que recomienda revisar el agente</h2>
-                <p>
-                  Usa esta lista como ruta de analisis. Algunas acciones abren un grafico y otras
-                  preparan una respuesta del agente con contexto.
-                </p>
-              </div>
-            </div>
-            <div className="dashboard-spec-list">
-              {visibleRecommendations.length ? (
-                visibleRecommendations.map((recommendation, index) => {
-                  const recommendationText = recommendationSearchText(recommendation)
-                  const recommendedViz = findVisualizationForRecommendation(
-                    recommendation,
-                    visualizations,
-                    chartDataState,
-                  )
-                  const recommendedChart = selectChartRenderer(
-                    recommendedViz,
-                    chartDataState,
-                    recommendationText,
-                  )
-                  const graphReadiness = visualizationGraphReadiness(
-                    recommendedViz,
-                    recommendedChart,
-                    semanticMap,
-                    isExpertMode,
-                  )
-                  const actionType = getRecommendationActionType(
-                    recommendation,
-                    recommendedViz,
-                    recommendedChart,
-                    graphReadiness,
-                  )
-                  const evaluationItems = buildRecommendationEvaluation(
-                    recommendation,
-                    recommendedViz,
-                    recommendedChart,
-                    semanticMap,
-                    isExpertMode,
-                    spec,
-                    graphReadiness,
-                  )
-                  return (
-                    <Card
-                      key={recommendation.id}
-                      className={`dashboard-spec-list-item${
-                        activeRecommendationId === recommendation.id
-                          ? ' dashboard-spec-list-item--active'
-                          : ''
-                      }`}
-                    >
-                      <span className="dashboard-spec-list-number">
-                        {String(index + 1).padStart(2, '0')}
-                      </span>
-                      <div className="dashboard-spec-list-copy">
-                        <div className="dashboard-spec-chip-row">
-                          <span>{audienceLabel(recommendation.audience, isExpertMode)}</span>
-                          <span>{textForProfile(actionType.label, isExpertMode)}</span>
-                        </div>
-                        <h3>{textForProfile(recommendation.title, isExpertMode)}</h3>
-                        <p>{textForProfile(recommendation.why_it_matters || recommendation.what_to_analyze, isExpertMode)}</p>
-                        <small>{textForProfile(recommendation.recommended_next_step, isExpertMode)}</small>
-                        <small className="dashboard-spec-linked-viz">
-                          {textForProfile(actionType.hint, isExpertMode)}
-                        </small>
-                        <div className="dashboard-spec-eval-row">
-                          {evaluationItems.map((item) => (
-                            <span
-                              key={`${recommendation.id}-${item.label}`}
-                              className={`dashboard-spec-eval-chip dashboard-spec-eval-chip--${item.tone}`}
-                            >
-                              {item.label}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="dashboard-spec-list-actions">
-                        {isExpertMode ? (
-                          <button type="button" onClick={() => handleApplyRecommendation(recommendation)}>
-                            {activeRecommendationId === recommendation.id ? 'Enfoque activo' : 'Aplicar enfoque'}
-                          </button>
-                        ) : null}
-                        {graphReadiness.ready ? (
-                          <button type="button" onClick={() => handleGraphRecommendation(recommendation)}>
-                            Ver grafico
-                          </button>
-                        ) : null}
-                        <button
-                          type="button"
-                          onClick={() =>
-                            openChatWithContext({
-                              label: recommendation.title,
-                              intent: 'profundizar recomendacion del agente visual',
-                              visibleText: `Quiero analizar la recomendacion: ${recommendation.title}.`,
-                              context: { recommendation, visualization: recommendedViz },
-                            })
-                          }
-                        >
-                          {recommendationChatActionLabel(recommendation)}
-                        </button>
-                        {isExpertMode ? (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              openChatWithContext({
-                                label: recommendation.title,
-                                intent: 'agregar recomendacion al analisis',
-                                visibleText: `Agrega esta recomendacion al analisis: ${recommendation.title}.`,
-                                context: { recommendation, visualization: recommendedViz },
-                              })
-                            }
-                          >
-                            Agregar
-                          </button>
-                        ) : null}
-                        <div className="dashboard-spec-feedback-actions">
-                          <button
-                            type="button"
-                            className={feedbackState[recommendation.id] === 'useful' ? 'is-selected' : ''}
-                            onClick={() =>
-                              handleRecommendationFeedback(
-                                recommendation,
-                                true,
-                                evaluationItems,
-                                recommendedViz,
-                              )
-                            }
-                          >
-                            Util
-                          </button>
-                          <button
-                            type="button"
-                            className={feedbackState[recommendation.id] === 'not_useful' ? 'is-selected' : ''}
-                            onClick={() =>
-                              handleRecommendationFeedback(
-                                recommendation,
-                                false,
-                                evaluationItems,
-                                recommendedViz,
-                              )
-                            }
-                          >
-                            No util
-                          </button>
-                        </div>
-                        {feedbackState[recommendation.id] ? (
-                          <small className="dashboard-spec-feedback-status">
-                            {feedbackState[recommendation.id] === 'useful'
-                              ? 'Feedback guardado: recomendacion util.'
-                              : 'Feedback guardado: revisar esta recomendacion.'}
-                          </small>
-                        ) : null}
-                      </div>
-                    </Card>
-                  )
-                })
-              ) : (
-                <Card className="dashboard-spec-empty-card">No hay recomendaciones para este modo.</Card>
-              )}
-            </div>
-            {!showExpandedAgentSections && recommendations.length > visibleRecommendations.length ? (
-              <div className="dashboard-spec-compact-note">
-                Mostrando {visibleRecommendations.length} recomendaciones principales de{' '}
-                {recommendations.length}. Usa Ver detalle para ver prioridades, trazabilidad y
-                recomendaciones completas.
-              </div>
-            ) : null}
-          </section>
-
-          <section ref={activeChartRef} className="dashboard-spec-section dashboard-spec-active-chart">
+          <div className="dashboard-spec-main-workbench">
+            <ConversationAgentGuide
+              items={agentGuideItems}
+              hiddenCount={Math.max(0, recommendations.length - agentGuideItems.length)}
+              isExpertMode={isExpertMode}
+              onApply={handleGuideApply}
+              onGraph={handleGuideGraph}
+              onChat={handleGuideChat}
+              onAdd={handleGuideAdd}
+              onFeedback={handleGuideFeedback}
+            />
+            <section ref={activeChartRef} className="dashboard-spec-section dashboard-spec-active-chart">
             <div className="dashboard-spec-section-head dashboard-spec-section-head--split">
               <div>
                 <span className="dashboard-spec-eyebrow">Grafico activo</span>
@@ -3381,224 +4017,44 @@ export function ConversationDashboardPage({
               </Card>
             ) : null}
             {chartEvidenceOpen && backendEvidenceItems.length ? (
-              <Card className="dashboard-spec-priority-drilldown dashboard-spec-real-evidence">
-                <div className="dashboard-spec-priority-drilldown__head">
-                  <div>
-                    <span className="dashboard-spec-eyebrow">
-                      {isExpertMode ? 'Drill-down real de tickets' : 'Tickets relacionados'}
-                    </span>
-                    <h3>
-                      Tabla de evidencias de {activeBackendSegmentKey || activeVisualization?.title || 'la seleccion'}
-                    </h3>
-                    <p>
-                      Esta tabla complementa el grafico activo; no reemplaza la visualizacion.{' '}
-                      {visibleBackendEvidenceItems.length.toLocaleString('es-ES')} de{' '}
-                      {activeBackendSegmentCount.toLocaleString('es-ES')} tickets/evidencias del segmento.
-                      {isExpertMode
-                        ? backendEvidenceItems.length < activeBackendSegmentCount
-                          ? ` Mostrando las primeras ${backendEvidenceItems.length.toLocaleString('es-ES')} recuperadas desde DuckDB.`
-                          : ' Vista completa recuperada desde DuckDB.'
-                        : ' Usa filtros, selecciona tickets y pide una lectura accionable al agente.'}
-                    </p>
-                  </div>
-                  <div className="dashboard-spec-drilldown-actions">
-                    <button
-                      type="button"
-                      onClick={() => askAgentAboutBackendTickets('analizar tickets filtrados por barra del grafico')}
-                    >
-                      Analizar seleccion con agente
-                    </button>
-                    <button type="button" onClick={() => askAgentAboutBackendTickets('preparar texto para informe')}>
-                      Preparar para informe
-                    </button>
-                    <button
-                      type="button"
-                      onClick={saveBackendTicketsAsOperationalSelection}
-                      disabled={savedOperationState.status === 'saving'}
-                    >
-                      {savedOperationState.status === 'saving' ? 'Guardando...' : 'Guardar seleccion'}
-                    </button>
-                    <button type="button" onClick={exportBackendTicketsCsv}>
-                      Exportar CSV
-                    </button>
-                    <button type="button" onClick={() => setChartEvidenceOpen(false)}>
-                      Ocultar
-                    </button>
-                  </div>
-                </div>
-                <div className="dashboard-spec-ticket-toolbar">
-                  <label>
-                    <span>Buscar ticket o texto</span>
-                    <input
-                      type="search"
-                      value={ticketSearch}
-                      onChange={(event) => setTicketSearch(event.target.value)}
-                      placeholder="Servicio, prioridad, numero, descripcion..."
-                    />
-                  </label>
-                  <label>
-                    <span>Prioridad</span>
-                    <select
-                      value={ticketPriorityFilter}
-                      onChange={(event) => setTicketPriorityFilter(event.target.value)}
-                    >
-                      <option value="all">Todas</option>
-                      {backendEvidencePriorityOptions.map((priority) => (
-                        <option key={priority} value={priority}>
-                          {priority}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    <span>Servicio</span>
-                    <select
-                      value={ticketServiceFilter}
-                      onChange={(event) => setTicketServiceFilter(event.target.value)}
-                    >
-                      <option value="all">Todos</option>
-                      {backendEvidenceServiceOptions.map((service) => (
-                        <option key={service} value={service}>
-                          {service}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    <span>Categoria</span>
-                    <select
-                      value={ticketCategoryFilter}
-                      onChange={(event) => setTicketCategoryFilter(event.target.value)}
-                    >
-                      <option value="all">Todas</option>
-                      {backendEvidenceCategoryOptions.map((category) => (
-                        <option key={category} value={category}>
-                          {category}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    <span>Estado</span>
-                    <select
-                      value={ticketStatusFilter}
-                      onChange={(event) => setTicketStatusFilter(event.target.value)}
-                    >
-                      <option value="all">Todos</option>
-                      {backendEvidenceStatusOptions.map((status) => (
-                        <option key={status} value={status}>
-                          {status}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <div className="dashboard-spec-ticket-selection">
-                    <strong>{selectedBackendEvidenceItems.length} seleccionados</strong>
-                    <button type="button" onClick={toggleSelectVisibleBackendTickets}>
-                      {visibleBackendEvidenceItems.length > 0 &&
-                      visibleBackendEvidenceRows.every(({ item, index }) =>
-                        selectedBackendTicketKeys.has(backendEvidenceKey(item, index)),
-                      )
-                        ? 'Quitar visibles'
-                        : `Seleccionar visibles (${visibleBackendEvidenceItems.length})`}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTicketSearch('')
-                        setTicketPriorityFilter('all')
-                        setTicketServiceFilter('all')
-                        setTicketCategoryFilter('all')
-                        setTicketStatusFilter('all')
-                      }}
-                    >
-                      Limpiar filtros
-                    </button>
-                  </div>
-                </div>
-                {savedOperationState.status === 'saved' ? (
-                  <div className="dashboard-spec-operation-saved">
-                    Seleccion operativa guardada. Puedes enviarla al agente, preparar informe o exportarla.
-                  </div>
-                ) : null}
-                <div className="dashboard-spec-ticket-table-wrap">
-                  <table className="dashboard-spec-ticket-table">
-                    <thead>
-                      <tr>
-                        <th>
-                          <span className="sr-only">Seleccion</span>
-                        </th>
-                        <th>Ticket</th>
-                        <th>{isExpertMode ? 'Servicio / Categoria' : 'Contexto'}</th>
-                        <th>Prioridad</th>
-                        {isExpertMode ? <th>Grupo</th> : null}
-                        {isExpertMode ? <th>Reasig.</th> : null}
-                        <th>Descripcion</th>
-                        <th>Accion</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {visibleBackendEvidenceRows.map(({ item, index }) => {
-                        const ticket = backendEvidenceField(item, 'ticket', item.incident_id || item.evidence_id || `Ticket ${index + 1}`)
-                        const ticketKey = backendEvidenceKey(item, index)
-                        const selected = selectedBackendTicketKeys.has(ticketKey)
-                        return (
-                          <tr key={`${item.evidence_id || item.incident_id || activeBackendSegmentKey}-${index}`}>
-                            <td>
-                              <input
-                                type="checkbox"
-                                checked={selected}
-                                onChange={() => toggleBackendTicketSelection(item, index)}
-                                aria-label={`Seleccionar ${ticket}`}
-                              />
-                            </td>
-                            <td>
-                              <strong>{ticket}</strong>
-                              {isExpertMode ? <small>{item.evidence_id || item.source || ''}</small> : null}
-                            </td>
-                            <td>
-                              <span>{backendEvidenceField(item, 'servicio', item.service || 'Sin servicio')}</span>
-                              <small>{backendEvidenceField(item, 'categoria', item.category || 'Sin categoria')}</small>
-                            </td>
-                            <td>{backendEvidenceField(item, 'prioridad', item.priority || 'Sin dato')}</td>
-                            {isExpertMode ? <td>{backendEvidenceField(item, 'grupo', item.group || 'Sin grupo')}</td> : null}
-                            {isExpertMode ? <td>{backendEvidenceField(item, 'reasignaciones', '-')}</td> : null}
-                            <td>
-                              <span>{compactText(item.preview || backendEvidenceTitle(item), isExpertMode ? 180 : 130)}</span>
-                            </td>
-                            <td>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  openChatWithContext({
-                                    label: ticket,
-                                    intent: 'analizar ticket especifico desde drill-down',
-                                    visibleText: `Analiza el ticket "${ticket}" dentro del segmento "${activeBackendSegmentKey}".`,
-                                    context: {
-                                      visualization: activeVisualization,
-                                      chartData: chartBackendData,
-                                      selectedSegment: activeBackendSegmentKey,
-                                      ticket: item,
-                                      drilldownEvidence: [item],
-                                    },
-                                  })
-                                }
-                              >
-                                Analizar
-                              </button>
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-                {!visibleBackendEvidenceItems.length ? (
-                  <p className="dashboard-spec-muted">
-                    No hay tickets que coincidan con los filtros actuales.
-                  </p>
-                ) : null}
-              </Card>
+              <ConversationTicketDrilldownPanel
+                isExpertMode={isExpertMode}
+                segmentLabel={activeBackendSegmentKey}
+                visualizationTitle={activeVisualization?.title || ''}
+                visibleCount={visibleBackendEvidenceItems.length}
+                segmentCount={activeBackendSegmentCount}
+                loadedCount={backendEvidenceItems.length}
+                priorityOptions={backendEvidencePriorityOptions}
+                serviceOptions={backendEvidenceServiceOptions}
+                categoryOptions={backendEvidenceCategoryOptions}
+                statusOptions={backendEvidenceStatusOptions}
+                filters={{
+                  search: ticketSearch,
+                  priority: ticketPriorityFilter,
+                  service: ticketServiceFilter,
+                  category: ticketCategoryFilter,
+                  status: ticketStatusFilter,
+                }}
+                selectedCount={selectedBackendEvidenceItems.length}
+                allVisibleSelected={
+                  visibleBackendEvidenceItems.length > 0 &&
+                  visibleBackendEvidenceRows.every(({ item, index }) =>
+                    selectedBackendTicketKeys.has(backendEvidenceKey(item, index)),
+                  )
+                }
+                savedStatus={savedOperationState.status}
+                rows={visibleBackendTicketRows}
+                onFilterChange={handleTicketFilterChange}
+                onToggleVisible={toggleSelectVisibleBackendTickets}
+                onClearFilters={clearTicketFilters}
+                onAnalyzeSelection={() => askAgentAboutBackendTickets('analizar tickets filtrados por barra del grafico')}
+                onPrepareReport={() => askAgentAboutBackendTickets('preparar texto para informe')}
+                onSaveSelection={saveBackendTicketsAsOperationalSelection}
+                onExportCsv={exportBackendTicketsCsv}
+                onClose={() => setChartEvidenceOpen(false)}
+                onToggleRow={(row) => toggleBackendTicketSelection(row.item, row.index)}
+                onAnalyzeRow={analyzeBackendTicketRow}
+              />
             ) : null}
             {!backendEvidenceItems.length && activeChartRenderer?.id === 'priority' && activePriorityLevel ? (
               <Card className="dashboard-spec-priority-drilldown">
@@ -3697,6 +4153,7 @@ export function ConversationDashboardPage({
               </Card>
             ) : null}
           </section>
+          </div>
 
           <section className="dashboard-spec-section dashboard-spec-conclusions-section">
             <div className="dashboard-spec-section-head">
@@ -3932,7 +4389,7 @@ export function ConversationDashboardPage({
                 <Card className="dashboard-spec-empty-card">No hay conclusiones generadas.</Card>
               )}
             </div>
-            {!showExpandedAgentSections && conclusionMatrixItems.length > visibleConclusionListItems.length ? (
+            {!showDetailPanels && conclusionMatrixItems.length > visibleConclusionListItems.length ? (
               <div className="dashboard-spec-compact-note">
                 Mostrando {visibleConclusionListItems.length} conclusiones principales de{' '}
                 {conclusionMatrixItems.length}. Usa Ver detalle para revisar toda la lectura
@@ -4025,57 +4482,129 @@ export function ConversationDashboardPage({
                     </aside>
                   </div>
 
-                  <section className="conv-dashboard-analytics" aria-label="Visualizaciones analiticas">
+                  <section
+                    className="conv-dashboard-analytics dashboard-spec-expert-analytics"
+                    aria-label="Visualizaciones analiticas"
+                  >
                     <ConversationRunLinkBar run={activeRun} />
 
-                    {showClusterCharts ? (
-                      <div className="conv-dashboard-insight-charts">
-                        <ConversationClusterVolumeChart
-                          insights={filteredInsights}
-                          activeKey={activeChartKey}
-                          onSelect={setActiveInsightKey}
-                        />
-                        <ConversationClusterRiskChart
-                          insights={filteredInsights}
-                          activeKey={activeChartKey}
-                          onSelect={setActiveInsightKey}
-                        />
+                    <div className="dashboard-spec-expert-graph-block">
+                      <div className="dashboard-spec-expert-graph-head">
+                        <span className="dashboard-spec-eyebrow">Mapa tecnico principal</span>
+                        <h3>Criticidad, volumen e incumplimiento SLA</h3>
+                        <p>
+                          Ubica evidencias o clusters por impacto tecnico para detectar focos que
+                          requieren revision operativa.
+                        </p>
                       </div>
-                    ) : null}
-
-                    <ConversationScatterChart
-                      insights={filteredInsights}
-                      activeKey={activeChartKey}
-                      onSelect={setActiveInsightKey}
-                    />
-
-                    {showBusinessCharts ? (
-                      <div className="conv-dashboard-insight-charts">
-                        <ConversationDimensionChart insights={filteredInsights} />
-                        <ConversationDimensionTreemap insights={filteredInsights} />
-                        <ConversationEvidenceChart
-                          insights={filteredInsights}
-                          activeKey={activeChartKey}
-                          onSelect={setActiveInsightKey}
-                        />
-                        <ConversationInsightImpactChart
-                          insights={filteredInsights}
-                          activeKey={activeChartKey}
-                          onSelect={setActiveInsightKey}
-                        />
-                      </div>
-                    ) : null}
-
-                    <div className="conv-dashboard-insight-charts">
-                      <ConversationPriorityChart insights={filteredInsights} />
-                      <ConversationRankingChart
+                      <ConversationScatterChart
                         insights={filteredInsights}
                         activeKey={activeChartKey}
                         onSelect={setActiveInsightKey}
                       />
                     </div>
 
-                    <div className="conv-dashboard-metric-mix-full">
+                    {expertCorrelations.length ? (
+                      <div className="dashboard-spec-expert-graph-block">
+                        <div className="dashboard-spec-expert-graph-head">
+                          <span className="dashboard-spec-eyebrow">Relaciones numericas</span>
+                          <h3>Correlaciones para investigacion tecnica</h3>
+                          <p>
+                            Ayuda a detectar variables numericas que se mueven juntas y pueden
+                            explicar patrones de SLA, riesgo o complejidad.
+                          </p>
+                        </div>
+                        <ConversationCorrelationChart correlations={expertCorrelations} />
+                      </div>
+                    ) : null}
+
+                    {showClusterCharts ? (
+                      <div className="dashboard-spec-expert-graph-block">
+                        <div className="dashboard-spec-expert-graph-head">
+                          <span className="dashboard-spec-eyebrow">Clusters guardados</span>
+                          <h3>Tamano, criticidad y estabilidad de grupos</h3>
+                          <p>
+                            Compara los grupos seleccionados por volumen y riesgo para priorizar
+                            cuales revisar primero.
+                          </p>
+                        </div>
+                        <div className="dashboard-spec-expert-graph-grid">
+                          <ConversationClusterVolumeChart
+                            insights={filteredInsights}
+                            activeKey={activeChartKey}
+                            onSelect={setActiveInsightKey}
+                          />
+                          <ConversationClusterRiskChart
+                            insights={filteredInsights}
+                            activeKey={activeChartKey}
+                            onSelect={setActiveInsightKey}
+                          />
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {showBusinessCharts ? (
+                      <div className="dashboard-spec-expert-graph-block">
+                        <div className="dashboard-spec-expert-graph-head">
+                          <span className="dashboard-spec-eyebrow">Dimensiones de negocio</span>
+                          <h3>Servicios, categorias y tipos de evidencia</h3>
+                          <p>
+                            Traduce hallazgos tecnicos a dimensiones interpretables para comparar
+                            concentracion, impacto y volumen.
+                          </p>
+                        </div>
+                        <div className="dashboard-spec-expert-graph-grid">
+                          <ConversationDimensionChart insights={filteredInsights} />
+                          <ConversationDimensionTreemap insights={filteredInsights} />
+                          <ConversationEvidenceChart
+                            insights={filteredInsights}
+                            activeKey={activeChartKey}
+                            onSelect={setActiveInsightKey}
+                          />
+                          <ConversationInsightImpactChart
+                            insights={filteredInsights}
+                            activeKey={activeChartKey}
+                            onSelect={setActiveInsightKey}
+                          />
+                        </div>
+                      </div>
+                    ) : null}
+
+                    <div className="dashboard-spec-expert-graph-block">
+                      <div className="dashboard-spec-expert-graph-head">
+                        <span className="dashboard-spec-eyebrow">Priorizacion</span>
+                        <h3>Prioridad y ranking de evidencias</h3>
+                        <p>
+                          Ordena la base guardada para decidir que evidencias abrir, filtrar o
+                          enviar al agente.
+                        </p>
+                      </div>
+                      <div className="dashboard-spec-expert-graph-grid">
+                        <ConversationPriorityChart
+                          insights={filteredInsights}
+                          activePriority={activePriorityLevel}
+                          onSelectPriority={(level) =>
+                            setActivePriorityLevel((current) => (current === level ? '' : level))
+                          }
+                          chartRevision={activePriorityLevel || 'all'}
+                        />
+                        <ConversationRankingChart
+                          insights={filteredInsights}
+                          activeKey={activeChartKey}
+                          onSelect={setActiveInsightKey}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="dashboard-spec-expert-graph-block">
+                      <div className="dashboard-spec-expert-graph-head">
+                        <span className="dashboard-spec-eyebrow">Composicion tecnica</span>
+                        <h3>Mezcla de metricas y tipos de hallazgo</h3>
+                        <p>
+                          Resume de que esta compuesta la base de evidencia para detectar sesgos o
+                          exceso de ruido antes de decidir.
+                        </p>
+                      </div>
                       <ConversationMetricMixChart insights={filteredInsights} />
                     </div>
                   </section>
