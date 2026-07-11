@@ -209,7 +209,8 @@ export function useMetabaseReportsPage(fromRunId) {
 
         let status = await fetchMetabaseStatus()
         setDashboardUrl(status.dashboard_url || null)
-        if (!status.dashboard_url) {
+        const shouldRefreshDashboard = soft || !status.dashboard_url
+        if (shouldRefreshDashboard) {
           setProgressStage('dashboard')
           const dashboardResult = await createMetabaseDashboard()
           if (dashboardResult.status !== 'ok') {
