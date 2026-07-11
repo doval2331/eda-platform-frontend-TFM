@@ -1,15 +1,7 @@
-import { createContext, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { AUTH_EXPIRED_EVENT } from '@/api/apiClient'
 import * as authApi from '@/api/auth'
-
-export const AUTH_STORAGE_KEY = 'eda_auth'
-
-export const AuthContext = createContext({
-  token: '',
-  user: null,
-  isAuthenticated: false,
-  loginWithCredentials: async () => ({}),
-  logout: () => {},
-})
+import { AUTH_STORAGE_KEY, AuthContext } from './authContextValue'
 
 function readStoredAuth() {
   try {
@@ -24,39 +16,46 @@ function readStoredAuth() {
 }
 
 export function AuthProvider({ children }) {
-  const [token, setToken] = useState('')
-  const [user, setUser] = useState(null)
+  const [authState, setAuthState] = useState(() => {
+    const stored = readStoredAuth()
+    return {
+      token: stored?.token ?? '',
+      user: stored?.user ?? null,
+    }
+  })
+  const { token, user } = authState
 
   useEffect(() => {
     localStorage.removeItem(AUTH_STORAGE_KEY)
-    const stored = readStoredAuth()
-    if (stored) {
-      setToken(stored.token)
-      setUser(stored.user)
-    }
   }, [])
 
-  const persist = (nextToken, nextUser) => {
+  const persist = useCallback((nextToken, nextUser) => {
     sessionStorage.setItem(
       AUTH_STORAGE_KEY,
       JSON.stringify({ token: nextToken, user: nextUser }),
     )
-    setToken(nextToken)
-    setUser(nextUser)
-  }
+    setAuthState({ token: nextToken, user: nextUser })
+  }, [])
 
-  const logout = () => {
+  const logout = useCallback(() => {
     sessionStorage.removeItem(AUTH_STORAGE_KEY)
     localStorage.removeItem(AUTH_STORAGE_KEY)
-    setToken('')
-    setUser(null)
-  }
+    setAuthState({ token: '', user: null })
+  }, [])
 
-  const loginWithCredentials = async (email, password) => {
+  useEffect(() => {
+    const onAuthExpired = () => {
+      logout()
+    }
+    window.addEventListener(AUTH_EXPIRED_EVENT, onAuthExpired)
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, onAuthExpired)
+  }, [logout])
+
+  const loginWithCredentials = useCallback(async (email, password) => {
     const response = await authApi.login(email, password)
     persist(response.token, response.user)
     return response.user
-  }
+  }, [persist])
 
   const value = useMemo(
     () => ({
@@ -66,7 +65,7 @@ export function AuthProvider({ children }) {
       loginWithCredentials,
       logout,
     }),
-    [token, user],
+    [loginWithCredentials, logout, token, user],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

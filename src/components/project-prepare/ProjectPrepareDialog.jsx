@@ -99,6 +99,7 @@ export function ProjectPrepareDialog({
         <TabPanel value={state.activeTab} panelValue={PREPARE_TAB.data} keepMounted>
           {modalidad === 'tabular' ? (
             <PrepareTabularSection
+              projectId={projectId}
               scenarioName={scenarioName}
               onScenarioNameChange={onScenarioNameChange}
               scenarioDescription={scenarioDescription}

@@ -27,13 +27,13 @@ export function ConversationDashboardFooter({
       <div className="insights-phase-footer__copy">
         <strong>
           {selectedCount > 0
-            ? `${selectedCount} hallazgo${selectedCount === 1 ? '' : 's'} seleccionado${selectedCount === 1 ? '' : 's'}`
-            : 'Selecciona hallazgos para profundizar'}
+            ? `${selectedCount} evidencia${selectedCount === 1 ? '' : 's'} seleccionada${selectedCount === 1 ? '' : 's'}`
+            : 'Selecciona evidencias para profundizar'}
         </strong>
         <span>
           {selectedCount > 0
             ? 'Lleva un resumen al chat de la ejecuci\u00f3n para investigar causas y servicios afectados.'
-            : 'Marca uno o varios hallazgos de la lista antes de continuar.'}
+            : 'Marca una o varias evidencias de la lista antes de continuar.'}
         </span>
       </div>
       <div className="insights-phase-footer__actions">

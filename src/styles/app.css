@@ -42,6 +42,13 @@
   color: var(--color-midnight-navy);
 }
 
+.onboarding-intro {
+  margin: 0 0 10px;
+  color: var(--color-slate-ink);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
 .onboarding-steps {
   margin: 0 0 10px;
   padding-left: 1.25rem;
@@ -55,6 +62,31 @@
 
 .onboarding-banner .note {
   margin: 0;
+}
+
+.onboarding-highlights {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.onboarding-highlights span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 10px;
+  border: 1px solid #c9dcff;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--color-slate-ink);
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.onboarding-highlights strong {
+  color: var(--color-midnight-navy);
+  font-weight: 700;
 }
 
 .onboarding-dismiss {
@@ -1063,6 +1095,22 @@
   padding: 20px 0 8px;
 }
 
+.agent-progress-panel__hint {
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.conv-dashboard-progress-panel__hint {
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: center;
+}
+
 .loading-panel--llm-bare {
   background: transparent;
   border: none;
@@ -1627,6 +1675,25 @@
 .conv-dashboard-hero__shell {
   position: relative;
   padding: 16px 18px 14px 20px;
+}
+
+.conv-dashboard-hero--embedded {
+  margin-bottom: 16px;
+  border-color: #dbeafe;
+  background: rgba(239, 246, 255, 0.68);
+  box-shadow: none;
+}
+
+.conv-dashboard-hero--embedded .conv-dashboard-hero__accent {
+  display: none;
+}
+
+.conv-dashboard-hero--embedded .conv-dashboard-hero__shell {
+  padding: 14px;
+}
+
+.conv-dashboard-hero--embedded .conv-dashboard-hero__title {
+  font-size: 18px;
 }
 
 .conv-dashboard-hero__top {
@@ -3465,6 +3532,79 @@
   padding: 0;
 }
 
+.metabase-progress-panel {
+  width: min(100%, 680px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: stretch;
+}
+
+.metabase-progress-panel .loading-panel--bare {
+  align-self: center;
+}
+
+.metabase-progress-panel__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--color-slate-ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.metabase-progress-panel__summary strong {
+  color: var(--color-brand-500);
+  font-size: 22px;
+}
+
+.metabase-progress-panel__bar {
+  width: 100%;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-brand-500) 12%, #ffffff);
+}
+
+.metabase-progress-panel__bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2563eb, var(--color-brand-500));
+  transition: width 0.35s ease;
+}
+
+.metabase-progress-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.metabase-progress-steps__item {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 8px;
+  border: 1px solid var(--color-fog-border);
+  border-radius: 8px;
+  color: var(--color-slate-ink);
+  background: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.metabase-progress-steps__item--completed {
+  border-color: color-mix(in srgb, var(--color-brand-500) 36%, var(--color-fog-border));
+  color: var(--color-brand-500);
+  background: color-mix(in srgb, var(--color-brand-light) 45%, #ffffff);
+}
+
 .metabase-page--refreshing::before {
   content: '';
   position: fixed;
@@ -3526,6 +3666,35 @@
   line-height: 1.5;
 }
 
+.metabase-reports-empty-card__detail {
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, #f97316 38%, var(--color-fog-border));
+  border-radius: 8px;
+  background: #fff7ed;
+  color: #9a3412 !important;
+  font-weight: 700;
+}
+
+
+.metabase-reports-external-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.metabase-reports-external-link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: #2563eb;
+  color: #fff !important;
+  font-weight: 800;
+  text-decoration: none;
+  box-shadow: 0 6px 14px rgba(37, 99, 235, 0.25);
+}
 .metabase-reports-footer {
   display: flex;
   flex-wrap: wrap;

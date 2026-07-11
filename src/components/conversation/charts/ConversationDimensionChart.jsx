@@ -25,7 +25,7 @@ export function ConversationDimensionChart({ insights, className = '' }) {
       <div className="decision-card-title">
         <div>
           <h2>Concentración por dimensión</h2>
-          <p>Cuántos hallazgos guardados hay por servicio, categoría o filtro.</p>
+          <p>Cuántas evidencias guardadas hay por servicio, categoría o filtro.</p>
         </div>
       </div>
       <Plot
@@ -35,9 +35,9 @@ export function ConversationDimensionChart({ insights, className = '' }) {
             y: labels,
             type: 'bar',
             orientation: 'h',
-            name: 'Hallazgos',
+            name: 'Evidencias',
             marker: { color: '#2563eb' },
-            hovertemplate: '%{y}<br>%{x} hallazgos<extra></extra>',
+            hovertemplate: '%{y}<br>%{x} evidencias<extra></extra>',
           },
         ]}
         layout={{
@@ -45,7 +45,7 @@ export function ConversationDimensionChart({ insights, className = '' }) {
           height: Math.max(260, groups.length * 36),
           margin: { l: 140, r: 16, t: 8, b: 32 },
           paper_bgcolor: 'rgba(0,0,0,0)',
-          xaxis: { title: 'Hallazgos guardados', gridcolor: '#e2e8f0' },
+          xaxis: { title: 'Evidencias guardadas', gridcolor: '#e2e8f0' },
           yaxis: { automargin: true },
         }}
         style={{ width: '100%' }}
