@@ -1,6 +1,8 @@
 import PropTypes from 'prop-types'
+import { Link } from 'react-router-dom'
 import { Card } from '@/ui'
 import { ConversationSemanticDictionaryEditor } from './ConversationSemanticDictionaryEditor'
+import { metabaseLinkState } from '@/utils/biFlow'
 
 function ContractBanner({ contract, isExpertMode }) {
   const className = `dashboard-spec-contract-banner${
@@ -197,6 +199,7 @@ export function ConversationExecutiveSummary({
   readiness,
   detail,
   semanticEditor,
+  metabaseRunId,
   onOpenEvidenceBase,
   onToggleDetail,
   onQuestionClick,
@@ -221,6 +224,13 @@ export function ConversationExecutiveSummary({
           <button type="button" className="dashboard-spec-outline-button" onClick={onOpenEvidenceBase}>
             Base de evidencia ({evidenceCount})
           </button>
+          <Link
+            to="/metabase"
+            state={metabaseLinkState({ runId: metabaseRunId, fromStep: 'consolidate' })}
+            className="dashboard-spec-outline-button dashboard-spec-outline-button--metabase"
+          >
+            Paso 4: Metabase BI
+          </Link>
           <button type="button" className="dashboard-spec-outline-button" onClick={onToggleDetail}>
             {detailOpen ? 'Cerrar detalle' : 'Ver detalle'}
           </button>
@@ -383,6 +393,7 @@ ConversationExecutiveSummary.propTypes = {
   }).isRequired,
   detail: DetailPanel.propTypes.detail,
   semanticEditor: PropTypes.object,
+  metabaseRunId: PropTypes.string,
   onOpenEvidenceBase: PropTypes.func.isRequired,
   onToggleDetail: PropTypes.func.isRequired,
   onQuestionClick: PropTypes.func.isRequired,

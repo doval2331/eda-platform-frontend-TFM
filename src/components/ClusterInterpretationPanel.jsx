@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { IconButton, Stack, Tooltip, Typography } from '@mui/material'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined'
@@ -542,6 +543,7 @@ function insightFromSummary(runId, summary) {
 }
 
 export function ClusterInterpretationPanel({ result, run, loading = false }) {
+  const navigate = useNavigate()
   const runId = run?.id ?? ''
   const [filter, setFilter] = useState('auto')
   const [selectedIds, setSelectedIds] = useState(new Set())
@@ -604,6 +606,7 @@ export function ClusterInterpretationPanel({ result, run, loading = false }) {
   const visibleSavedCount = visibleSummaries.filter((summary) =>
     selectedIds.has(summaryInsightId(runId, summary)),
   ).length
+  const hasSavedInsights = savedInsights.length > 0
   const allVisibleChecked =
     availableVisibleIds.length > 0 && availableVisibleIds.every((id) => checkedIds.has(id))
 
@@ -823,6 +826,19 @@ export function ClusterInterpretationPanel({ result, run, loading = false }) {
         </AlertBanner>
       ) : null}
 
+      {hasSavedInsights ? (
+        <div className="cluster-insights-premium__next-step" role="status">
+          <div>
+            <strong>{savedInsights.length} hallazgos listos para consolidar</strong>
+            <span>
+              Revisa el Dashboard Conversacional con estos hallazgos como base de evidencia.
+            </span>
+          </div>
+          <Button type="button" size="small" onClick={() => navigate('/?step=consolidate')}>
+            Ir al Dashboard Conversacional
+          </Button>
+        </div>
+      ) : null}
       <div className="cluster-insights-premium__filter-row">
       <FilterChips
         options={criteria.map((criterion) => ({

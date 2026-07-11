@@ -34,6 +34,10 @@
   margin-top: var(--spacing-4);
 }
 
+.history-retry-button {
+  margin-top: var(--spacing-12);
+}
+
 /* Estado de carga: card ocupa el alto disponible y centra el spinner */
 .history-page--loading {
   flex: 1;

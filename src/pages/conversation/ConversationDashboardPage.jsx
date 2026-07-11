@@ -3843,6 +3843,7 @@ export function ConversationDashboardPage({
             context={executiveSummaryView.context}
             readiness={executiveSummaryView.readiness}
             detail={executiveSummaryView.detail}
+            metabaseRunId={selectedRunId || activeInsight?.run_id}
             semanticEditor={
               isExpertMode
                 ? {

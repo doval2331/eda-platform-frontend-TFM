@@ -82,6 +82,17 @@ export function DashboardResultsPanel({
                 Configuración del análisis
               </Button>
             ) : null}
+            {resultado && lastRun?.id ? (
+              <Button
+                component={Link}
+                to="/?step=consolidate"
+                variant="secondary"
+                className="dashboard-conversation-cta"
+                disabled={ejecutando}
+              >
+                Dashboard conversacional
+              </Button>
+            ) : null}
             <Button type="button" variant="primary" className="prepare-data-btn" onClick={onOpenPrepare}>
               Preparar datos
             </Button>

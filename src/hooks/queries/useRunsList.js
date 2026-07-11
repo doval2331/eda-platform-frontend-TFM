@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { ApiHttpError } from '@/api/apiClient'
 import { listRuns } from '@/api/pipeline'
 
 export function runsListQueryKey(limit = 50) {
@@ -12,6 +13,13 @@ export function useRunsList(limit = 50, options = {}) {
     queryFn: () => listRuns(limit),
     enabled,
     staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    retry: (failureCount, error) => {
+      if (error instanceof ApiHttpError && [401, 403, 408].includes(error.status)) {
+        return false
+      }
+      return failureCount < 1
+    },
     ...queryOptions,
   })
 }

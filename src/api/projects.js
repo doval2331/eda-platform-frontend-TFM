@@ -135,7 +135,28 @@ export async function waitForProjectSourceUploadJob(
     }
     await delay(intervalMs)
   }
-  throw new Error('La carga sigue procesando luego del tiempo máximo de espera.')
+  throw new Error('La carga sigue procesando luego del tiempo maximo de espera.')
+}
+export async function fetchProjectRunsJob(projectId, jobId) {
+  return apiRequest(`/api/projects/${projectId}/runs/jobs/${jobId}`, { auth: true })
+}
+
+export async function waitForProjectRunsJob(
+  projectId,
+  jobId,
+  { intervalMs = 1500, timeoutMs = 30 * 60 * 1000, onProgress } = {},
+) {
+  const startedAt = Date.now()
+  while (Date.now() - startedAt < timeoutMs) {
+    const job = await fetchProjectRunsJob(projectId, jobId)
+    onProgress?.(job)
+    if (job.status === 'completed') return job
+    if (job.status === 'failed') {
+      throw new Error(job.error || job.message || 'No se pudo completar el analisis')
+    }
+    await delay(intervalMs)
+  }
+  throw new Error('El analisis sigue procesando luego del tiempo maximo de espera.')
 }
 
 export async function removeProjectSource(projectId, sourceId) {
@@ -152,6 +173,14 @@ export async function validateProjectSources(projectId) {
   })
 }
 
+async function executeProjectRunsSync(projectId, body) {
+  return apiRequest(`/api/projects/${projectId}/runs`, {
+    method: 'POST',
+    body,
+    auth: true,
+  })
+}
+
 export async function executeProjectRuns(projectId, options = {}) {
   const body = {
     reduction_method: options.reductionMethod ?? 'UMAP',
@@ -161,9 +190,21 @@ export async function executeProjectRuns(projectId, options = {}) {
   if (options.idColumn) body.id_column = options.idColumn
   appendPipelineTuning(body, options.pipelineTuning)
 
-  return apiRequest(`/api/projects/${projectId}/runs`, {
-    method: 'POST',
-    body,
-    auth: true,
-  })
+  try {
+    const job = await apiRequest(`/api/projects/${projectId}/runs/jobs`, {
+      method: 'POST',
+      body,
+      auth: true,
+    })
+    options.onProgress?.(job)
+    const completed = await waitForProjectRunsJob(projectId, job.job_id, {
+      onProgress: options.onProgress,
+    })
+    return completed.result
+  } catch (err) {
+    if (err instanceof ApiHttpError && err.status === 404) {
+      return executeProjectRunsSync(projectId, body)
+    }
+    throw err
+  }
 }

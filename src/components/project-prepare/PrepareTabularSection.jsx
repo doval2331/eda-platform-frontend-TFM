@@ -16,8 +16,10 @@ import {
 } from '@/utils/sourceFileVisual'
 import { PrepareFormSection } from './PrepareFormSection'
 import { formatSpanishNumber } from './helpers'
+import { MetadataSemanticSummary } from './MetadataSemanticSummary'
 
 export function PrepareTabularSection({
+  projectId,
   scenarioName,
   onScenarioNameChange,
   scenarioDescription,
@@ -120,6 +122,9 @@ export function PrepareTabularSection({
               />
             ) : null}
             {datasetProfile ? (
+              <MetadataSemanticSummary datasetProfile={datasetProfile} projectId={projectId} />
+            ) : null}
+            {datasetProfile ? (
               <FormSelect
                 label="Identificador de incidencia (opcional)"
                 id="id-column-dialog"
@@ -137,6 +142,7 @@ export function PrepareTabularSection({
 }
 
 PrepareTabularSection.propTypes = {
+  projectId: PropTypes.string,
   scenarioName: PropTypes.string,
   onScenarioNameChange: PropTypes.func,
   scenarioDescription: PropTypes.string,

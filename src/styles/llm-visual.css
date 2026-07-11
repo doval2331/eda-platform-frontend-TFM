@@ -477,6 +477,13 @@
   background: #fff;
 }
 
+.dashboard-spec-outline-button--metabase {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
 .dashboard-spec-card-actions button,
 .dashboard-spec-list-actions button,
 .dashboard-spec-conclusion button,

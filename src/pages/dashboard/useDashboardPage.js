@@ -65,8 +65,8 @@ const ANALYSIS_STAGES = [
     id: 'persist',
     start: 88,
     doneAt: 100,
-    label: 'Finalizando procesamiento',
-    detail: 'Persistiendo resultados y preparando la visualizacion.',
+    label: 'Guardando evidencias',
+    detail: 'Persistiendo resultados, guardando evidencias y preparando visualizacion.',
   },
 ]
 
@@ -135,6 +135,22 @@ function activeStageForPercent(percent) {
   )
 }
 
+function buildAnalysisStages(activeStageId, completed = false) {
+  const activeIndex = ANALYSIS_STAGES.findIndex((stage) => stage.id === activeStageId)
+  const safeActiveIndex = activeIndex >= 0 ? activeIndex : 0
+
+  return ANALYSIS_STAGES.map((stage, index) => ({
+    id: stage.id,
+    label: stage.label,
+    status:
+      completed || index < safeActiveIndex
+        ? 'completed'
+        : index === safeActiveIndex
+          ? 'current'
+          : 'pending',
+  }))
+}
+
 function buildAnalysisProgressContext({
   modalidad,
   datasetProfile,
@@ -189,16 +205,48 @@ function buildAnalysisProgressSnapshot(context, elapsedMs) {
       currentStage.id === 'reduction'
         ? `Aplicando ${context.metodoReduccion} y preparando coordenadas visuales.`
         : currentStage.detail,
-    stages: ANALYSIS_STAGES.map((stage) => ({
-      id: stage.id,
-      label: stage.label,
-      status:
-        percent >= stage.doneAt
-          ? 'completed'
-          : stage.id === currentStage.id
-            ? 'current'
-            : 'pending',
-    })),
+    stages: buildAnalysisStages(currentStage.id),
+  }
+}
+const JOB_STAGE_TO_ANALYSIS_STAGE = {
+  queued: 'prepare',
+  prepare: 'prepare',
+  load_data: 'prepare',
+  load_csv: 'prepare',
+  metadata_lookup: 'prepare',
+  profile: 'prepare',
+  resolve_columns: 'prepare',
+  pipeline: 'prepare',
+  features: 'features',
+  feature_build: 'features',
+  json: 'metrics',
+  reduction: 'reduction',
+  clustering: 'clustering',
+  metrics: 'metrics',
+  metadata: 'metrics',
+  result: 'metrics',
+  save_run: 'persist',
+  duckdb: 'persist',
+  bi_sync: 'persist',
+  completed: 'persist',
+}
+
+function buildAnalysisProgressSnapshotFromJob(job, current) {
+  const progressValue = Number.isFinite(Number(job?.progress))
+    ? Number(job.progress)
+    : current?.percent || 7
+  const percent = Math.round(clamp(progressValue, 7, 100))
+  const activeStageId = JOB_STAGE_TO_ANALYSIS_STAGE[job?.stage] || activeStageForPercent(percent).id
+  const currentStage = ANALYSIS_STAGES.find((stage) => stage.id === activeStageId) || activeStageForPercent(percent)
+
+  return {
+    ...(current || {}),
+    percent,
+    label: currentStage.label,
+    detail: job?.message || currentStage.detail,
+    backendStage: job?.stage,
+    jobId: job?.job_id || current?.jobId,
+    stages: buildAnalysisStages(activeStageId, job?.status === 'completed'),
   }
 }
 
@@ -558,9 +606,15 @@ export function useDashboardPage({ onRunStateChange, isExpert = false } = {}) {
     const startedAt = Date.now()
     setAnalysisProgress(buildAnalysisProgressSnapshot(context, 0))
     analysisProgressTimerRef.current = window.setInterval(() => {
-      setAnalysisProgress(buildAnalysisProgressSnapshot(context, Date.now() - startedAt))
+      setAnalysisProgress((current) => {
+        if (current?.jobId) return current
+        return buildAnalysisProgressSnapshot(context, Date.now() - startedAt)
+      })
     }, 1000)
   }, [clearAnalysisProgressTimer])
+  const handleAnalysisJobProgress = useCallback((job) => {
+    setAnalysisProgress((current) => buildAnalysisProgressSnapshotFromJob(job, current))
+  }, [])
 
   useEffect(() => () => clearAnalysisProgressTimer(), [clearAnalysisProgressTimer])
 
@@ -618,6 +672,7 @@ export function useDashboardPage({ onRunStateChange, isExpert = false } = {}) {
           seed: seedNum,
           nSamples: nSamplesParam,
           pipelineTuning: pipelineTuningParam,
+          onProgress: handleAnalysisJobProgress,
         })
         const primary = response.primary_run ?? response.runs.find((r) => r.id === response.primary_run_id)
         const runs = response.runs?.length ? response.runs : primary ? [primary] : []
@@ -658,6 +713,7 @@ export function useDashboardPage({ onRunStateChange, isExpert = false } = {}) {
           idColumn: modalidad === 'tabular' && idColumn ? idColumn : undefined,
           projectName: modalidad === 'tabular' ? scenarioName.trim() : undefined,
           sourceType: modalidad === 'tabular' ? 'incidents' : undefined,
+          onProgress: handleAnalysisJobProgress,
         })
         setProjectRuns([])
         setResultado(result)
@@ -692,11 +748,14 @@ export function useDashboardPage({ onRunStateChange, isExpert = false } = {}) {
     activeProject,
     advancedMode,
     datasetProfile,
+    handleAnalysisJobProgress,
     idColumn,
     metodoReduccion,
     modalidad,
     nSamples,
+    onRunStateChange,
     pipelineTuning,
+    queryClient,
     scenarioDescription,
     scenarioName,
     seed,

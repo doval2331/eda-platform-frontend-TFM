@@ -32,10 +32,14 @@ export function WorkspacePage() {
     useWorkspaceTabs()
   const { isExpert, setExpertProfile } = useAnalysisUserProfile()
   const [hasRunResults, setHasRunResults] = useState(false)
+  const [activeReportRunId, setActiveReportRunId] = useState('')
   const [consolidateToolbarHost, setConsolidateToolbarHost] = useState(null)
 
-  const handleRunStateChange = useCallback(({ hasResults, isNewRun }) => {
+  const handleRunStateChange = useCallback(({ hasResults, isNewRun, runId }) => {
     setHasRunResults(Boolean(hasResults))
+    if (runId) {
+      setActiveReportRunId(runId)
+    }
     if (isNewRun && hasResults) {
       setActiveFlowTab('explore')
     }
@@ -109,7 +113,7 @@ export function WorkspacePage() {
             hidden={activeFlowTab !== 'report'}
             aria-hidden={activeFlowTab !== 'report'}
           >
-            <MetabasePage embedded />
+            <MetabasePage embedded runId={activeReportRunId} key={activeReportRunId || 'report'} />
           </div>
         )}
       </div>
