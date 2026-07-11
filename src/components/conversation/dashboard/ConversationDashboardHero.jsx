@@ -12,18 +12,28 @@ export function ConversationDashboardHero({
   kindCounts,
   totalInsights,
   onMetricFilterChange,
+  variant = 'standalone',
 }) {
+  const isEmbedded = variant === 'embedded'
+
   return (
-    <section className="conv-dashboard-hero" aria-label="Resumen de hallazgos guardados">
+    <section
+      className={`conv-dashboard-hero${isEmbedded ? ' conv-dashboard-hero--embedded' : ''}`}
+      aria-label="Resumen de base de evidencia"
+    >
       <div className="conv-dashboard-hero__accent" aria-hidden />
       <div className="conv-dashboard-hero__shell">
         <div className="conv-dashboard-hero__top">
           <div className="conv-dashboard-hero__intro">
-            <span className="conv-dashboard-hero__kicker">Dashboard conversacional</span>
-            <h2 className="conv-dashboard-hero__title">Tus hallazgos guardados</h2>
+            <span className="conv-dashboard-hero__kicker">
+              {isEmbedded ? 'Base del dashboard' : 'Dashboard conversacional'}
+            </span>
+            <h2 className="conv-dashboard-hero__title">
+              {isEmbedded ? 'Base de evidencia' : 'Base de evidencia'}
+            </h2>
             <div className="conv-dashboard-hero__metrics">
               <span className="conv-dashboard-hero__metric">
-                <strong>{summary.insightCount}</strong> hallazgos
+                <strong>{summary.insightCount}</strong> evidencias
               </span>
               <span className="conv-dashboard-hero__metric">
                 <strong>{summary.runCount}</strong> ejecuciones
@@ -47,7 +57,7 @@ export function ConversationDashboardHero({
         </div>
 
         {totalInsights > 0 ? (
-          <div className="conv-dashboard-hero__chips" aria-label="Filtrar por tipo de hallazgo">
+          <div className="conv-dashboard-hero__chips" aria-label="Filtrar por tipo de evidencia">
             <button
               type="button"
               className={
@@ -95,4 +105,5 @@ ConversationDashboardHero.propTypes = {
   kindCounts: PropTypes.object.isRequired,
   totalInsights: PropTypes.number.isRequired,
   onMetricFilterChange: PropTypes.func.isRequired,
+  variant: PropTypes.oneOf(['standalone', 'embedded']),
 }

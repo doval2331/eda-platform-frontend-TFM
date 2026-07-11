@@ -29,7 +29,7 @@ export function ConversationMetricMixChart({ insights }) {
       <div className="decision-card-title">
         <div>
           <h2>Agrupaci&oacute;n de intereses</h2>
-          <p>Resume qu&eacute; tipo de hallazgos guard&oacute; el usuario.</p>
+          <p>Resume qu&eacute; tipo de evidencias guard&oacute; el usuario.</p>
         </div>
       </div>
       <Plot
@@ -63,7 +63,7 @@ export function ConversationMetricMixChart({ insights }) {
             kinds.length === 1
               ? [
                   {
-                    text: `<b>${labels[0]}</b><br>${counts[kinds[0]]} hallazgo${counts[kinds[0]] === 1 ? '' : 's'}`,
+                    text: `<b>${labels[0]}</b><br>${counts[kinds[0]]} evidencia${counts[kinds[0]] === 1 ? '' : 's'}`,
                     showarrow: false,
                     font: { size: 16, color: '#334155' },
                     x: 0.5,

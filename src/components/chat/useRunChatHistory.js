@@ -114,14 +114,17 @@ export function useRunChatHistory(runId, { enabled = true } = {}) {
 
   useEffect(() => {
     if (!enabled) return
-    setQuestion('')
-    void loadHistory(runId)
+    const timer = window.setTimeout(() => {
+      void loadHistory(runId)
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [runId, loadHistory, enabled])
 
   const sendQuestion = useCallback(
     async (text, options = {}) => {
       const clean = text.trim()
       if (!runId || !clean) return
+      const backendText = (options.backendText || clean).trim()
 
       setLoading(true)
       setError(null)
@@ -134,7 +137,9 @@ export function useRunChatHistory(runId, { enabled = true } = {}) {
       setMessages(historySnapshot)
 
       try {
-        const response = await askRunQuestion(runId, clean, historySnapshot)
+        const response = await askRunQuestion(runId, backendText, historySnapshot, {
+          displayQuestion: clean,
+        })
         setMessages((current) => [...current, mapAssistantResponse(response)])
         if (response.suggested_questions?.length) {
           setSuggestions(response.suggested_questions)

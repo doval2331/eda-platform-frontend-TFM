@@ -1,15 +1,17 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { IconButton, Stack, Tooltip, Typography } from '@mui/material'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
-import { selectRunInsight, selectRunInsights } from '@/api/conversation'
+import { fetchRunSelectedInsights, selectRunInsight, selectRunInsights } from '@/api/conversation'
 import { insightSavedMessage, insightsSavedMessage } from '@/utils/biFlow'
 import {
   AlertBanner,
   Button,
   ClusterInsightCard,
   ClusterInsightDetailDialog,
+  Dialog,
   Feedback,
   FilterChips,
   LoadingPanel,
@@ -541,6 +543,7 @@ function insightFromSummary(runId, summary) {
 }
 
 export function ClusterInterpretationPanel({ result, run, loading = false }) {
+  const navigate = useNavigate()
   const runId = run?.id ?? ''
   const [filter, setFilter] = useState('auto')
   const [selectedIds, setSelectedIds] = useState(new Set())
@@ -550,6 +553,8 @@ export function ClusterInterpretationPanel({ result, run, loading = false }) {
   const [error, setError] = useState(null)
   const [profilesVisible, setProfilesVisible] = useState(true)
   const [bulkSaving, setBulkSaving] = useState(false)
+  const [savedInsights, setSavedInsights] = useState([])
+  const [savedDialogOpen, setSavedDialogOpen] = useState(false)
 
   const metadata = useMemo(() => result?.metadata ?? [], [result])
   const catalog = useMemo(() => collectFieldCatalog(metadata), [metadata])
@@ -598,8 +603,46 @@ export function ClusterInterpretationPanel({ result, run, loading = false }) {
         .filter((id) => id && checkedIds.has(id) && !selectedIds.has(id))
     : []
   const checkedCount = checkedCurrentIds.length
+  const visibleSavedCount = visibleSummaries.filter((summary) =>
+    selectedIds.has(summaryInsightId(runId, summary)),
+  ).length
+  const hasSavedInsights = savedInsights.length > 0
   const allVisibleChecked =
     availableVisibleIds.length > 0 && availableVisibleIds.every((id) => checkedIds.has(id))
+
+  useEffect(() => {
+    let active = true
+    if (!runId) {
+      setSelectedIds(new Set())
+      setCheckedIds(new Set())
+      setSavedInsights([])
+      return () => {
+        active = false
+      }
+    }
+
+    fetchRunSelectedInsights(runId)
+      .then((response) => {
+        if (!active) return
+        const savedIds = new Set((response?.insights ?? []).map((item) => item.id).filter(Boolean))
+        setSavedInsights(response?.insights ?? [])
+        setSelectedIds(savedIds)
+        setCheckedIds((current) => {
+          const next = new Set(current)
+          savedIds.forEach((id) => next.delete(id))
+          return next
+        })
+      })
+      .catch(() => {
+        if (!active) return
+        setSelectedIds(new Set())
+        setSavedInsights([])
+      })
+
+    return () => {
+      active = false
+    }
+  }, [runId])
 
   function handleFilterChange(nextFilter) {
     setFilter(nextFilter)
@@ -646,6 +689,9 @@ export function ClusterInterpretationPanel({ result, run, loading = false }) {
     const insight = insightFromSummary(runId, summary)
     try {
       await selectRunInsight(runId, insight)
+      setSavedInsights((current) =>
+        current.some((item) => item.id === insight.id) ? current : [{ ...insight }, ...current],
+      )
       setSelectedIds((current) => new Set([...current, insight.id]))
       setCheckedIds((current) => {
         const next = new Set(current)
@@ -680,6 +726,11 @@ export function ClusterInterpretationPanel({ result, run, loading = false }) {
       const insights = pending.map((summary) => insightFromSummary(runId, summary))
       const response = await selectRunInsights(runId, insights)
       const savedIds = insights.map((insight) => insight.id)
+      setSavedInsights((current) => {
+        const existingIds = new Set(current.map((item) => item.id))
+        const next = insights.filter((insight) => !existingIds.has(insight.id))
+        return next.length ? [...next, ...current] : current
+      })
       setSelectedIds((current) => new Set([...current, ...savedIds]))
       setCheckedIds((current) => {
         const next = new Set(current)
@@ -775,6 +826,20 @@ export function ClusterInterpretationPanel({ result, run, loading = false }) {
         </AlertBanner>
       ) : null}
 
+      {hasSavedInsights ? (
+        <div className="cluster-insights-premium__next-step" role="status">
+          <div>
+            <strong>{savedInsights.length} hallazgos listos para consolidar</strong>
+            <span>
+              Revisa el Dashboard Conversacional con estos hallazgos como base de evidencia.
+            </span>
+          </div>
+          <Button type="button" size="small" onClick={() => navigate('/?step=consolidate')}>
+            Ir al Dashboard Conversacional
+          </Button>
+        </div>
+      ) : null}
+      <div className="cluster-insights-premium__filter-row">
       <FilterChips
         options={criteria.map((criterion) => ({
           value: criterion.id,
@@ -784,6 +849,17 @@ export function ClusterInterpretationPanel({ result, run, loading = false }) {
         onChange={handleFilterChange}
         ariaLabel="Criterios dinámicos de grupos"
       />
+
+        <Button
+          type="button"
+          variant="secondary"
+          size="small"
+          disabled={!runId}
+          onClick={() => setSavedDialogOpen(true)}
+        >
+          Grupos guardados ({savedInsights.length})
+        </Button>
+      </div>
 
       <div className="cluster-insights-premium__bulk" role="group" aria-label="Seleccion multiple de grupos">
         <div>
@@ -795,7 +871,9 @@ export function ClusterInterpretationPanel({ result, run, loading = false }) {
           <span>
             {checkedCount > 0
               ? 'Agrega los grupos marcados al dashboard conversacional.'
-              : 'Marca algunos grupos o selecciona todos los visibles del criterio actual.'}
+              : visibleSavedCount > 0
+                ? `${visibleSavedCount} de ${visibleSummaries.length} grupos visibles ya estan guardados en el dashboard conversacional.`
+                : 'Marca algunos grupos o selecciona todos los visibles del criterio actual.'}
           </span>
         </div>
         <div className="cluster-insights-premium__bulk-actions">
@@ -837,6 +915,7 @@ export function ClusterInterpretationPanel({ result, run, loading = false }) {
               selectionDisabled={!runId || selected || bulkSaving}
               onSelectChange={() => toggleClusterSelection(summary)}
               onViewDetail={() => setDetailSummary(summary)}
+              saved={selected}
               actionLabel={selected ? 'Agregado' : 'Agregar al dashboard'}
               actionDisabled={selected || bulkSaving}
               onAction={() => addCluster(summary)}
@@ -876,6 +955,35 @@ export function ClusterInterpretationPanel({ result, run, loading = false }) {
             : 'Agregar al dashboard'
         }
       />
+      <Dialog
+        open={savedDialogOpen}
+        onClose={() => setSavedDialogOpen(false)}
+        title="Grupos guardados"
+        description="Estos grupos ya fueron enviados como hallazgos al Dashboard Conversacional."
+        size="wide"
+      >
+        {savedInsights.length ? (
+          <div className="cluster-saved-list">
+            {savedInsights.map((insight) => (
+              <article className="cluster-saved-list__item" key={insight.id}>
+                <div>
+                  <strong>{insight.title}</strong>
+                  <span>{insight.description || 'Sin descripcion disponible.'}</span>
+                </div>
+                <div className="cluster-saved-list__meta">
+                  {insight.filter_value ? <span>Grupo {insight.filter_value}</span> : null}
+                  {insight.metric_label ? <span>{insight.metric_label}</span> : null}
+                  {insight.metric_value != null ? <span>{insight.metric_value}</span> : null}
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="cluster-saved-list__empty">
+            Todavia no hay grupos guardados para esta ejecucion.
+          </p>
+        )}
+      </Dialog>
         </>
       ) : null}
     </section>

@@ -16,7 +16,7 @@ export function ConversationRunContextCard({ run, className = '' }) {
         <p className="conv-run-context-card__text">
           Contexto de la ejecución
           {runDisplayName(run) ? ` · ${runDisplayName(run)}` : ''}. Los KPIs y el scatter técnico
-          completos están en el historial; aquí se consolidan tus hallazgos guardados.
+          completos están en el historial; aquí se consolida la base de evidencia guardada.
         </p>
         <div className="conv-run-context-card__stats">
           {nSamples != null ? (

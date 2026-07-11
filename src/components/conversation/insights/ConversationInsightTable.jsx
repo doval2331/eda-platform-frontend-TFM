@@ -54,7 +54,7 @@ export function ConversationInsightTable({
     <div
       className={`conv-insight-table-wrap${refreshing ? ' conv-insight-table-wrap--refreshing' : ''}`}
     >
-      <div className="conv-insight-table__scroll" tabIndex={0} role="region" aria-label="Tabla de hallazgos">
+      <div className="conv-insight-table__scroll" tabIndex={0} role="region" aria-label="Tabla de evidencias guardadas">
         <table className="conv-insight-table__table">
           <thead>
             <tr>
@@ -64,11 +64,11 @@ export function ConversationInsightTable({
                     checked={allPageSelected}
                     indeterminate={somePageSelected}
                     onChange={() => onToggleSelectAll?.(items)}
-                    label="Seleccionar todos los hallazgos de esta pagina"
+                    label="Seleccionar todas las evidencias de esta pagina"
                   />
                 </label>
               </th>
-              <th scope="col">Hallazgo</th>
+              <th scope="col">Evidencia</th>
               <th scope="col" className="conv-insight-table__col-priority">
                 Prioridad
               </th>

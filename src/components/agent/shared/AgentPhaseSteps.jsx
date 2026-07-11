@@ -16,8 +16,9 @@ export function AgentPhaseSteps({ phase }) {
   return (
     <ol className="agent-phase-steps" aria-label="Progreso del analisis asistido">
       {PHASES.map((item, index) => {
-        const done = index < current
-        const active = index === current
+        const currentReviewCompleted = phase === 'review' && item.id === 'review'
+        const done = index < current || currentReviewCompleted
+        const active = index === current && !currentReviewCompleted
         return (
           <li
             key={item.id}

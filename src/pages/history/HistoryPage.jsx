@@ -44,9 +44,16 @@ export function HistoryPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const queryClient = useQueryClient()
-  const { data: runs = [], isLoading: loading, refetch } = useRunsList(50)
+  const {
+    data: runs = [],
+    isLoading: loading,
+    isError: runsLoadFailed,
+    error: runsLoadError,
+    refetch,
+  } = useRunsList(50)
   const [error, setError] = useState(null)
   const [message, setMessage] = useState(null)
+  const [slowLoading, setSlowLoading] = useState(false)
   const [clearing, setClearing] = useState(false)
   const [deletingRunId, setDeletingRunId] = useState(null)
   const [batchDeleting, setBatchDeleting] = useState(false)
@@ -63,6 +70,15 @@ export function HistoryPage() {
     }, 0)
     return () => window.clearTimeout(timer)
   }, [location.pathname, location.state, navigate])
+
+  useEffect(() => {
+    if (!loading) {
+      setSlowLoading(false)
+      return undefined
+    }
+    const timer = window.setTimeout(() => setSlowLoading(true), 7000)
+    return () => window.clearTimeout(timer)
+  }, [loading])
 
   const selectedRuns = runs.filter((run) => selectedRunIds.has(run.id))
   const selectedCount = selectedRuns.length
@@ -257,7 +273,32 @@ export function HistoryPage() {
         <h2 className="history-section-title">Ejecuciones recientes</h2>
         {loading ? (
           <LoadingSlot variant="card">
-            <LoadingPanel bare compact title="Cargando historial…" />
+            <LoadingPanel
+              bare
+              compact
+              title={slowLoading ? 'El historial sigue cargando...' : 'Cargando historial...'}
+              description={
+                slowLoading
+                  ? 'El backend puede estar finalizando un analisis o guardando evidencias. Si tarda demasiado, pulsa Actualizar.'
+                  : 'Consultando solo el resumen de ejecuciones recientes.'
+              }
+            />
+          </LoadingSlot>
+        ) : runsLoadFailed ? (
+          <LoadingSlot variant="card">
+            <DataTableEmpty>
+              No se pudo cargar el historial:{' '}
+              {runsLoadError instanceof Error ? runsLoadError.message : 'error desconocido.'}
+              <br />
+              <Button
+                type="button"
+                variant="secondary"
+                className="history-retry-button"
+                onClick={() => void refetch()}
+              >
+                Reintentar
+              </Button>
+            </DataTableEmpty>
           </LoadingSlot>
         ) : runs.length === 0 ? (
           <LoadingSlot variant="card">

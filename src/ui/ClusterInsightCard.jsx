@@ -24,6 +24,7 @@ export function ClusterInsightCard({
   selectionDisabled = false,
   onSelectChange,
   onViewDetail,
+  saved = false,
   actionLabel = 'Agregar al dashboard',
   actionDisabled = false,
   onAction,
@@ -34,7 +35,9 @@ export function ClusterInsightCard({
 
   return (
     <Card
-      className={`cluster-insight-card${selected ? ' cluster-insight-card--checked' : ''} ${className}`.trim()}
+      className={`cluster-insight-card${selected ? ' cluster-insight-card--checked' : ''}${
+        saved ? ' cluster-insight-card--saved' : ''
+      } ${className}`.trim()}
       sx={{ overflow: 'visible' }}
     >
       <CardContent sx={{ pb: 1 }}>
@@ -77,7 +80,16 @@ export function ClusterInsightCard({
                   {title}
                 </Typography>
               </Box>
-              <PriorityChip label={priority} />
+              <Stack direction="row" spacing={0.75} alignItems="center" justifyContent="flex-end">
+                {saved ? (
+                  <Chip
+                    className="cluster-insight-card__saved-chip"
+                    label="Guardado en dashboard"
+                    size="small"
+                  />
+                ) : null}
+                <PriorityChip label={priority} />
+              </Stack>
             </Stack>
 
             <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
@@ -140,6 +152,7 @@ ClusterInsightCard.propTypes = {
   selectionDisabled: PropTypes.bool,
   onSelectChange: PropTypes.func,
   onViewDetail: PropTypes.func,
+  saved: PropTypes.bool,
   actionLabel: PropTypes.string,
   actionDisabled: PropTypes.bool,
   onAction: PropTypes.func,
