@@ -17,13 +17,10 @@ function useEstimatedProgress(active) {
   const [progress, setProgress] = useState(0)
 
   useEffect(() => {
-    if (!active) {
-      setProgress(0)
-      return undefined
-    }
+    if (!active) return undefined
 
     const startedAt = Date.now()
-    setProgress(8)
+    const resetTimer = window.setTimeout(() => setProgress(8), 0)
     const interval = window.setInterval(() => {
       setProgress((current) => {
         const elapsed = Date.now() - startedAt
@@ -33,10 +30,13 @@ function useEstimatedProgress(active) {
       })
     }, 900)
 
-    return () => window.clearInterval(interval)
+    return () => {
+      window.clearTimeout(resetTimer)
+      window.clearInterval(interval)
+    }
   }, [active])
 
-  return progress
+  return active ? progress : 0
 }
 
 function AgentProgressLoading({ title, description, progress }) {

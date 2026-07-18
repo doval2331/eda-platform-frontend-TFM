@@ -292,9 +292,9 @@ export function useDashboardPage({ onRunStateChange, isExpert = false } = {}) {
   const reductionAutoAppliedRef = useRef(false)
 
   useEffect(() => {
-    if (!isExpert) {
-      setAnalysisConfigOpen(false)
-    }
+    if (isExpert) return undefined
+    const timer = window.setTimeout(() => setAnalysisConfigOpen(false), 0)
+    return () => window.clearTimeout(timer)
   }, [isExpert])
 
   const analysisStatusMessage = useMemo(
@@ -355,8 +355,11 @@ export function useDashboardPage({ onRunStateChange, isExpert = false } = {}) {
     const hasDataset =
       Boolean(datasetProfile?.dataset_id) || Boolean(activeProject?.total_rows || activeProject?.csv_source_count)
     if (!hasDataset) return
-    setMetodoReduccion(reductionRecommendation.method)
-    reductionAutoAppliedRef.current = true
+    const timer = window.setTimeout(() => {
+      setMetodoReduccion(reductionRecommendation.method)
+      reductionAutoAppliedRef.current = true
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [reductionRecommendation, datasetProfile, activeProject])
 
   const loadActiveProject = useCallback(async (projectId) => {

@@ -43,10 +43,12 @@ export function FloatingChatWidget({
   const isReady = Boolean(run?.id)
 
   useEffect(() => {
-    if (forceOpen) {
+    if (!forceOpen) return undefined
+    const timer = window.setTimeout(() => {
       setOpen(true)
       setHasOpenedOnce(true)
-    }
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [forceOpen])
 
   function toggleOpen() {

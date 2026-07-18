@@ -69,9 +69,7 @@ function AlertContent({
   title,
   message,
   expandedContent,
-  showExpandButton,
   isExpanded,
-  onToggleExpand,
 }) {
   return (
     <>
@@ -156,9 +154,7 @@ export default function Feedback({
           title={title}
           message={message}
           expandedContent={expandedContent}
-          showExpandButton={showExpandButton}
           isExpanded={isExpanded}
-          onToggleExpand={onToggleExpand}
         />
       </Alert>
     )
@@ -203,9 +199,7 @@ export default function Feedback({
           title={title}
           message={message}
           expandedContent={expandedContent}
-          showExpandButton={showExpandButton}
           isExpanded={isExpanded}
-          onToggleExpand={onToggleExpand}
         />
       </Alert>
     </Snackbar>

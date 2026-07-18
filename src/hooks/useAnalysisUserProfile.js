@@ -28,7 +28,7 @@ export function useAnalysisUserProfile() {
     try {
       localStorage.setItem(ANALYSIS_USER_PROFILE_KEY, next)
     } catch {
-     
+      // El perfil sigue disponible en memoria cuando el almacenamiento está bloqueado.
     }
   }, [])
 

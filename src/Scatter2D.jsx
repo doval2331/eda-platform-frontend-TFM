@@ -231,20 +231,17 @@ export function Scatter2D({ X_2d, clusterLabels, metadata, loading = false }) {
   const [highlightId, setHighlightId] = useState('')
   const [viewMode, setViewMode] = useState('scatter')
   const [sizePreset, setSizePreset] = useState('auto')
-  const [defaultsApplied, setDefaultsApplied] = useState(false)
 
   useEffect(() => {
-    if (!stats || defaultsApplied) return
-    setShowMode(defaultShowMode(stats))
-    setDefaultsApplied(true)
-  }, [stats, defaultsApplied])
-
-  useEffect(() => {
-    setDefaultsApplied(false)
-    setHighlightId('')
-    setViewMode('scatter')
-    setSizePreset('auto')
-  }, [clusterLabels])
+    if (!stats) return undefined
+    const timer = window.setTimeout(() => {
+      setShowMode(defaultShowMode(stats))
+      setHighlightId('')
+      setViewMode('scatter')
+      setSizePreset('auto')
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [stats])
 
   const sampleMeta = metadata?.[0]
   const useStructured =

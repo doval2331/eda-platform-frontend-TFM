@@ -3,7 +3,7 @@ import { Stack, Typography } from '@mui/material'
 import { useClusterProfiles } from '@/hooks/queries'
 import { Card, LoadingSlot } from '@/ui'
 
-export function insightClusterId(insight) {
+function insightClusterId(insight) {
   if (!insight) return null
   const kind = insight.filter_kind || insight.dimension
   if (kind !== 'cluster_label') return null

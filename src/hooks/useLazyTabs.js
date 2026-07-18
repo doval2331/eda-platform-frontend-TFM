@@ -12,16 +12,17 @@ export function useLazyTabs(activeTab, initialVisited = []) {
   })
 
   useEffect(() => {
-    if (!activeTab) return
-    setVisited((prev) => {
-      if (prev.has(activeTab)) return prev
-      const next = new Set(prev)
-      next.add(activeTab)
-      return next
-    })
+    if (!activeTab) return undefined
+    const timer = window.setTimeout(() => {
+      setVisited((prev) => {
+        if (prev.has(activeTab)) return prev
+        return new Set([...prev, activeTab])
+      })
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [activeTab])
 
-  const isVisited = useCallback((tab) => visited.has(tab), [visited])
+  const isVisited = useCallback((tab) => tab === activeTab || visited.has(tab), [activeTab, visited])
 
   const markVisited = useCallback((tab) => {
     setVisited((prev) => {

@@ -72,12 +72,13 @@ export function HistoryPage() {
   }, [location.pathname, location.state, navigate])
 
   useEffect(() => {
-    if (!loading) {
-      setSlowLoading(false)
-      return undefined
-    }
+    if (!loading) return undefined
+    const resetTimer = window.setTimeout(() => setSlowLoading(false), 0)
     const timer = window.setTimeout(() => setSlowLoading(true), 7000)
-    return () => window.clearTimeout(timer)
+    return () => {
+      window.clearTimeout(resetTimer)
+      window.clearTimeout(timer)
+    }
   }, [loading])
 
   const selectedRuns = runs.filter((run) => selectedRunIds.has(run.id))
