@@ -3,7 +3,7 @@ import PropTypes from 'prop-types'
 import { fetchMetabaseEmbedToken } from '@/api/metabase'
 import { Card, LoadingPanel } from '@/ui'
 
-export function MetabaseEmbedPanel({ runId, className = '' }) {
+export function MetabaseEmbedPanel({ className = '' }) {
   const [embedUrl, setEmbedUrl] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -26,7 +26,8 @@ export function MetabaseEmbedPanel({ runId, className = '' }) {
   }, [])
 
   useEffect(() => {
-    void loadEmbed()
+    const timer = window.setTimeout(() => void loadEmbed(), 0)
+    return () => window.clearTimeout(timer)
   }, [loadEmbed])
 
   useEffect(() => {
@@ -77,6 +78,5 @@ export function MetabaseEmbedPanel({ runId, className = '' }) {
 }
 
 MetabaseEmbedPanel.propTypes = {
-  runId: PropTypes.string,
   className: PropTypes.string,
 }

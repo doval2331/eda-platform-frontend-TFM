@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import '@/styles/app.css'
@@ -83,28 +83,6 @@ export function HistoryRunDetailPage() {
       },
     })
   }
-
-  const loadRun = useCallback(async () => {
-    if (!runId) return
-    setLoading(true)
-    setError(null)
-    try {
-      const detail = await fetchRun(runId)
-      setRun(detail)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo cargar la ejecución')
-      setRun(null)
-    } finally {
-      setLoading(false)
-    }
-  }, [runId])
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void loadRun()
-    }, 0)
-    return () => window.clearTimeout(timer)
-  }, [loadRun])
 
   useEffect(() => {
     const state = location.state ?? {}

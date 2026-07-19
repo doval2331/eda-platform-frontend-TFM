@@ -40,10 +40,3 @@ export function AgentPhaseSteps({ phase }) {
 AgentPhaseSteps.propTypes = {
   phase: PropTypes.oneOf(['strategy', 'interpret', 'review']).isRequired,
 }
-
-export function resolveAgentPhase({ recommendations, insights, strategyConfirmed }) {
-  if (insights.length > 0) return 'review'
-  if (recommendations.length > 0 && strategyConfirmed) return 'interpret'
-  if (recommendations.length > 0) return 'strategy'
-  return 'strategy'
-}

@@ -65,28 +65,36 @@ export function ConversationPanel({ run }) {
   const [selectedIds, setSelectedIds] = useState(new Set())
 
   useEffect(() => {
-    setError(null)
-    setQuestion('')
-    setSelectedIds(new Set())
-    if (run?.id) {
-      setMessages([
-        {
-          role: 'assistant',
-          text: 'Ya puedo conversar sobre esta ejecucion. Proba con SLA, servicios afectados, prioridades, causas raiz, anomalias, clusters criticos o alternativas de decision.',
-        },
-      ])
-      setSuggestions(DEFAULT_SUGGESTIONS)
-      void fetchRunSuggestedQuestions(run.id)
-        .then((response) => {
-          if (response.suggested_questions?.length) {
-            setSuggestions(response.suggested_questions)
-          }
-        })
-        .catch(() => {
-          setSuggestions(DEFAULT_SUGGESTIONS)
-        })
-    } else {
-      setMessages([])
+    let active = true
+    const timer = window.setTimeout(() => {
+      if (!active) return
+      setError(null)
+      setQuestion('')
+      setSelectedIds(new Set())
+      if (run?.id) {
+        setMessages([
+          {
+            role: 'assistant',
+            text: 'Ya puedo conversar sobre esta ejecucion. Proba con SLA, servicios afectados, prioridades, causas raiz, anomalias, clusters criticos o alternativas de decision.',
+          },
+        ])
+        setSuggestions(DEFAULT_SUGGESTIONS)
+        void fetchRunSuggestedQuestions(run.id)
+          .then((response) => {
+            if (active && response.suggested_questions?.length) {
+              setSuggestions(response.suggested_questions)
+            }
+          })
+          .catch(() => {
+            if (active) setSuggestions(DEFAULT_SUGGESTIONS)
+          })
+      } else {
+        setMessages([])
+      }
+    }, 0)
+    return () => {
+      active = false
+      window.clearTimeout(timer)
     }
   }, [run?.id])
 
@@ -215,5 +223,4 @@ export function ConversationPanel({ run }) {
     </section>
   )
 }
-export { ExplorationChatBot as ConversationPanel } from './chat/ExplorationChatBot'
 export { ChatBot, ExplorationChatBot } from './chat'

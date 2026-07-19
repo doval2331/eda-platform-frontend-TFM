@@ -7,7 +7,6 @@ import {
 } from '@/api/agents'
 import { selectRunInsight, selectRunInsights } from '@/api/conversation'
 import { insightSavedMessage, insightsSavedMessage } from '@/utils/biFlow'
-import { isLlmEnrichedInsight } from '@/components/LlmVisual'
 import {
   buildInsightsOverview,
   businessInsightTitle,
@@ -16,6 +15,7 @@ import {
   insightHasClearSignal,
   insightIdentity,
   insightRiskRank,
+  isLlmEnrichedInsight,
   paginateInsightList,
   sortInsightsByBusinessPriority,
 } from '@/utils/insightPresentation'
@@ -27,7 +27,7 @@ import {
   strategyItemKey,
 } from '@/utils/strategyPresentation'
 import { INSIGHT_PAGE_SIZE } from '../shared/InsightListPagination'
-import { resolveAgentPhase } from '../shared/AgentPhaseSteps'
+import { resolveAgentPhase } from '../shared/agentPhase'
 import { insightFromAgent } from './insightFromAgent'
 
 export function useAgentAnalysisPanel(runId, onOpenChatWithPrompt, { enabled = true } = {}) {
@@ -71,18 +71,21 @@ export function useAgentAnalysisPanel(runId, onOpenChatWithPrompt, { enabled = t
   }, [runId, enabled])
 
   useEffect(() => {
-    setRecommendations([])
-    setInsights([])
-    setSelectedIds(new Set())
-    setSelectedInsightIds(new Set())
-    setMessage(null)
-    setLlmStatus(null)
-    setInsightFilter('recommended')
-    setInsightPage(0)
-    setSelectedStrategyVariables({})
-    setStrategyConfirmed(false)
-    setError(null)
-    if (runId && enabled) void loadResults()
+    const timer = window.setTimeout(() => {
+      setRecommendations([])
+      setInsights([])
+      setSelectedIds(new Set())
+      setSelectedInsightIds(new Set())
+      setMessage(null)
+      setLlmStatus(null)
+      setInsightFilter('recommended')
+      setInsightPage(0)
+      setSelectedStrategyVariables({})
+      setStrategyConfirmed(false)
+      setError(null)
+      if (runId && enabled) void loadResults()
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [runId, loadResults, enabled])
 
   const llmInsightCount = useMemo(
@@ -110,20 +113,21 @@ export function useAgentAnalysisPanel(runId, onOpenChatWithPrompt, { enabled = t
   )
 
   const filteredInsightsTotal = filteredInsights.length
+  const maxInsightPage = Math.max(
+    0,
+    Math.ceil(filteredInsightsTotal / INSIGHT_PAGE_SIZE) - 1,
+  )
+  const boundedInsightPage = Math.min(insightPage, maxInsightPage)
 
   const visibleInsights = useMemo(
-    () => paginateInsightList(filteredInsights, insightPage, INSIGHT_PAGE_SIZE),
-    [filteredInsights, insightPage],
+    () => paginateInsightList(filteredInsights, boundedInsightPage, INSIGHT_PAGE_SIZE),
+    [boundedInsightPage, filteredInsights],
   )
 
-  useEffect(() => {
+  const changeInsightFilter = useCallback((nextFilter) => {
+    setInsightFilter(nextFilter)
     setInsightPage(0)
-  }, [insightFilter, runId])
-
-  useEffect(() => {
-    const maxPage = Math.max(0, Math.ceil(filteredInsightsTotal / INSIGHT_PAGE_SIZE) - 1)
-    if (insightPage > maxPage) setInsightPage(maxPage)
-  }, [filteredInsightsTotal, insightPage])
+  }, [])
 
   const strategyOverview = useMemo(
     () => buildStrategyOverview(recommendations, selectedStrategyVariables),
@@ -374,8 +378,8 @@ export function useAgentAnalysisPanel(runId, onOpenChatWithPrompt, { enabled = t
     message,
     llmStatus,
     insightFilter,
-    setInsightFilter,
-    insightPage,
+    setInsightFilter: changeInsightFilter,
+    insightPage: boundedInsightPage,
     setInsightPage,
     selectedStrategyVariables,
     strategyConfirmed,

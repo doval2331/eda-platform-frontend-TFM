@@ -444,7 +444,7 @@ export function useProjectPrepareDialog({
       }
       setActiveTab(tab)
     },
-    [modalidad, validateTab],
+    [validateTab],
   )
 
   const displayError = localError || error

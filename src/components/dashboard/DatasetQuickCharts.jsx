@@ -42,7 +42,7 @@ export function DatasetQuickCharts({ datasetId, showNullsOverview = false, class
   const { data, isLoading, error } = useDatasetExploreProfile(datasetId, {
     enabled: Boolean(datasetId),
   })
-  const columns = data?.columns ?? []
+  const columns = useMemo(() => data?.columns ?? [], [data?.columns])
   const [selectedColumn, setSelectedColumn] = useState('')
 
   const columnOptions = useMemo(

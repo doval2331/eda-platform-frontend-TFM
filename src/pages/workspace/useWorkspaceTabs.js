@@ -14,12 +14,13 @@ export function useWorkspaceTabs() {
   const [visitedFlowTabs, setVisitedFlowTabs] = useState(() => new Set([activeFlowTab]))
 
   useEffect(() => {
-    setVisitedFlowTabs((prev) => {
-      if (prev.has(activeFlowTab)) return prev
-      const updated = new Set(prev)
-      updated.add(activeFlowTab)
-      return updated
-    })
+    const timer = window.setTimeout(() => {
+      setVisitedFlowTabs((prev) => {
+        if (prev.has(activeFlowTab)) return prev
+        return new Set([...prev, activeFlowTab])
+      })
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [activeFlowTab])
 
   const setActiveFlowTab = useCallback(

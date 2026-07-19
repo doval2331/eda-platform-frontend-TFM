@@ -613,11 +613,15 @@ export function ClusterInterpretationPanel({ result, run, loading = false }) {
   useEffect(() => {
     let active = true
     if (!runId) {
-      setSelectedIds(new Set())
-      setCheckedIds(new Set())
-      setSavedInsights([])
+      const timer = window.setTimeout(() => {
+        if (!active) return
+        setSelectedIds(new Set())
+        setCheckedIds(new Set())
+        setSavedInsights([])
+      }, 0)
       return () => {
         active = false
+        window.clearTimeout(timer)
       }
     }
 
