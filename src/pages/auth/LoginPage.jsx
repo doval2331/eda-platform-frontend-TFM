@@ -27,7 +27,7 @@ function persistRememberedEmail(email, remember) {
       localStorage.removeItem(EMAIL_KEY)
     }
   } catch {
-  
+    // El inicio de sesión continúa aunque el navegador bloquee el almacenamiento local.
   }
 }
 

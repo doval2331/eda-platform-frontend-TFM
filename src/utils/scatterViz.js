@@ -126,7 +126,7 @@ function clamp(value, min, max) {
 }
 
 function computeAutoFactor({ totalPoints, visibleCount, hasHighlight, showMode, highlightedCount }) {
-  let factor = 1
+  let factor
 
   if (totalPoints <= 400) factor = 1.45
   else if (totalPoints <= 1500) factor = 1.2
@@ -146,7 +146,7 @@ function presetFactor(sizePreset, context) {
   return SIZE_PRESETS[sizePreset]?.factor ?? 1
 }
 
-function baseSizeFromDensity(visibleCount, showMode) {
+function baseSizeFromDensity(visibleCount) {
   if (visibleCount <= 150) return 16
   if (visibleCount <= 400) return 14
   if (visibleCount <= 900) return 12
@@ -157,7 +157,7 @@ function baseSizeFromDensity(visibleCount, showMode) {
 }
 
 function highlightedPointSize(highlightedCount, visibleCount, factor) {
-  let size = 12
+  let size
   if (highlightedCount <= 60) size = 22
   else if (highlightedCount <= 150) size = 19
   else if (highlightedCount <= 350) size = 17
@@ -213,7 +213,7 @@ export function resolveMarkerSize({
     return dimmedPointSize(visibleCount, factor, isOutlier)
   }
 
-  let size = baseSizeFromDensity(visibleCount, showMode) * factor
+  let size = baseSizeFromDensity(visibleCount) * factor
   if (showMode === SHOW_MODES.TOP10) size *= 1.1
   if (showMode === SHOW_MODES.OUTLIERS) size *= 1.08
   if (isOutlier) size = Math.max(5, size - 1)
@@ -285,7 +285,6 @@ export function buildPointStyles({
     if (!pointVisible(label, showMode, stats.top10Ids, stats)) continue
 
     indices.push(i)
-    const isHighlighted = hasHighlight && Number(highlightId) === label
     colors.push(pointColor(label, showMode))
     opacities.push(pointOpacity(label, highlightId, baseOpacity))
     symbols.push(pointSymbol(label, showMode))
@@ -422,7 +421,6 @@ export function buildUnifiedTrace({
     sizePreset,
   })
 
-  const hasHighlight = highlightId !== '' && highlightId != null
   const xs = indices.map((i) => X_2d[i][0])
   const ys = indices.map((i) => X_2d[i][1])
   const customdata = indices.map((i) => buildHoverCustom(metadata?.[i], clusterLabels[i]))

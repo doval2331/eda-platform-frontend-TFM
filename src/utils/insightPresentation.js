@@ -1,5 +1,11 @@
-import { isLlmEnrichedInsight } from '@/components/LlmVisual'
 import { normalizeStrategyVariableName, uniqueBusinessVariables } from './strategyPresentation'
+
+export function isLlmEnrichedInsight(item) {
+  if (item?.interpretation_mode === 'llm_active') return true
+  if (item?.interpretation_mode === 'deterministic') return false
+  const summary = String(item?.summary ?? '').trim()
+  return !/^Cluster \d+ agrupa principalmente/i.test(summary)
+}
 
 function parseJsonList(value) {
   if (Array.isArray(value)) return value

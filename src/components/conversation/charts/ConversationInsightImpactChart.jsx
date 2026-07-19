@@ -14,7 +14,6 @@ const Plot = plotlyFactory(plotlyCore)
 
 export function ConversationInsightImpactChart({
   insights,
-  activeKey,
   onSelect,
   className = '',
 }) {
@@ -105,7 +104,6 @@ export function ConversationInsightImpactChart({
 
 ConversationInsightImpactChart.propTypes = {
   insights: PropTypes.arrayOf(PropTypes.object).isRequired,
-  activeKey: PropTypes.string,
   onSelect: PropTypes.func,
   className: PropTypes.string,
 }
