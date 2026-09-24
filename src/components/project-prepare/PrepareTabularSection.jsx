@@ -118,11 +118,11 @@ export function PrepareTabularSection({
                     ? `No se usan para agrupar: ${datasetProfile.excluded_columns.slice(0, 8).join(', ')}`
                     : undefined
                 }
+                detailContent={
+                  <MetadataSemanticSummary datasetProfile={datasetProfile} projectId={projectId} />
+                }
                 onRemove={() => onClearDataset?.()}
               />
-            ) : null}
-            {datasetProfile ? (
-              <MetadataSemanticSummary datasetProfile={datasetProfile} projectId={projectId} />
             ) : null}
             {datasetProfile ? (
               <FormSelect

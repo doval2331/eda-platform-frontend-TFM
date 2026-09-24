@@ -50,6 +50,7 @@ export function SourceFileCard({
   statusLabel,
   statusTone = 'success',
   detail,
+  detailContent,
   onRemove,
   removing = false,
   className = '',
@@ -84,7 +85,7 @@ export function SourceFileCard({
   const statusStyle = statusStyles[statusTone] ?? statusStyles.success
 
   return (
-    <Box className={`source-file-card ${className}`.trim()}>
+    <Box className={`source-file-card${expanded ? ' source-file-card--open' : ''} ${className}`.trim()}>
       <Box
         className="source-file-card__icon"
         sx={{ bgcolor: kindStyle.bg, color: kindStyle.color }}
@@ -109,7 +110,7 @@ export function SourceFileCard({
             return <SourceChip key={label} label={label} tone={tone} />
           })}
         </Stack>
-        {detail ? (
+        {detail || detailContent ? (
           <>
             <Button
               variant="text"
@@ -120,9 +121,12 @@ export function SourceFileCard({
               {expanded ? 'Ocultar detalle' : 'Ver detalle'}
             </Button>
             <Collapse in={expanded}>
-              <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
-                {detail}
-              </Typography>
+              {detail ? (
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                  {detail}
+                </Typography>
+              ) : null}
+              {detailContent ? <Box sx={{ mt: 1 }}>{detailContent}</Box> : null}
             </Collapse>
           </>
         ) : null}
@@ -182,6 +186,7 @@ SourceFileCard.propTypes = {
   statusLabel: PropTypes.string,
   statusTone: PropTypes.oneOf(['success', 'danger', 'warning', 'neutral']),
   detail: PropTypes.string,
+  detailContent: PropTypes.node,
   onRemove: PropTypes.func,
   removing: PropTypes.bool,
   className: PropTypes.string,
