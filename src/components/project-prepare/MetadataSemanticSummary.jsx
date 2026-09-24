@@ -10,12 +10,6 @@ function asList(value) {
   return Array.isArray(value) ? value : EMPTY_ARRAY
 }
 
-function asPercent(value) {
-  const number = Number(value || 0)
-  if (!Number.isFinite(number)) return '0%'
-  return `${Math.round(number)}%`
-}
-
 function buildFallbackColumnSummaries(profile) {
   const allColumns = asList(profile?.all_columns)
   const numeric = new Set(asList(profile?.numeric_columns))
@@ -125,60 +119,41 @@ CountCard.propTypes = {
   tone: PropTypes.string,
 }
 
-function StatusChip({ children, tone = 'neutral' }) {
-  return <span className={`metadata-semantic-chip metadata-semantic-chip--${tone}`}>{children}</span>
+const ROLE_LABELS = {
+  metric: 'Número',
+  dimension: 'Categoría',
+  excluded: 'Excluida',
+  unknown: 'Sin tipo',
 }
 
-StatusChip.propTypes = {
-  children: PropTypes.node.isRequired,
-  tone: PropTypes.string,
+function roleLabel(role) {
+  return ROLE_LABELS[role] || 'Sin tipo'
 }
 
-function VariableRow({ variable }) {
-  const chips = [
-    variable.useful ? ['Candidata dashboard', 'success'] : null,
-    variable.semanticActive ? ['Habilitada', 'success'] : ['Sin validar', 'warning'],
-    variable.aliases.length ? ['Alias funcional', 'info'] : null,
-    variable.llmUsable ? ['Disponible para LLM', 'success'] : ['No usar por LLM', 'warning'],
-    variable.canChart ? ['Graficable', 'success'] : ['No graficable', 'warning'],
-    variable.high_nulls ? ['Muchos nulos', 'warning'] : null,
-    variable.high_cardinality ? ['Cardinalidad alta', 'warning'] : null,
-    variable.avoidAsMetric ? ['No metrica', 'neutral'] : null,
-    variable.avoidAsDimension ? ['No dimension', 'neutral'] : null,
-    ['Metadata calculada', 'info'],
-  ].filter(Boolean)
+function reviewReason(variable) {
+  if (variable.high_nulls) return 'Muchos valores vacíos'
+  if (variable.high_cardinality) return 'Demasiados valores distintos'
+  if (!variable.canChart) return 'No se puede graficar'
+  if (variable.avoidAsMetric) return 'No usar como número'
+  if (variable.avoidAsDimension) return 'No usar como categoría'
+  return 'Revisar antes de usarla'
+}
 
+function VariableRow({ variable, reason }) {
   return (
     <article className="metadata-semantic-variable">
       <div className="metadata-semantic-variable__main">
         <strong>{variable.label}</strong>
-        <span>{variable.name}</span>
+        <span>{roleLabel(variable.role)}</span>
       </div>
-      <div className="metadata-semantic-variable__chips">
-        {chips.map(([label, tone]) => (
-          <StatusChip key={`${variable.name}-${label}`} tone={tone}>
-            {label}
-          </StatusChip>
-        ))}
-      </div>
-      <div className="metadata-semantic-variable__meta">
-        <span>{variable.role || 'sin rol'}</span>
-        {Number.isFinite(Number(variable.null_pct)) ? (
-          <span>{asPercent(variable.null_pct)} nulos</span>
-        ) : null}
-        {Number.isFinite(Number(variable.unique_count)) ? (
-          <span>{formatSpanishNumber(Number(variable.unique_count))} valores</span>
-        ) : null}
-      </div>
-      {variable.riskReasons.length ? (
-        <p>{variable.riskReasons.slice(0, 2).join(' ')}</p>
-      ) : null}
+      {reason ? <p>{reason}</p> : null}
     </article>
   )
 }
 
 VariableRow.propTypes = {
   variable: PropTypes.object.isRequired,
+  reason: PropTypes.string,
 }
 
 export function MetadataSemanticSummary({ datasetProfile, projectId }) {
@@ -203,7 +178,7 @@ export function MetadataSemanticSummary({ datasetProfile, projectId }) {
       .catch(() => {
         if (!cancelled) {
           setDictionaryPayload(null)
-          setDictionaryError('No se pudo cargar el diccionario semantico. Se muestra solo metadata calculada.')
+          setDictionaryError('No se pudo completar la revisión de todas las variables.')
         }
       })
 
@@ -221,39 +196,26 @@ export function MetadataSemanticSummary({ datasetProfile, projectId }) {
 
   const useful = rows.filter((row) => row.useful)
   const notRecommended = rows.filter((row) => !row.useful)
-  const activeSemantic = rows.filter((row) => row.semanticActive)
-  const inactiveSemantic = rows.filter((row) => row.semantic && !row.semanticActive)
-  const nonChartable = rows.filter((row) => !row.canChart)
-  const highNulls = rows.filter((row) => row.high_nulls)
-  const highCardinality = rows.filter((row) => row.high_cardinality)
-  const blocked = rows.filter((row) => row.avoidAsMetric || row.avoidAsDimension)
+  const dataIssues = rows.filter((row) => row.high_nulls || row.high_cardinality)
   const visibleUseful = useful.slice(0, 4)
   const visibleRisks = notRecommended.slice(0, 4)
 
   return (
     <div className="metadata-semantic-summary">
       <div className="metadata-semantic-summary__header">
-        <div>
-          <strong>Lectura funcional de Metadata</strong>
-          <p>
-            El dashboard conversacional trabaja con variables calculadas y validadas por reglas
-            semanticas; el LLM solo puede explicarlas, no activarlas ni inventarlas.
-          </p>
-        </div>
-        <StatusChip tone={dictionaryPayload ? 'success' : 'warning'}>
-          {dictionaryPayload ? 'Diccionario conectado' : 'Solo metadata backend'}
-        </StatusChip>
+        <strong>Variables del dataset</strong>
       </div>
 
       <div className="metadata-semantic-summary__cards">
-        <CountCard label="Variables utiles" value={useful.length} helper="Candidatas para analisis" tone="success" />
-        <CountCard label="No recomendadas" value={notRecommended.length} helper="Revisar antes de usar" tone="warning" />
-        <CountCard label="Activas en diccionario" value={activeSemantic.length} helper="Validadas semanticamente" tone="success" />
-        <CountCard label="Inactivas" value={inactiveSemantic.length} helper="No deben usarse por LLM" tone="warning" />
-        <CountCard label="No graficables" value={nonChartable.length} helper="Tabla/filtro, no grafico" tone="neutral" />
-        <CountCard label="Muchos nulos" value={highNulls.length} helper="Menor confianza" tone="warning" />
-        <CountCard label="Cardinalidad alta" value={highCardinality.length} helper="Puede saturar graficos" tone="warning" />
-        <CountCard label="Bloqueos metrica/dimension" value={blocked.length} helper="Reglas semanticas" tone="neutral" />
+        <CountCard label="Útiles" value={useful.length} helper="Listas para el análisis" />
+        <CountCard label="A revisar" value={notRecommended.length} helper="Conviene mirarlas antes" />
+        {dataIssues.length ? (
+          <CountCard
+            label="Con problemas de datos"
+            value={dataIssues.length}
+            helper="Valores vacíos o demasiados distintos"
+          />
+        ) : null}
       </div>
 
       {dictionaryError ? (
@@ -264,31 +226,27 @@ export function MetadataSemanticSummary({ datasetProfile, projectId }) {
         <div>
           <h4>Variables candidatas</h4>
           {visibleUseful.length ? (
-            visibleUseful.map((variable) => <VariableRow key={variable.name} variable={variable} />)
+            visibleUseful.map((variable) => (
+              <VariableRow key={variable.name} variable={variable} />
+            ))
           ) : (
             <p className="metadata-semantic-summary__empty">
-              No hay informacion suficiente para recomendar variables utiles.
+              No hay variables listas para el análisis.
             </p>
           )}
         </div>
         <div>
           <h4>Variables a revisar</h4>
           {visibleRisks.length ? (
-            visibleRisks.map((variable) => <VariableRow key={variable.name} variable={variable} />)
+            visibleRisks.map((variable) => (
+              <VariableRow key={variable.name} variable={variable} reason={reviewReason(variable)} />
+            ))
           ) : (
             <p className="metadata-semantic-summary__empty">
-              No se detectaron restricciones relevantes en el perfil calculado.
+              No hay variables que revisar.
             </p>
           )}
         </div>
-      </div>
-
-      <div className="metadata-semantic-summary__llm-note">
-        <strong>Rol del LLM en Metadata</strong>
-        <span>
-          El LLM explica metadatos ya calculados por backend y diccionario semantico. Si una variable
-          no existe, esta inactiva o no es interpretable, no debe mostrarse como valida ni como evidencia real.
-        </span>
       </div>
     </div>
   )
