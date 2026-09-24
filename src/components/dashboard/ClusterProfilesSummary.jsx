@@ -1,6 +1,6 @@
 import PropTypes from 'prop-types'
 import { Stack, Typography } from '@mui/material'
-import { Card, Feedback, LoadingSlot } from '@/ui'
+import { Card, Feedback, LoadingPanel, LoadingSlot } from '@/ui'
 import { useClusterProfiles } from '@/hooks/queries'
 
 export function ClusterProfilesSummary({ runId, nClusters = 0, className = '' }) {
@@ -13,9 +13,7 @@ export function ClusterProfilesSummary({ runId, nClusters = 0, className = '' })
     return (
       <Card className={className}>
         <LoadingSlot variant="chart">
-          <Typography variant="body2" color="text.secondary">
-            Cargando perfiles de clusters…
-          </Typography>
+          <LoadingPanel bare compact title="Cargando perfil…" />
         </LoadingSlot>
       </Card>
     )

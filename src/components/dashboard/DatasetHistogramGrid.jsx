@@ -3,7 +3,7 @@ import { useMemo } from 'react'
 import { Box, Stack, Typography } from '@mui/material'
 import createPlotlyComponent from 'react-plotly.js/factory'
 import Plotly from 'plotly.js-dist-min'
-import { Card, Feedback, LoadingSlot } from '@/ui'
+import { Card, Feedback, LoadingPanel, LoadingSlot } from '@/ui'
 import { useDatasetExploreProfile } from '@/hooks/queries'
 
 const plotlyFactory =
@@ -125,9 +125,7 @@ export function DatasetHistogramGrid({ datasetId, className = '' }) {
     return (
       <Card className={`dataset-histogram-grid ${className}`.trim()}>
         <LoadingSlot variant="chart">
-          <Typography variant="body2" color="text.secondary">
-            Preparando mosaico de distribuciones…
-          </Typography>
+          <LoadingPanel bare compact title="Cargando perfil…" />
         </LoadingSlot>
       </Card>
     )

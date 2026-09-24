@@ -8,9 +8,10 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { AnalysisFlowStrip, MetabaseFlowCTA, MetabaseFlowNextLink } from '@/components/bi'
 import { AgentAnalysisPanel } from '@/components/agent'
 import { ClusterInterpretationPanel } from '@/components/ClusterInterpretationPanel'
+import { ExploreVisualizationPanel } from '@/components/dashboard/ExploreVisualizationPanel'
 import { FloatingChatWidget } from '@/components/chat'
 import { RunKpis } from '@/components/RunKpis'
-import { Scatter2D } from '@/Scatter2D'
+import { useAnalysisUserProfile } from '@/hooks/useAnalysisUserProfile'
 import { useLazyTabs } from '@/hooks/useLazyTabs'
 import { runQueryKey, useRun } from '@/hooks/queries'
 import {
@@ -44,6 +45,7 @@ export function HistoryRunDetailPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { data: run, isLoading: loading, error: queryError } = useRun(runId)
+  const { isExpert } = useAnalysisUserProfile()
   const [actionError, setActionError] = useState(null)
   const [deleting, setDeleting] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
@@ -215,14 +217,13 @@ export function HistoryRunDetailPage() {
 
             {isVisited('visualization') ? (
               <div hidden={resultView !== 'visualization'} className="results-tab-panel">
-                <Scatter2D
-                  X_2d={run.result?.X_2d}
-                  clusterLabels={run.result?.cluster_labels}
-                  metadata={run.result?.metadata}
+                <ExploreVisualizationPanel
+                  resultado={run.result}
+                  lastRun={run}
+                  datasetId={run.dataset_id}
+                  nClusters={run.result?.metrics?.n_clusters ?? run.metrics?.n_clusters ?? 0}
+                  isExpert={isExpert}
                 />
-                <p className="legend-note note">
-                  Color = cluster HDBSCAN; gris = outlier (-1). Datos recuperados del historial.
-                </p>
               </div>
             ) : null}
 
