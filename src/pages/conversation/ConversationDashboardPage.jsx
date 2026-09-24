@@ -4,7 +4,6 @@ import {
   fetchConversationChartData,
   fetchConversationSemanticDictionary,
   saveOperationalSelection,
-  sendConversationFeedback,
   trackConversationDashboardEvent,
   updateConversationSemanticDictionary,
 } from '@/api/conversation'
@@ -214,16 +213,6 @@ function limitChatText(value, max = CHAT_BACKEND_MAX_CHARS) {
 }
 
 const FEEDBACK_STORAGE_PREFIX = 'conversation-dashboard-feedback'
-const FEEDBACK_REASON_LABELS = {
-  useful: 'Recomendacion util',
-  irrelevant: 'Recomendacion irrelevante',
-  wrong_variable: 'Variable incorrecta',
-  chart_not_useful: 'Grafico no util',
-  insufficient_evidence: 'Sin evidencia suficiente',
-  needs_detail: 'Requiere mas detalle',
-  action_taken: 'Termino en accion',
-}
-
 function feedbackStorageKey(runId) {
   return `${FEEDBACK_STORAGE_PREFIX}:${runId || 'global'}`
 }
@@ -235,15 +224,6 @@ function readStoredFeedback(runId) {
     return value ? JSON.parse(value) : {}
   } catch {
     return {}
-  }
-}
-
-function writeStoredFeedback(runId, state) {
-  if (typeof window === 'undefined' || !runId) return
-  try {
-    window.localStorage.setItem(feedbackStorageKey(runId), JSON.stringify(state || {}))
-  } catch {
-    // Local persistence is only a UX aid; backend feedback remains the source of truth.
   }
 }
 
@@ -1405,10 +1385,28 @@ function recommendationChatActionLabel(recommendation) {
   return 'Preguntar al agente'
 }
 
+const UUID_PATTERN = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
+
 function relatedItemLabel(semanticMap, value) {
   const text = String(value || '').trim()
   if (!text) return ''
-  return semanticLabel(semanticMap, text) || text
+  const known = semanticMap.get(text)?.label
+  if (known) return known
+  const clusterMatch = text.match(/^cluster[-_].*?[-_](-?\d+)$/i)
+  if (clusterMatch) {
+    return clusterMatch[1] === '-1' ? 'Ruido' : `Grupo ${clusterMatch[1]}`
+  }
+  if (UUID_PATTERN.test(text)) return ''
+  return semanticLabel(semanticMap, text)
+}
+
+function relatedItemLabels(semanticMap, items, limit) {
+  const labels = []
+  asList(items).forEach((item) => {
+    const label = relatedItemLabel(semanticMap, item)
+    if (label && !labels.includes(label)) labels.push(label)
+  })
+  return labels.slice(0, limit)
 }
 
 function buildVisualizationMeaning(visualization, chartRenderer, semanticMap, spec, evidenceCount = 0, isExpertMode = false) {
@@ -1882,6 +1880,15 @@ export function ConversationDashboardPage({
         : { visualization: null, chartRenderer: null, readiness: { ready: false, reason: '' } },
     [activeConclusionItem, chartDataState, isExpertMode, semanticMap, visualizations],
   )
+  const activeConclusionRelatedLabels = useMemo(
+    () =>
+      relatedItemLabels(
+        semanticMap,
+        activeConclusionItem?.source?.related_items,
+        isExpertMode ? 10 : 5,
+      ),
+    [activeConclusionItem, isExpertMode, semanticMap],
+  )
   const chartInsights = useMemo(() => {
     if (!activeChartConclusionItem?.source) return filteredInsights
     return filterInsightsForConclusion(filteredInsights, activeChartConclusionItem.source)
@@ -2166,6 +2173,10 @@ export function ConversationDashboardPage({
       null
     )
   }, [activeVisualizationId, chartDataState, spec.active_chart_default?.visualization_id, visualizations])
+  const chartViewOptions = useMemo(
+    () => visualizations.filter((item) => item?.id && selectChartRenderer(item, chartDataState)),
+    [chartDataState, visualizations],
+  )
   const activeChartRenderer = useMemo(
     () =>
       findChartRendererById(activeChartRendererId, chartDataState) ??
@@ -2900,88 +2911,6 @@ export function ConversationDashboardPage({
     ],
   )
 
-  async function handleRecommendationFeedback(recommendation, helpful, evaluationItems = [], visualization = null, reason = '') {
-    if (!activeRunId || !recommendation?.id) return
-    const key = recommendation.id
-    const feedbackValue = helpful ? 'useful' : 'not_useful'
-    const reasonCode = reason || (helpful ? 'useful' : 'irrelevant')
-    const reasonLabel = FEEDBACK_REASON_LABELS[reasonCode] || reasonCode
-    const evaluationLabels = evaluationItems.map((item) => item.label)
-    const hasWarning = evaluationItems.some((item) => item.tone === 'warning')
-    const isGraphValidated = evaluationLabels.some((label) =>
-      ['Graficable', 'Grafico construible', 'Backend valida datos reales', 'Se valida con datos'].some(
-        (candidate) => label.includes(candidate),
-      ),
-    )
-    const variablesUsed = [
-      visualization?.x,
-      visualization?.y,
-      visualization?.metric,
-      visualization?.group_by,
-    ]
-      .filter(Boolean)
-      .map((value) => String(value))
-    const finalState = reasonCode === 'action_taken' ? 'action_taken' : helpful ? 'accepted' : 'needs_revision'
-    const basePayload = {
-      helpful,
-      reason: reasonCode,
-      reason_label: reasonLabel,
-      final_state: finalState,
-      action_taken: reasonCode === 'action_taken',
-      target_type: 'agent_recommendation',
-      target_id: recommendation.id,
-      target_title: recommendation.title,
-      recommendation_id: recommendation.id,
-      recommendation_title: recommendation.title,
-      evaluation: evaluationLabels,
-      has_warning: hasWarning,
-      chart_validated: isGraphValidated,
-      chart_generated: Boolean(visualization?.id && isGraphValidated),
-      drilldown_used: Boolean(activeBackendSegmentKey),
-      tickets_analyzed: selectedBackendEvidenceItems.length || visibleBackendEvidenceItems.length || 0,
-      exported: false,
-      report_prepared: false,
-      variables_used: variablesUsed,
-      evidence_materialized: operationalReadiness.evidence_materialized,
-      evidence_records: operationalReadiness.evidence_records,
-      llm_used: Boolean(spec.llm_used),
-      visualization_id: visualization?.id || '',
-      visualization_title: visualization?.title || '',
-      dashboard_mode: audienceMode,
-      project_id: activeRun?.project_id || '',
-      feedback_source: 'dashboard_ui',
-      persisted_locally: true,
-    }
-    setFeedbackState((prev) => {
-      const next = { ...prev, [key]: feedbackValue }
-      writeStoredFeedback(activeRunId, next)
-      return next
-    })
-    setFeedbackReasonState((prev) => ({ ...prev, [key]: reasonCode }))
-    trackDashboardEvent('recommendation_feedback', basePayload)
-    try {
-      await sendConversationFeedback(activeRunId, basePayload)
-      setChartNotice(
-        helpful
-          ? `Feedback registrado: "${recommendation.title}" fue util (${reasonLabel}).`
-          : `Feedback registrado: revisaremos "${recommendation.title}" (${reasonLabel}).`,
-      )
-    } catch (err) {
-      setFeedbackState((prev) => {
-        const next = { ...prev }
-        delete next[key]
-        writeStoredFeedback(activeRunId, next)
-        return next
-      })
-      setFeedbackReasonState((prev) => {
-        const next = { ...prev }
-        delete next[key]
-        return next
-      })
-      setError(err instanceof Error ? err.message : 'No se pudo guardar el feedback.')
-    }
-  }
-
   function scrollToActiveChart() {
     window.setTimeout(() => {
       activeChartRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -3111,10 +3040,6 @@ export function ConversationDashboardPage({
         validation: item.evaluationItems,
       },
     })
-  }
-
-  function handleGuideFeedback(item, helpful, reason = '') {
-    handleRecommendationFeedback(item.recommendation, helpful, item.evaluationItems, item.visualization, reason)
   }
 
   function handleSelectVisualization(visualization) {
@@ -3467,13 +3392,8 @@ export function ConversationDashboardPage({
   function renderBackendChart() {
     if (chartBackendLoading) {
       return (
-        <div className="dashboard-spec-empty-chart">
-          <strong>Calculando datos reales del grafico...</strong>
-          <span>
-            {isExpertMode
-              ? 'Consultando evidencias materializadas en DuckDB para esta visualizacion.'
-              : 'Buscando evidencias y tickets relacionados para esta vista.'}
-          </span>
+        <div className="dashboard-spec-chart-loading">
+          <LoadingPanel bare compact title="Cargando gráfico…" />
         </div>
       )
     }
@@ -3527,11 +3447,14 @@ export function ConversationDashboardPage({
                   : 'El agente sugirio una vista, pero faltan datos suficientes para dibujarla con seguridad.'}
               </p>
             </div>
-            <div className="dashboard-spec-backend-chart__badges">
-              <span className="is-warning">No graficable</span>
-              <span className="is-warning">Requiere datos</span>
-            </div>
+            {isExpertMode ? (
+              <div className="dashboard-spec-backend-chart__badges">
+                <span className="is-warning">No graficable</span>
+                <span className="is-warning">Requiere datos</span>
+              </div>
+            ) : null}
           </div>
+          {isExpertMode ? (
           <div className="dashboard-spec-chart-build-state dashboard-spec-chart-build-state--warning">
             <strong>Por que no se muestra grafico</strong>
             <ul>
@@ -3543,6 +3466,7 @@ export function ConversationDashboardPage({
               ))}
             </ul>
           </div>
+          ) : null}
           {activeChartEvidenceItems.length ? (
             <div className="dashboard-spec-chart-actions dashboard-spec-chart-actions--fallback">
               <button
@@ -3608,16 +3532,13 @@ export function ConversationDashboardPage({
 
     return (
       <div className="dashboard-spec-backend-chart">
+        {isExpertMode ? (
+        <details className="dashboard-spec-tech-fold">
+        <summary>Validación técnica</summary>
         <div className="dashboard-spec-backend-chart__head">
           <div>
-            <span className="dashboard-spec-eyebrow">
-              {isExpertMode ? 'Datos reales calculados' : 'Vista operativa'}
-            </span>
-            <h3>{chartBackendData.title || activeVisualization?.title}</h3>
             <p>
-              {isExpertMode
-                ? `DuckDB agrego ${formatBackendNumber(chartBackendData.total_records)} registros por ${xLabel || chartBackendData.x}.`
-                : `Agrupa las evidencias guardadas para mostrar donde se concentra el problema.`}
+              {`DuckDB agrego ${formatBackendNumber(chartBackendData.total_records)} registros por ${xLabel || chartBackendData.x}.`}
             </p>
           </div>
           <div className="dashboard-spec-backend-chart__badges">
@@ -3714,6 +3635,8 @@ export function ConversationDashboardPage({
           <span>{operationSummary}</span>
           <em>{visibleOperationAction}</em>
         </div>
+        </details>
+        ) : null}
         <div className="dashboard-spec-backend-chart__axis">
           <span>{xLabel || 'Dimension'}</span>
           <span>{metricLabel}</span>
@@ -3882,80 +3805,15 @@ export function ConversationDashboardPage({
             onTechnicalVisualizationClick={handleSelectVisualization}
           />
 
-          {isExpertMode ? (
-            <section className="dashboard-spec-section">
-              <div className="dashboard-spec-section-head">
-                <div>
-                  <span className="dashboard-spec-eyebrow">Prioridades detectadas por el agente</span>
-                  <h2>Que interpretar primero</h2>
-                </div>
-              </div>
-              <div className="dashboard-spec-card-grid">
-                {findings.length ? (
-                  findings.map((finding) => (
-                    <Card key={finding.id} className="dashboard-spec-finding-card">
-                      <div className="dashboard-spec-card-top">
-                        <h3>{finding.title}</h3>
-                        <span className={priorityClass(finding.priority)}>
-                          {PRIORITY_LABELS[finding.priority] || 'Media'}
-                        </span>
-                      </div>
-                      <p>{finding.evidence || finding.impact || 'Sin evidencia resumida.'}</p>
-                      <dl>
-                        <div>
-                          <dt>Impacto</dt>
-                          <dd>{finding.impact || 'Sin dato'}</dd>
-                        </div>
-                        <div>
-                          <dt>Urgencia</dt>
-                          <dd>{finding.urgency || 'Sin dato'}</dd>
-                        </div>
-                      </dl>
-                      <div className="dashboard-spec-card-actions">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            openChatWithContext({
-                              label: finding.title,
-                              intent: 'analizar hallazgo prioritario',
-                              visibleText: finding.suggested_question || `Analiza el hallazgo: ${finding.title}.`,
-                              context: {
-                                finding,
-                                evidence: finding.evidence,
-                                suggestedQuestion: finding.suggested_question,
-                              },
-                            })
-                          }
-                        >
-                          Analizar con agente
-                        </button>
-                      </div>
-                    </Card>
-                  ))
-                ) : (
-                  <Card className="dashboard-spec-empty-card">No hay prioridades detectadas.</Card>
-                )}
-              </div>
-            </section>
-          ) : null}
-
           <div className="dashboard-spec-main-workbench">
-            <ConversationAgentGuide
-              items={agentGuideItems}
-              hiddenCount={Math.max(0, recommendations.length - agentGuideItems.length)}
-              isExpertMode={isExpertMode}
-              onApply={handleGuideApply}
-              onGraph={handleGuideGraph}
-              onChat={handleGuideChat}
-              onAdd={handleGuideAdd}
-              onFeedback={handleGuideFeedback}
-            />
             <section ref={activeChartRef} className="dashboard-spec-section dashboard-spec-active-chart">
             <div className="dashboard-spec-section-head dashboard-spec-section-head--split">
               <div>
                 <span className="dashboard-spec-eyebrow">Grafico activo</span>
                 <h2>{activeVisualization?.title || 'Visualizacion activa'}</h2>
-                <p>{activeVisualization?.reason || spec.active_chart_default?.explanation}</p>
+                {isExpertMode ? (
+                  <p>{activeVisualization?.reason || spec.active_chart_default?.explanation}</p>
+                ) : null}
                 {activeVisualization?.question_answered ? (
                   <small className="dashboard-spec-question-chip">
                     Responde: {activeVisualization.question_answered}
@@ -4022,9 +3880,24 @@ export function ConversationDashboardPage({
                 </div>
               ) : null}
             </div>
+            {chartViewOptions.length > 1 ? (
+              <div className="dashboard-spec-view-switch" role="tablist" aria-label="Vistas del grafico">
+                {chartViewOptions.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={activeVisualization?.id === item.id}
+                    onClick={() => handleSelectVisualization(item)}
+                  >
+                    {item.title}
+                  </button>
+                ))}
+              </div>
+            ) : null}
             {chartNotice ? <Feedback variant="info" message={chartNotice} /> : null}
             <div className="dashboard-spec-chart-frame">{renderActiveChart()}</div>
-            {activeVisualizationMeaning.length ? (
+            {isExpertMode && activeVisualizationMeaning.length ? (
               <Card className="dashboard-spec-meaning-panel">
                 <div className="dashboard-spec-meaning-panel__head">
                   <div>
@@ -4197,17 +4070,74 @@ export function ConversationDashboardPage({
               </Card>
             ) : null}
           </section>
+            <ConversationAgentGuide
+              items={agentGuideItems}
+              isExpertMode={isExpertMode}
+              onApply={handleGuideApply}
+              onGraph={handleGuideGraph}
+              onChat={handleGuideChat}
+              onAdd={handleGuideAdd}
+            />
           </div>
+
+          {isExpertMode && findings.length ? (
+            <section className="dashboard-spec-section">
+              <div className="dashboard-spec-section-head">
+                <div>
+                  <span className="dashboard-spec-eyebrow">Prioridades detectadas por el agente</span>
+                  <h2>Que interpretar primero</h2>
+                </div>
+              </div>
+              <div className="dashboard-spec-card-grid">
+                {findings.map((finding) => (
+                  <Card key={finding.id} className="dashboard-spec-finding-card">
+                    <div className="dashboard-spec-card-top">
+                      <h3>{finding.title}</h3>
+                      <span className={priorityClass(finding.priority)}>
+                        {PRIORITY_LABELS[finding.priority] || 'Media'}
+                      </span>
+                    </div>
+                    <p>{finding.evidence || finding.impact || 'Sin evidencia resumida.'}</p>
+                    <dl>
+                      <div>
+                        <dt>Impacto</dt>
+                        <dd>{finding.impact || 'Sin dato'}</dd>
+                      </div>
+                      <div>
+                        <dt>Urgencia</dt>
+                        <dd>{finding.urgency || 'Sin dato'}</dd>
+                      </div>
+                    </dl>
+                    <div className="dashboard-spec-card-actions">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          openChatWithContext({
+                            label: finding.title,
+                            intent: 'analizar hallazgo prioritario',
+                            visibleText: finding.suggested_question || `Analiza el hallazgo: ${finding.title}.`,
+                            context: {
+                              finding,
+                              evidence: finding.evidence,
+                              suggestedQuestion: finding.suggested_question,
+                            },
+                          })
+                        }
+                      >
+                        Analizar con agente
+                      </button>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </section>
+          ) : null}
 
           <section className="dashboard-spec-section dashboard-spec-conclusions-section">
             <div className="dashboard-spec-section-head">
               <div>
                 <span className="dashboard-spec-eyebrow">Conclusiones</span>
-                <h2>{isExpertMode ? 'Lectura accionable y trazabilidad' : 'Lectura accionable'}</h2>
-                <p>
-                  Selecciona una conclusion para ver su evidencia, prioridad visual y accion
-                  recomendada.
-                </p>
+                <h2>{isExpertMode ? 'Lectura accionable y trazabilidad' : 'Conclusiones'}</h2>
               </div>
             </div>
 
@@ -4217,12 +4147,7 @@ export function ConversationDashboardPage({
                   <div className="dashboard-spec-conclusion-matrix-head">
                     <div>
                       <h3>Matriz de decisiones</h3>
-                      <p>
-                        Ubica cada conclusion por confianza e impacto estimado con base en evidencia,
-                        metricas y terminos detectados.
-                      </p>
                     </div>
-                    <span>Impacto / urgencia vs confianza</span>
                   </div>
                   <div className="dashboard-spec-conclusion-matrix">
                     <span className="dashboard-spec-conclusion-axis dashboard-spec-conclusion-axis--y">
@@ -4283,6 +4208,8 @@ export function ConversationDashboardPage({
                         <dt>Accion recomendada</dt>
                         <dd>{activeConclusionItem.source?.recommended_action || 'Pedir detalle al agente'}</dd>
                       </div>
+                      {isExpertMode ? (
+                      <>
                       <div>
                         <dt>Grafico relacionado</dt>
                         <dd>{activeConclusionItem.source?.related_chart || 'Sin grafico explicito'}</dd>
@@ -4303,18 +4230,16 @@ export function ConversationDashboardPage({
                         <dt>Calidad de evidencia</dt>
                         <dd>{activeConclusionItem.source?.evidence_quality || spec.llm_detail || 'Sin detalle adicional'}</dd>
                       </div>
+                      </>
+                      ) : null}
                     </dl>
-                    {asList(activeConclusionItem.source?.related_items).length ? (
+                    {activeConclusionRelatedLabels.length ? (
                       <div className="dashboard-spec-related-items">
-                        <strong>Tickets, grupos o datos relacionados</strong>
+                        <strong>Relacionado</strong>
                         <div className="dashboard-spec-chip-row">
-                          {asList(activeConclusionItem.source?.related_items)
-                            .slice(0, isExpertMode ? 10 : 6)
-                            .map((item, index) => (
-                              <span key={`${item}-${index}`}>
-                                {relatedItemLabel(semanticMap, item)}
-                              </span>
-                            ))}
+                          {activeConclusionRelatedLabels.map((label) => (
+                            <span key={label}>{label}</span>
+                          ))}
                         </div>
                       </div>
                     ) : null}
@@ -4328,11 +4253,11 @@ export function ConversationDashboardPage({
                         >
                           Ver grafico relacionado
                         </button>
-                      ) : (
+                      ) : isExpertMode ? (
                         <small className="dashboard-spec-graph-unavailable">
                           Sin grafico directo: {activeConclusionGraphCandidate.readiness.reason || 'requiere una vista valida.'}
                         </small>
-                      )}
+                      ) : null}
                       <button
                         type="button"
                         onClick={() =>
@@ -4357,6 +4282,7 @@ export function ConversationDashboardPage({
               </div>
             ) : null}
 
+            {isExpertMode || !conclusionMatrixItems.length ? (
             <div className="dashboard-spec-list dashboard-spec-conclusion-list">
               {visibleConclusionListItems.length ? (
                 visibleConclusionListItems.map((item) => {
@@ -4433,12 +4359,6 @@ export function ConversationDashboardPage({
                 <Card className="dashboard-spec-empty-card">No hay conclusiones generadas.</Card>
               )}
             </div>
-            {!showDetailPanels && conclusionMatrixItems.length > visibleConclusionListItems.length ? (
-              <div className="dashboard-spec-compact-note">
-                Mostrando {visibleConclusionListItems.length} conclusiones principales de{' '}
-                {conclusionMatrixItems.length}. Usa Ver detalle para revisar toda la lectura
-                accionable.
-              </div>
             ) : null}
           </section>
 

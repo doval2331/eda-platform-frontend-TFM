@@ -205,100 +205,129 @@ export function ConversationExecutiveSummary({
   onQuestionClick,
   onTechnicalVisualizationClick,
 }) {
+  const statusText = readiness.evidenceMaterialized
+    ? `${readiness.evidenceLabel} · listo para revisar`
+    : `${readiness.evidenceLabel} · requiere revisión`
+  const nextActions = [
+    readiness.nextStep,
+    ...readiness.requiredActions,
+    ...readiness.warnings,
+  ]
+    .filter(Boolean)
+    .filter((item, index, list) => list.indexOf(item) === index)
+    .slice(0, 3)
+
   return (
-    <section className="dashboard-spec-shell">
+    <section className="dashboard-spec-shell dashboard-spec-shell--clean">
       <div className="dashboard-spec-section-head dashboard-spec-section-head--split">
         <div>
-          <span className="dashboard-spec-eyebrow">Dashboard generado por agente</span>
           <h2>{title}</h2>
-          <p className="dashboard-spec-muted dashboard-spec-agent-bridge">{description}</p>
-        </div>
-        <div className="dashboard-spec-actions">
           <span
-            className={`dashboard-spec-profile-badge${
-              isExpertMode ? ' dashboard-spec-profile-badge--expert' : ''
+            className={`dashboard-spec-status-pill${
+              readiness.evidenceMaterialized ? ' dashboard-spec-status-pill--ok' : ''
             }`}
           >
-            {profileLabel}
+            {statusText}
           </span>
+        </div>
+        <div className="dashboard-spec-actions">
           <button type="button" className="dashboard-spec-outline-button" onClick={onOpenEvidenceBase}>
-            Base de evidencia ({evidenceCount})
+            Evidencias ({evidenceCount})
           </button>
           <Link
             to="/metabase"
             state={metabaseLinkState({ runId: metabaseRunId, fromStep: 'consolidate' })}
             className="dashboard-spec-outline-button dashboard-spec-outline-button--metabase"
           >
-            Paso 4: Metabase BI
+            Metabase
           </Link>
           <button type="button" className="dashboard-spec-outline-button" onClick={onToggleDetail}>
-            {detailOpen ? 'Cerrar detalle' : 'Ver detalle'}
+            {detailOpen ? 'Menos' : 'Más detalle'}
           </button>
         </div>
       </div>
 
-      <ContractBanner contract={contract} isExpertMode={isExpertMode} />
-      <EvidenceReadinessBanner readiness={readiness} isExpertMode={isExpertMode} />
+      <div className="dashboard-spec-context-metrics dashboard-spec-context-metrics--clean">
+        {context.metrics.map((metric) => (
+          <div key={metric.label}>
+            <span>{metric.label}</span>
+            <strong>{metric.value}</strong>
+          </div>
+        ))}
+      </div>
 
-      <Card className="dashboard-spec-context-panel">
-        <h3 className="dashboard-spec-panel-title">{context.title}</h3>
-        <div className="dashboard-spec-context-metrics">
-          {context.metrics.map((metric) => (
-            <div key={metric.label}>
-              <span>{metric.label}</span>
-              <strong>{metric.value}</strong>
+      {detailOpen ? (
+        <div className="dashboard-spec-more">
+          <div className="dashboard-spec-more__grid">
+            <div className="dashboard-spec-more__card">
+              <span className="dashboard-spec-more__label">Estado</span>
+              <strong className="dashboard-spec-more__title">
+                <i
+                  className={`dashboard-spec-more__dot${
+                    readiness.evidenceMaterialized ? ' is-ok' : ''
+                  }`}
+                  aria-hidden
+                />
+                {readiness.label}
+              </strong>
+              <p>{readiness.summary}</p>
             </div>
-          ))}
-        </div>
 
-        <div className={`dashboard-spec-readiness dashboard-spec-readiness--${readiness.statusClass}`}>
-          <div className="dashboard-spec-readiness__copy">
-            <span>{readiness.title}</span>
-            <strong>{readiness.label}</strong>
-            <p>{readiness.summary}</p>
-            {readiness.nextStep ? <em>{readiness.nextStep}</em> : null}
+            <div className="dashboard-spec-more__card">
+              <span className="dashboard-spec-more__label">Qué hacer</span>
+              {nextActions.length ? (
+                <ul className="dashboard-spec-more__list">
+                  {nextActions.map((action) => (
+                    <li key={action}>{action}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p>No hay acciones pendientes.</p>
+              )}
+            </div>
+
+            <div className="dashboard-spec-more__card">
+              <span className="dashboard-spec-more__label">Contexto</span>
+              <strong className="dashboard-spec-more__title">{context.objective}</strong>
+              <p>{context.summary}</p>
+            </div>
           </div>
-          <div className="dashboard-spec-readiness__signals">
-            {readiness.signals.map((signal) => (
-              <span key={signal}>{signal}</span>
-            ))}
-          </div>
-          {readiness.warnings.length ? (
-            <ul className="dashboard-spec-readiness__warnings">
-              {readiness.warnings.map((warning) => (
-                <li key={warning}>{warning}</li>
-              ))}
-            </ul>
-          ) : null}
-          {readiness.requiredActions.length ? (
-            <div className="dashboard-spec-readiness__actions">
-              <span>{isExpertMode ? 'Acciones para madurar operacion' : 'Para usarlo con confianza'}</span>
-              <ul>
-                {readiness.requiredActions.map((action) => (
-                  <li key={action}>{action}</li>
+
+          {context.tags.length ? (
+            <div className="dashboard-spec-more__tags">
+              <span className="dashboard-spec-more__label">Variables usadas</span>
+              <div>
+                {context.tags.map((item) => (
+                  <span key={item.name} title={item.title}>
+                    {item.label}
+                  </span>
                 ))}
-              </ul>
+              </div>
             </div>
           ) : null}
-        </div>
 
-        <ol className="dashboard-spec-context-list">
-          <li>
-            <strong>{context.objective}</strong>
-            <span>{context.summary}</span>
-          </li>
-        </ol>
-        {context.tags.length ? (
-          <div className="dashboard-spec-chip-row">
-            {context.tags.map((item) => (
-              <span key={item.name} title={item.title}>
-                {item.label}
-                {isExpertMode && item.role ? <small>{item.role}</small> : null}
-              </span>
-            ))}
-          </div>
-        ) : null}
-      </Card>
+          {isExpertMode ? (
+            <details className="dashboard-spec-more__tech">
+              <summary>Diagnóstico técnico</summary>
+              <p className="dashboard-spec-muted">
+                {description} · {profileLabel}
+              </p>
+              <ContractBanner contract={contract} isExpertMode={isExpertMode} />
+              <EvidenceReadinessBanner readiness={readiness} isExpertMode={isExpertMode} />
+              {readiness.signals.length ? (
+                <div className="dashboard-spec-more__tags">
+                  <span className="dashboard-spec-more__label">Señales</span>
+                  <div>
+                    {readiness.signals.map((signal) => (
+                      <span key={signal}>{signal}</span>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </details>
+          ) : null}
+        </div>
+      ) : null}
 
       <DetailPanel
         detail={detail}
