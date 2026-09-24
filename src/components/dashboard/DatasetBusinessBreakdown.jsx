@@ -2,7 +2,7 @@ import PropTypes from 'prop-types'
 import { Box, Stack, Typography } from '@mui/material'
 import createPlotlyComponent from 'react-plotly.js/factory'
 import Plotly from 'plotly.js-dist-min'
-import { Card, Feedback, LoadingSlot } from '@/ui'
+import { Card, Feedback, LoadingPanel, LoadingSlot } from '@/ui'
 import { useDatasetExploreProfile } from '@/hooks/queries'
 
 const plotlyFactory =
@@ -27,9 +27,7 @@ export function DatasetBusinessBreakdown({ datasetId, className = '' }) {
     return (
       <Card className={`dataset-business-breakdown ${className}`.trim()}>
         <LoadingSlot variant="chart">
-          <Typography variant="body2" color="text.secondary">
-            Calculando métricas de negocio…
-          </Typography>
+          <LoadingPanel bare compact title="Cargando perfil…" />
         </LoadingSlot>
       </Card>
     )

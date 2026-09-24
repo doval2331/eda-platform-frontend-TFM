@@ -4,7 +4,7 @@ import { Stack, Typography } from '@mui/material'
 import { downloadDatasetProfileReport } from '@/api/datasets'
 import { ConversationCorrelationChart } from '@/components/conversation/charts/ConversationCorrelationChart'
 import { useDatasetFullProfile } from '@/hooks/queries'
-import { Button, Card, Feedback, LoadingSlot } from '@/ui'
+import { Button, Card, Feedback, LoadingPanel, LoadingSlot } from '@/ui'
 
 function alertVariant(level = '') {
   const clean = String(level).toLowerCase()
@@ -26,9 +26,7 @@ export function ConversationDataQualityPanel({ datasetId, className = '' }) {
     return (
       <Card className={`conv-data-quality ${className}`.trim()}>
         <LoadingSlot variant="card">
-          <Typography variant="body2" color="text.secondary">
-            Analizando calidad del dataset…
-          </Typography>
+          <LoadingPanel bare compact title="Cargando perfil…" />
         </LoadingSlot>
       </Card>
     )

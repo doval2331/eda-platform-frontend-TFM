@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react'
 import { Box, Stack, Typography } from '@mui/material'
 import createPlotlyComponent from 'react-plotly.js/factory'
 import Plotly from 'plotly.js-dist-min'
-import { Card, Feedback, FormSelect, LoadingSlot } from '@/ui'
+import { Card, Feedback, FormSelect, LoadingPanel, LoadingSlot } from '@/ui'
 import { useDatasetExploreProfile } from '@/hooks/queries'
 
 const plotlyFactory =
@@ -70,9 +70,7 @@ export function DatasetQuickCharts({ datasetId, showNullsOverview = false, class
     return (
       <Card className={`dataset-quick-charts ${className}`.trim()}>
         <LoadingSlot variant="chart">
-          <Typography variant="body2" color="text.secondary">
-            Calculando perfil exploratorio…
-          </Typography>
+          <LoadingPanel bare compact title="Cargando perfil…" />
         </LoadingSlot>
       </Card>
     )

@@ -1,7 +1,7 @@
 import PropTypes from 'prop-types'
 import { Stack, Typography } from '@mui/material'
 import { useDatasetFullProfile } from '@/hooks/queries'
-import { Card, Feedback, LoadingSlot } from '@/ui'
+import { Card, Feedback, LoadingPanel, LoadingSlot } from '@/ui'
 
 function alertVariant(level = '') {
   const clean = String(level).toLowerCase()
@@ -21,9 +21,7 @@ export function DatasetQualitySummary({ datasetId, className = '' }) {
     return (
       <Card className={`dataset-quality-summary ${className}`.trim()}>
         <LoadingSlot variant="card">
-          <Typography variant="body2" color="text.secondary">
-            Revisando calidad del dataset…
-          </Typography>
+          <LoadingPanel bare compact title="Cargando perfil…" />
         </LoadingSlot>
       </Card>
     )
