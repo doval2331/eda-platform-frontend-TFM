@@ -15,6 +15,18 @@ const DEFAULT_SUGGESTIONS = [
   '¿Cuántos casos atípicos hay?',
 ]
 
+const TELEMETRY_KINDS = new Set(['conversation_dashboard_event', 'conversation_dashboard_feedback'])
+const TELEMETRY_PREFIXES = [
+  'Evento del dashboard conversacional:',
+  'Feedback del dashboard conversacional:',
+]
+
+function isTelemetryMessage(item) {
+  if (TELEMETRY_KINDS.has(item?.metadata?.kind)) return true
+  const text = String(item?.text || '')
+  return TELEMETRY_PREFIXES.some((prefix) => text.startsWith(prefix))
+}
+
 function mapHistoryMessage(item) {
   return {
     id: item.id,
@@ -99,7 +111,9 @@ export function useRunChatHistory(runId, { enabled = true } = {}) {
 
       if (requestRef.current !== requestId) return
 
-      const restored = (historyResult.messages ?? []).map(mapHistoryMessage)
+      const restored = (historyResult.messages ?? [])
+        .filter((item) => !isTelemetryMessage(item))
+        .map(mapHistoryMessage)
       setMessages(restored)
     } catch (err) {
       if (requestRef.current !== requestId) return

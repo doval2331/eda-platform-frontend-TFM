@@ -1,25 +1,62 @@
+import { useState } from 'react'
 import { NavLink, Outlet, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
-import { IconDashboard, IconHistory, IconInsights, IconLogout } from './SidebarIcons'
+import { IconChevron, IconDashboard, IconHistory, IconInsights, IconLogout } from './SidebarIcons'
 import '@/styles/sidebar.css'
+
+const SIDEBAR_KEY = 'eda-sidebar-collapsed'
+
+function readSidebarCollapsed() {
+  try {
+    return localStorage.getItem(SIDEBAR_KEY) !== '0'
+  } catch {
+    return true
+  }
+}
 
 export function MainLayout() {
   const { user, logout } = useAuth()
   const [searchParams] = useSearchParams()
+  const [collapsed, setCollapsed] = useState(readSidebarCollapsed)
   const workspaceStep = searchParams.get('step') ?? 'analyze'
   const displayName = user?.nombre?.trim() || user?.email || 'Usuario'
   const subtitle =
     user?.email && user?.nombre?.trim() ? user.email : user?.email || ''
 
+  const toggleCollapsed = () => {
+    setCollapsed((current) => {
+      const next = !current
+      try {
+        localStorage.setItem(SIDEBAR_KEY, next ? '1' : '0')
+      } catch {
+        // El menú sigue pudiendo abrirse en esta sesión.
+      }
+      return next
+    })
+  }
+
   return (
     <div className="app-shell">
-      <aside className="app-sidebar">
+      <aside className={`app-sidebar${collapsed ? ' app-sidebar--collapsed' : ''}`}>
         <div className="sidebar-brand">
           <span className="sidebar-brand-icon" aria-hidden>
             <IconDashboard size={14} />
           </span>
-          <p className="sidebar-brand-title">Plataforma EDA</p>
+          <div className="sidebar-brand-text">
+            <p className="sidebar-brand-title">Plataforma EDA</p>
+            <p className="sidebar-brand-subtitle">{displayName}</p>
+            {subtitle ? <p className="sidebar-brand-email">{subtitle}</p> : null}
+          </div>
         </div>
+        <button
+          type="button"
+          className="sidebar-toggle"
+          onClick={toggleCollapsed}
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? 'Abrir menú' : 'Cerrar menú'}
+        >
+          <IconChevron />
+        </button>
 
         <hr className="sidebar-divider" />
 
@@ -27,6 +64,7 @@ export function MainLayout() {
           <NavLink
             to="/"
             end={false}
+            title="Análisis exploratorio"
             className={({ isActive }) => {
               const active =
                 isActive &&
@@ -43,6 +81,7 @@ export function MainLayout() {
           </NavLink>
           <NavLink
             to="/historial"
+            title="Historial"
             className={({ isActive }) =>
               `sidebar-link${isActive ? ' sidebar-link--active' : ''}`
             }
@@ -54,6 +93,7 @@ export function MainLayout() {
           </NavLink>
           <NavLink
             to="/?step=consolidate"
+            title="Dashboard conversacional"
             className={({ isActive }) => {
               const active = isActive && workspaceStep === 'consolidate'
               return `sidebar-link${active ? ' sidebar-link--active' : ''}`
@@ -66,6 +106,7 @@ export function MainLayout() {
           </NavLink>
           <NavLink
             to="/?step=report"
+            title="Informes Metabase"
             className={({ isActive }) => {
               const active = isActive && workspaceStep === 'report'
               return `sidebar-link${active ? ' sidebar-link--active' : ''}`
@@ -82,13 +123,9 @@ export function MainLayout() {
         </nav>
 
         <footer className="sidebar-footer">
-          <div className="sidebar-user">
-            <span className="sidebar-user-name">{displayName}</span>
-            {subtitle ? <span className="sidebar-user-email">{subtitle}</span> : null}
-          </div>
-          <button type="button" className="sidebar-logout" onClick={logout}>
+          <button type="button" className="sidebar-logout" onClick={logout} title="Cerrar sesión">
             <IconLogout />
-            Salir
+            <span className="sidebar-logout-label">Cerrar sesión</span>
           </button>
         </footer>
       </aside>
